@@ -1,0 +1,16 @@
+{
+  "name": "sentinel-optimizer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Client-side Sentinel migration and cost-optimization analysis for SIEM ingestion, with privacy-preserving local processing.",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
