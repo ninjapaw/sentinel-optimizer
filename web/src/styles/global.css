@@ -270,6 +270,12 @@ tr:last-child td { border-bottom: none; }
 .ai-out { font-size: 0.92rem; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.1rem; }
 .ai-body { white-space: pre-wrap; margin-top: 0.7rem; line-height: 1.6; }
 .ai-note { font-size: 0.8rem; color: var(--text-faint); margin: 0.2rem 0 0; }
+.badge-ok { background: color-mix(in srgb, var(--success, #22c55e) 18%, transparent); color: var(--success, #16a34a); border-radius: 999px; padding: 0.1rem 0.55rem; font-size: 0.75rem; font-weight: 600; margin-left: 0.4rem; }
+.ai-settings { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.6rem 0.8rem; background: var(--surface-2); font-size: 0.88rem; }
+.ai-settings-bar { display: flex; gap: 0.5rem; align-items: center; }
+.ai-settings-form { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.75rem; }
+.field-label { font-size: 0.82rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0; }
+.field-input { width: 100%; padding: 0.45rem 0.65rem; font-size: 0.88rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 .muted { color: var(--text-muted); }

@@ -4,6 +4,7 @@ import type { SentinelCostEstimate, SentinelCostInput } from "@engine/pricing/se
 import { generateRecommendations, totalSavings, type Recommendation } from "../lib/recommendations.js";
 import { getAiSummaryEndpoint } from "../lib/aiClient.js";
 import { money } from "../lib/format.js";
+import AiSettings from "./AiSettings.js";
 
 export interface AiState {
   text: string | null;
@@ -112,6 +113,7 @@ export default function Recommendations({
           Optional. Sends only aggregated totals (GB/day, cost categories, recommendation titles) —
           never your raw logs.
         </p>
+        <AiSettings />
         {import.meta.env.DEV && <p className="ai-note">Debug: AI endpoint {aiEndpoint}</p>}
         {ai.state === "error" && ai.error && <div className="error-box">{ai.error}</div>}
         {ai.text && <div className="ai-body">{ai.text}</div>}
