@@ -39,8 +39,8 @@ jobs:
         working-directory: web
         run: npm run build
         env:
-          PUBLIC_SITE_URL: ${{ secrets.PUBLIC_SITE_URL || 'https://ninjapaw.github.io/sentinel-optimizer' }}
-          PUBLIC_SITE_BASE: ${{ secrets.PUBLIC_SITE_BASE || '/sentinel-optimizer/' }}
+          PUBLIC_SITE_URL: ${{ secrets.PUBLIC_SITE_URL || 'https://sentineloptimizer.com' }}
+          PUBLIC_SITE_BASE: ${{ secrets.PUBLIC_SITE_BASE || '/' }}
           # Optional: set PUBLIC_AI_API_BASE to a custom Azure Function or Cloudflare Worker URL
           # to use server-side AI. Leave unset to rely on the user-configured Azure OpenAI
           # credentials stored in their browser (localStorage).

@@ -11,11 +11,11 @@ const engineRoot = fileURLToPath(new URL("..", import.meta.url));
 
 export default defineConfig({
   // Overridden at build time via PUBLIC_SITE_URL and PUBLIC_SITE_BASE environment variables
-  // GitHub Pages: https://ninjapaw.github.io/sentinel-optimizer/
-  // Production: https://sentinel-optimizer.com
+  // Production (default): https://sentineloptimizer.com
+  // GitHub Pages fallback: https://ninjapaw.github.io/sentinel-optimizer/
   // Cloudflare Pages dev: https://sentinel-optimizer-site.pages.dev
-  site: process.env.PUBLIC_SITE_URL ?? "https://ninjapaw.github.io/sentinel-optimizer",
-  base: process.env.PUBLIC_SITE_BASE ?? "/sentinel-optimizer/",
+  site: process.env.PUBLIC_SITE_URL ?? "https://sentineloptimizer.com",
+  base: process.env.PUBLIC_SITE_BASE ?? "/",
   integrations: [react()],
   vite: {
     resolve: {
