@@ -9,6 +9,7 @@ import {
 import type { ExportProvenance } from "../lib/exporters.js";
 import { VENDORS, type Vendor, type VendorMeta } from "../lib/examples.js";
 import { requestAiExample } from "../lib/aiClient.js";
+import { USER_CONFIG } from "@shared/config/user.config.js";
 
 interface Props {
   vendor: Vendor;
@@ -39,6 +40,10 @@ function parseFor(meta: VendorMeta, raw: string): NormalizedResult {
   }
 }
 
+function exceedsInputLimit(raw: string): boolean {
+  return new TextEncoder().encode(raw).byteLength > USER_CONFIG.input.maxBytes;
+}
+
 export default function DataInput({ vendor, onVendorChange, onParsed }: Props) {
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +58,10 @@ export default function DataInput({ vendor, onVendorChange, onParsed }: Props) {
     const trimmed = raw.trim();
     if (!trimmed) {
       setError("Paste your exported query results, or load an example.");
+      return;
+    }
+    if (exceedsInputLimit(trimmed)) {
+      setError("That input is larger than the supported 5 MB limit.");
       return;
     }
     try {
@@ -109,6 +118,11 @@ export default function DataInput({ vendor, onVendorChange, onParsed }: Props) {
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > USER_CONFIG.input.maxBytes) {
+      setError("That file is larger than the supported 5 MB limit.");
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => {
       const content = String(reader.result ?? "");

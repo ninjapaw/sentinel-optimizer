@@ -1,0 +1,12 @@
+.dev.vars*
+.env*
+.git*
+.vscode/
+local.settings.json
+src/
+test/
+tsconfig.json
+tsconfig.build.json
+vitest.config.ts
+wrangler.toml
+*.log

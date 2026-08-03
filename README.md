@@ -3,10 +3,12 @@
 SentinelOptimizer is a client-side analysis tool that helps organizations migrate to
 Microsoft Sentinel and optimize their data ingestion strategy. It evaluates log
 sources, tables, and event volumes to identify cost-saving opportunities, reduce
-noise, and streamline onboarding. No data ever leaves your browser.
+noise, and streamline onboarding. Deterministic analysis stays in your browser;
+optional AI uses the bounded data contract described below.
 
-> Everything runs locally. The engine only parses JSON you provide — no
-> credentials, no uploads, no external calls.
+> Parsing, estimation, and deterministic recommendations run locally. Optional
+> AI features send only an aggregated summary or app-owned example template to
+> the separately configured API; raw exports and credentials are never sent.
 
 ## Positioning copy
 
@@ -37,8 +39,10 @@ noise, and streamline onboarding. No data ever leaves your browser.
 ## Trust model
 
 - **No credentials.** Never asks for tokens, keys, or secrets.
-- **Client-side only.** Parsing is pure and deterministic; nothing is stored or
-  transmitted.
+- **Local analysis.** Parsing and cost calculations are pure and deterministic;
+  raw exports are not transmitted.
+- **Optional AI boundary.** AI requests contain only bounded aggregate fields
+  or app-owned example templates and can be disabled entirely.
 - **You run the queries.** Paste exported JSON from your own SIEM; the engine
   never connects to it.
 
@@ -58,9 +62,20 @@ schema is vendor-agnostic and designed to extend to additional SIEMs.
 | `estimators/index.ts` | Estimator registry |
 | `pricing/sentinelPricing.ts` | Sentinel monthly cost model + public rate card |
 | `pricing/index.ts` | Pricing registry |
-| `api/*.ts` | Optional HTTP endpoints (kept at root for portable backend deployment) |
+| `shared/config/user.config.ts` | Supported public project customization |
+| `shared/config/internal.config.ts` | Protocol and compatibility invariants; not a customization surface |
+| `shared/utils/` | Pure helpers shared across runtime boundaries |
+| `api/` | Independently deployable, provider-neutral optional AI API |
+| `web/` | Static Astro and React frontend |
 | `samples/<vendor>.json` | Sample query/export output used by tests |
 | `test/` | Unit tests (Vitest) |
+
+## Documentation
+
+- [Web application and static hosting](web/README.md)
+- [Portable API, providers, and deployment](api/README.md)
+- [Shared configuration and utility contract](shared/README.md)
+- [Security policy and vulnerability reporting](SECURITY.md)
 
 ## Normalized schema
 
@@ -180,51 +195,83 @@ exports.
 
 ## Development
 
+### Project configuration
+
+Edit `shared/config/user.config.ts` for public branding, canonical URLs, local
+ports, model defaults, CORS defaults, and bounded API behavior. Do not put API
+keys, tokens, connection strings, or other secrets there because shared code is
+included in browser and server builds.
+
+Treat `shared/config/internal.config.ts` as application code rather than user
+configuration. It centralizes route names, storage identifiers, response
+headers, and other compatibility invariants; change it only with the consumers
+and tests that implement the same contract. Environment variables take
+precedence over shared defaults where a deployment supports an override.
+
 ```bash
 npm install
-npm test          # run the Vitest suite
-npm run typecheck # tsc --noEmit
+npm --prefix api install
+npm --prefix web install
+npm run typecheck # engine + API + web
+npm test          # engine + shared API core
+npm run build     # API + static web build
 ```
 
+For full-stack local development, optionally configure a model and start both
+services:
+
+```bash
+cp api/.env.example api/.env
+npm run dev
+```
+
+The standalone API listens on `http://localhost:7071`; Astro listens on
+`http://localhost:4321` and proxies `/api/*` to the API. Without model settings,
+the application still runs and deterministic recommendations remain available.
+
 Parsers are pure and deterministic, and each vendor has a sample fixture in
-`samples/` plus a unit test in `test/`.
+`samples/` plus a unit test in `test/`. Portable API behavior is tested under
+`api/src/core/`.
 
 ## Frontend/backend deployment modes
 
-The repo is structured so API and frontend can be deployed together or
-independently:
+The frontend and API are separate packages and deployment boundaries:
 
 - Frontend app: `web/`
-- API handlers: `api/`
+- Portable API: `api/`
 
-For Cloudflare Pages builds that expect a `functions/` directory under `web/`,
-the web project provides a staging build that dynamically creates
-`web/functions/api` from root `api/` before building:
+The API has one shared core with adapters for Azure Functions, Cloudflare
+Workers, standalone Node.js, and OCI containers. Frontends use same-origin
+`/api/*` by default or `PUBLIC_AI_API_BASE` when hosted separately.
+Azure deployment uses the Functions adapter and a zip package; Docker is not
+part of the Azure site or API workflows.
 
-```bash
-cd web
-npm run build:pages
-```
+### Lowest-cost Azure topology
 
-This keeps source-of-truth handlers in one place (`api/`) while remaining
-compatible with platforms that expect framework-local functions folders.
+- Host `web/` on **Azure Static Web Apps Free**. It needs no App Service plan,
+  server process, or linked backend.
+- Leave the optional API undeployed for a static-site-only footprint. Parsing,
+  pricing, and deterministic recommendations still work.
+- When AI is needed, host `api/` separately on **Azure Functions Flex
+  Consumption** in on-demand mode with zero always-ready instances. Set the
+  site build variable `PUBLIC_AI_API_BASE` to the Function App origin and add
+  the exact site origin to the Function App CORS allowlist.
+- Do not link the Function App under Static Web Apps **APIs** unless
+  intentionally upgrading the site to Standard. Bring-your-own backend linking
+  is not available on the Free plan.
 
-## Branch hardening (dev and production)
+Functions free grants can make light on-demand hosting very low cost, but they
+are quotas rather than a zero-cost guarantee. Model inference, storage, logs,
+bandwidth overages, custom DNS, and other attached services can incur charges.
 
-- `dev` is the integration branch for active changes.
-- `main` is the production/stable branch.
+Deployment workflows:
 
-To keep both paths shored up, this repo includes:
+- `.github/workflows/deploy-github-pages-site.yml`
+- `.github/workflows/deploy-azure-site.yml`
+- `.github/workflows/deploy-azure-api.yml`
+- `.github/workflows/deploy-cloudflare-api.yml`
 
-- CI on both branches and their PRs: `.github/workflows/ci-dev-main.yml`
-  - Root engine: `npm ci`, `npm run typecheck`, `npm test`
-  - Web app: `web npm ci`, `npm run typecheck`, `npm run build`
-- Promotion safety gate: `.github/workflows/promotion-gate.yml`
-  - Validates that `main` is an ancestor of `dev` (fast-forwardable promotion path)
-  - Prevents unnoticed branch divergence before release promotion
-
-Recommended release flow:
-
-1. Merge feature work into `dev` only.
-2. Keep `dev` green via CI.
-3. Promote `dev` to `main` with a PR once the promotion gate passes.
+See the [API README](api/README.md) for provider settings, local commands,
+identity and secret requirements, CORS, container deployment, and instructions
+for another adapter. Review the [security policy](SECURITY.md) before exposing
+configured AI routes publicly.

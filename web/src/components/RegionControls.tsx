@@ -18,14 +18,12 @@ interface Props {
   onChange: (patch: Partial<SentinelCostInput>) => void;
 }
 
-/** Per-GB / per-unit rate formatter with enough precision for tiny rates. */
 function rate(n: number): string {
   if (n >= 1) return `$${n.toFixed(2)}`;
   if (n >= 0.01) return `$${n.toFixed(3)}`;
   return `$${n.toFixed(4)}`;
 }
 
-/** Group regions by geography for an organized <optgroup> picker. */
 function byGeo(): { geo: string; regions: SentinelRegion[] }[] {
   const groups = new Map<string, SentinelRegion[]>();
   for (const r of SENTINEL_REGIONS) {

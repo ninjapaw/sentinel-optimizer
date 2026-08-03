@@ -17,5 +17,5 @@
     "noEmit": true,
     "types": ["vitest/globals"]
   },
-  "include": ["schema", "parsers", "estimators", "pricing", "test"]
+  "include": ["schema", "parsers", "estimators", "pricing", "shared", "test"]
 }

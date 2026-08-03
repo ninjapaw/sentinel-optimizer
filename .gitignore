@@ -1,4 +1,8 @@
 node_modules/
 dist/
+.dev.vars
+.env
+.wrangler/
+local.settings.json
 *.log
 .DS_Store

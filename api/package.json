@@ -1,0 +1,36 @@
+{
+  "name": "sentinel-optimizer-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Portable AI enhancement API for Sentinel Optimizer.",
+  "main": "dist/api/src/adapters/azure/functions/*.js",
+  "engines": {
+    "node": "^22.12.0 || ^24.0.0"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc --project tsconfig.build.json",
+    "smoke:azure": "node scripts/smoke-azure.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "tsx watch src/adapters/node/server.ts",
+    "start": "node dist/api/src/adapters/node/server.js",
+    "start:azure": "func start",
+    "dev:cloudflare": "wrangler dev",
+    "deploy:cloudflare": "wrangler deploy"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.16.2",
+    "@azure/identity": "^4.13.1",
+    "openai": "^7.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.0.0"
+  }
+}

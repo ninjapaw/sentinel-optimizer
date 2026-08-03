@@ -1,0 +1,108 @@
+name: Deploy Azure API
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-azure-api.yml
+      - api/**
+      - shared/**
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-azure-api.yml
+      - api/**
+      - shared/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azure-api-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check Functions
+        run: npm run typecheck
+
+      - name: Test API
+        run: npm test
+
+      - name: Build Functions
+        run: npm run build
+
+      - name: Remove development dependencies
+        run: npm prune --omit=dev
+
+      - name: Smoke-test Azure Functions entries
+        run: npm run smoke:azure
+
+      - name: Create deployment package
+        run: zip -r "$RUNNER_TEMP/function-app.zip" dist host.json node_modules package.json package-lock.json
+
+      - name: Upload deployment package
+        if: github.event_name != 'pull_request' && vars.AZURE_API_ENABLED == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: azure-function-app
+          path: ${{ runner.temp }}/function-app.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy:
+    if: github.event_name != 'pull_request' && vars.AZURE_API_ENABLED == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: azure-api
+      url: https://${{ vars.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net
+    steps:
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: azure-function-app
+          path: function-package
+
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Azure Functions API
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+          package: function-package/function-app.zip

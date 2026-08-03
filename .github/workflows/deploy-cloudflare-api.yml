@@ -1,0 +1,88 @@
+name: Deploy Cloudflare API
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-cloudflare-api.yml
+      - api/**
+      - shared/**
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-cloudflare-api.yml
+      - api/**
+      - shared/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-api-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check API
+        run: npm run typecheck
+
+      - name: Test API
+        run: npm test
+
+      - name: Build API
+        run: npm run build
+
+  deploy:
+    if: github.event_name != 'pull_request' && vars.CLOUDFLARE_API_ENABLED == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: cloudflare-api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - name: Install dependencies
+        working-directory: api
+        run: npm ci
+
+      - name: Deploy Cloudflare Worker API
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: api
+          command: deploy

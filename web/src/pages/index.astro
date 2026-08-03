@@ -3,17 +3,21 @@ import Base from "../layouts/Base.astro";
 import ThemeToggle from "../components/ThemeToggle.tsx";
 import Optimizer from "../components/Optimizer.tsx";
 import Footer from "../components/Footer.astro";
+import { BRAND } from "../lib/brand.js";
+
+const base = import.meta.env.BASE_URL;
+const repositoryUrl = `https://github.com/${BRAND.repo}`;
 ---
 
 <Base>
   <header class="site-header">
     <div class="container">
-      <a class="brand" href="/">
+      <a class="brand" href={base}>
         <span class="dot"></span>
         Sentinel&nbsp;Optimizer
       </a>
       <div class="header-actions">
-        <a class="btn btn-ghost btn-sm" href="https://github.com/blackoutsecure/sentinel-optimizer" rel="noopener">
+        <a class="btn btn-ghost btn-sm" href={repositoryUrl} rel="noopener">
           GitHub
         </a>
         <ThemeToggle client:load />

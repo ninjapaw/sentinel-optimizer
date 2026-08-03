@@ -1,0 +1,10 @@
+name = "sentinel-optimizer-api"
+main = "src/adapters/cloudflare/worker.ts"
+compatibility_date = "2026-08-03"
+
+[ai]
+binding = "AI"
+
+[vars]
+AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
+ALLOWED_ORIGINS = "https://sentineloptimizer.com,https://ninjapaw.github.io"

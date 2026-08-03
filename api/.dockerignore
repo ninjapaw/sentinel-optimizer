@@ -1,0 +1,7 @@
+.dev.vars*
+.env*
+azure-functions/
+dist/
+node_modules/
+local.settings.json
+*.log

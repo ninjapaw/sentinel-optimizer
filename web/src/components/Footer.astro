@@ -9,7 +9,6 @@ const site = siteLinks(base);
 const sources = externalSources();
 const repo = repoLinks();
 
-// Format BUILD_DATE as a short, readable date.
 let buildDateLabel = "";
 let buildDateIso = "";
 try {
@@ -23,7 +22,6 @@ try {
     });
   }
 } catch {
-  // ignore — buildDateLabel stays empty and we skip the badge
 }
 ---
 

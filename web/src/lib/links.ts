@@ -1,4 +1,3 @@
-// Shared link list for nav, footer, sitemap helpers.
 import { BRAND } from "./brand.js";
 
 export type NavLink = { href: string; label: string; external?: boolean };
@@ -21,6 +20,6 @@ export function repoLinks(): NavLink[] {
   return [
     { href: `https://github.com/${BRAND.repo}`, label: "GitHub", external: true },
     { href: `https://github.com/${BRAND.repo}/issues`, label: "Issues", external: true },
-    { href: `https://github.com/${BRAND.repo}/blob/dev/LICENSE`, label: "MIT License", external: true },
+    { href: `https://github.com/${BRAND.repo}/blob/main/LICENSE`, label: "MIT License", external: true },
   ];
 }

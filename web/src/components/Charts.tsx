@@ -17,14 +17,12 @@ import { money, gbPerDay } from "../lib/format.js";
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
-/** Reads a CSS custom property from :root (theme-aware). */
 function cssVar(name: string, fallback: string): string {
   if (typeof window === "undefined") return fallback;
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return v || fallback;
 }
 
-/** Re-render hook: bumps a counter whenever the theme toggles. */
 function useThemeKey(): number {
   const [key, setKey] = useState(0);
   useEffect(() => {

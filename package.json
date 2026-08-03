@@ -5,12 +5,24 @@
   "description": "Client-side Sentinel migration and cost-optimization analysis for SIEM ingestion, with privacy-preserving local processing.",
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "dev": "concurrently --kill-others-on-fail --names api,web \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm --prefix api run dev",
+    "dev:web": "npm --prefix web run dev",
+    "build": "npm run build:api && npm run build:web",
+    "build:api": "npm --prefix api run build",
+    "build:web": "npm --prefix web run build",
+    "test": "npm run test:engine && npm run test:api",
+    "test:engine": "vitest run",
+    "test:api": "npm --prefix api test",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "npm run typecheck:engine && npm run typecheck:api && npm run typecheck:web",
+    "typecheck:engine": "tsc --noEmit",
+    "typecheck:api": "npm --prefix api run typecheck",
+    "typecheck:web": "npm --prefix web run typecheck"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "vitest": "^4.1.10"
   }
 }

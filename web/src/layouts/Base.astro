@@ -13,6 +13,7 @@ const {
 } = Astro.props;
 
 const base = import.meta.env.BASE_URL;
+const siteUrl = new URL(base, Astro.site ?? Astro.url.origin).toString();
 ---
 
 <!doctype html>
@@ -23,6 +24,7 @@ const base = import.meta.env.BASE_URL;
     <meta name="description" content={description} />
     <meta name="author" content={BRAND.owner} />
     <meta name="color-scheme" content="dark light" />
+    <link rel="canonical" href={siteUrl} />
     <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
     <title>{title}</title>
 
@@ -65,7 +67,7 @@ const base = import.meta.env.BASE_URL;
         "@type": "Person",
         name: BRAND.owner,
       },
-      url: "https://sentinel-optimizer.billmcilhargey.com",
+      url: siteUrl,
     })} />
   </head>
   <body>

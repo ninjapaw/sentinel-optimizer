@@ -1,29 +1,25 @@
-// Derived brand identity surface. Edit values in src/lib/config.ts.
-
 import { CONFIG } from "./config.js";
+import { withoutHash } from "@shared/utils/config.js";
 
 export const BRAND = {
-  // Identity
   name: CONFIG.name,
   tagline: CONFIG.tagline,
   owner: CONFIG.owner,
   repo: CONFIG.repo,
 
-  // Colors — hex codes without leading # for PDF/PowerPoint use (Sentinel colors)
-  navy: "243A5E",           // Sentinel signature navy
-  teal: "30E5D0",           // Sentinel signature teal
-  blue: "0078D4",           // Microsoft blue (secondary)
-  cyan: "50E6FF",           // Bright cyan
-  green: "107C10",          // Microsoft green
-  lime: "9BF00B",           // Bright lime
-  amber: "FFB900",          // Microsoft amber
-  purple: "D59DFF",         // Light purple
-  ink: "1B1B1B",            // Dark ink
-  grey: "737373",           // Grey
-  light: "F3F6FB",          // Light
-  white: "FFFFFF",          // White
+  navy: withoutHash(CONFIG.colors.sentinelNavy),
+  teal: withoutHash(CONFIG.colors.sentinelTeal),
+  blue: withoutHash(CONFIG.colors.blue),
+  cyan: withoutHash(CONFIG.colors.cyan),
+  green: withoutHash(CONFIG.colors.green),
+  lime: withoutHash(CONFIG.colors.lime),
+  amber: withoutHash(CONFIG.colors.amber),
+  purple: withoutHash(CONFIG.colors.purple),
+  ink: withoutHash(CONFIG.colors.ink),
+  grey: withoutHash(CONFIG.colors.grey),
+  light: withoutHash(CONFIG.colors.light),
+  white: withoutHash(CONFIG.colors.white),
 
-  // Color palette exports for CSS/styling (with # for CSS)
   sentinelTeal: CONFIG.colors.sentinelTeal,
   sentinelNavy: CONFIG.colors.sentinelNavy,
   colorBlue: CONFIG.colors.blue,

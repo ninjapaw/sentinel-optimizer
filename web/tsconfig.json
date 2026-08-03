@@ -6,9 +6,10 @@
     "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
-      "@engine/*": ["../*"]
+      "@engine/*": ["../*"],
+      "@shared/*": ["../shared/*"]
     }
   },
-  "include": [".astro/types.d.ts", "**/*", "../schema", "../parsers", "../estimators", "../pricing"],
+  "include": [".astro/types.d.ts", "**/*", "../schema", "../parsers", "../estimators", "../pricing", "../shared"],
   "exclude": ["dist"]
 }

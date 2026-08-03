@@ -1,0 +1,95 @@
+name: Deploy GitHub Pages Site
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-github-pages-site.yml
+      - estimators/**
+      - parsers/**
+      - pricing/**
+      - schema/**
+      - shared/**
+      - web/**
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-github-pages-site.yml
+      - estimators/**
+      - parsers/**
+      - pricing/**
+      - schema/**
+      - shared/**
+      - web/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages-site-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Type-check web
+        working-directory: web
+        run: npm run typecheck
+
+      - name: Build web
+        working-directory: web
+        run: npm run build
+        env:
+          PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL || format('https://{0}.github.io', github.repository_owner) }}
+          PUBLIC_SITE_BASE: ${{ vars.PUBLIC_SITE_BASE || format('/{0}/', github.event.repository.name) }}
+          PUBLIC_AI_API_BASE: ${{ vars.PUBLIC_AI_API_BASE || '' }}
+
+      - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages site
+        id: deployment
+        uses: actions/deploy-pages@v4

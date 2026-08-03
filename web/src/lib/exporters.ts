@@ -18,8 +18,6 @@ import type { Vendor } from "./examples.js";
 import type { Recommendation } from "./recommendations.js";
 import { buildProviderComparison, type ProviderComparisonModel } from "./providerComparison.js";
 import { BRAND } from "./brand.js";
-// Type-only import (erased at build time — does NOT bundle the library; the
-// runtime copy is pulled in via dynamic import() inside exportPptx).
 import type PptxGenJS from "pptxgenjs";
 
 const BREAKDOWN_LABELS: { key: keyof SentinelCostBreakdown; label: string }[] = [
@@ -81,7 +79,6 @@ function gbDay(n: number): string {
   return `${n.toFixed(3)} GB/day`;
 }
 
-/** Grab an on-page Chart.js canvas as a white-backed PNG data URL. */
 export function captureChart(containerId: string): string | undefined {
   if (typeof document === "undefined") return undefined;
   const src = document.querySelector<HTMLCanvasElement>(`#${containerId} canvas`);
@@ -103,7 +100,6 @@ export function captureChart(containerId: string): string | undefined {
   }
 }
 
-/** Aggregate everything the exporters need from the current app state. */
 export function buildReportData(args: {
   result: NormalizedResult;
   cost: SentinelCostEstimate;
