@@ -25,7 +25,6 @@ jq --exit-status \
 	--arg bicep "v${bicep_version}" \
 	--arg github_cli "$github_cli_version" \
 	'.features[$node_feature].version == $node
-	 and .features[$node_feature].npmVersion == $npm
 	 and .features[$azure_feature].version == $azure_cli
 	 and .features[$azure_feature].installBicep == true
 	 and .features[$azure_feature].bicepVersion == $bicep

@@ -24,6 +24,10 @@ shellcheck_version="$(jq --exit-status --raw-output '.shellcheck' "$versions_fil
 
 bash .devcontainer/validate-tool-versions.sh
 
+if [[ "$(npm --version)" != "$npm_version" ]]; then
+	npm install --global "npm@${npm_version}"
+fi
+
 require_version() {
 	local label="$1"
 	local expected="$2"

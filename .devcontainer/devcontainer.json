@@ -3,8 +3,7 @@
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
   "features": {
     "ghcr.io/devcontainers/features/node:1": {
-      "version": "22.12.0",
-      "npmVersion": "11.9.0"
+      "version": "22.12.0"
     },
     "ghcr.io/devcontainers/features/azure-cli:1": {
       "version": "2.89.0",
@@ -36,7 +35,11 @@
         "ms-azuretools.vscode-bicep"
       ],
       "settings": {
-        "terminal.integrated.defaultProfile.linux": "bash"
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "settingsSync.ignoredExtensions": [
+          "docsmsft.docs-authoring-pack",
+          "docsmsft.docs-preview"
+        ]
       }
     }
   },

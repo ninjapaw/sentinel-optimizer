@@ -83,9 +83,11 @@ Exact development and CI tool versions are maintained in
 `.devcontainer/tool-versions.json`. Update that file first. Because dev-container
 features are resolved before repository scripts run, copy the same values into
 the matching feature options in `.devcontainer/devcontainer.json`; the
-post-create script rejects mismatches. GitHub workflows load Node and Bicep
-versions from the manifest automatically. Use full numeric versions such as
-`22.12.0`, not floating majors or `latest`, then rebuild the container.
+post-create script rejects mismatches. npm is installed from the manifest by
+the post-create script because the Node feature does not provide an npm version
+option. GitHub workflows load Node and Bicep versions from the manifest
+automatically. Use full numeric versions such as `22.12.0`, not floating majors
+or `latest`, then rebuild the container.
 
 The image contains no Azure or GitHub credentials. Authenticate only when a
 deployment task needs them:
