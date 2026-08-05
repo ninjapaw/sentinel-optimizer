@@ -1,0 +1,302 @@
+name: Validate and Deploy Azure Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-azure-infrastructure.yml
+      - infra/azure/**
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/deploy-azure-infrastructure.yml
+      - infra/azure/**
+  workflow_dispatch:
+    inputs:
+      component:
+        description: Azure stack to evaluate or deploy
+        required: true
+        type: choice
+        options:
+          - site
+          - api
+          - ai
+      operation:
+        description: Run a safe preview or apply the selected stack
+        required: true
+        default: what-if
+        type: choice
+        options:
+          - what-if
+          - deploy
+      site-sku:
+        description: Static Web Apps plan (site only)
+        required: true
+        default: Free
+        type: choice
+        options:
+          - Free
+          - Standard
+      function-memory-mb:
+        description: Flex Consumption memory per instance (API only)
+        required: true
+        default: "512"
+        type: choice
+        options:
+          - "512"
+          - "2048"
+          - "4096"
+      storage-sku:
+        description: Functions storage redundancy (API only)
+        required: true
+        default: Standard_LRS
+        type: choice
+        options:
+          - Standard_LRS
+          - Standard_ZRS
+          - Standard_GRS
+          - Standard_GZRS
+      always-ready-instances:
+        description: Warm HTTP instances; zero scales to zero (API only)
+        required: true
+        default: 0
+        type: number
+      function-maximum-instances:
+        description: Maximum burst instances, from 40 through 1000 (API only)
+        required: true
+        default: 40
+        type: number
+      openai-deployment-sku:
+        description: Azure OpenAI processing geography (AI only)
+        required: true
+        default: GlobalStandard
+        type: choice
+        options:
+          - GlobalStandard
+          - DataZoneStandard
+          - Standard
+      openai-model-capacity:
+        description: Model capacity in thousands of tokens per minute (AI only)
+        required: true
+        default: 1
+        type: number
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azure-infrastructure-${{ github.event.inputs.component || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Load tool versions
+        run: jq --raw-output --from-file .devcontainer/export-tool-versions.jq .devcontainer/tool-versions.json >> "$GITHUB_ENV"
+
+      - name: Install Bicep
+        run: |
+          curl --fail --location --silent --show-error \
+            --output "$RUNNER_TEMP/bicep" \
+            "https://github.com/Azure/bicep/releases/download/v${BICEP_VERSION}/bicep-linux-x64"
+          chmod +x "$RUNNER_TEMP/bicep"
+
+      - name: Validate Bicep and generated templates
+        run: |
+          jq --raw-output --from-file infra/azure/export-config.jq \
+            infra/azure/config.json > /dev/null
+
+          "$RUNNER_TEMP/bicep" build infra/azure/bootstrap/main.bicep \
+            --outfile "$RUNNER_TEMP/bootstrap.azuredeploy.json"
+          cmp "$RUNNER_TEMP/bootstrap.azuredeploy.json" \
+            infra/azure/bootstrap/azuredeploy.json
+          "$RUNNER_TEMP/bicep" build-params \
+            infra/azure/bootstrap/main.bicepparam \
+            --outfile "$RUNNER_TEMP/bootstrap.parameters.json"
+
+          for component in site api ai; do
+            "$RUNNER_TEMP/bicep" build "infra/azure/$component/main.bicep" \
+              --outfile "$RUNNER_TEMP/$component.azuredeploy.json"
+            cmp "$RUNNER_TEMP/$component.azuredeploy.json" \
+              "infra/azure/$component/azuredeploy.json"
+            "$RUNNER_TEMP/bicep" build-params \
+              "infra/azure/$component/main.bicepparam" \
+              --outfile "$RUNNER_TEMP/$component.parameters.json"
+          done
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: azure-infrastructure
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_SITE_SKU: ${{ inputs.site-sku }}
+      AZURE_FUNCTION_INSTANCE_MEMORY_MB: ${{ inputs.function-memory-mb }}
+      AZURE_FUNCTION_MAXIMUM_INSTANCE_COUNT: ${{ inputs.function-maximum-instances }}
+      AZURE_FUNCTION_ALWAYS_READY_INSTANCES: ${{ inputs.always-ready-instances }}
+      AZURE_FUNCTION_STORAGE_SKU: ${{ inputs.storage-sku }}
+      AZURE_OPENAI_DEPLOYMENT_SKU: ${{ inputs.openai-deployment-sku }}
+      AZURE_OPENAI_MODEL_CAPACITY: ${{ inputs.openai-model-capacity }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Load shared infrastructure configuration
+        env:
+          COMPONENT: ${{ inputs.component }}
+        run: |
+          config_file="infra/azure/config.json"
+          jq --raw-output --from-file infra/azure/export-config.jq \
+            "$config_file" >> "$GITHUB_ENV"
+
+          case "$COMPONENT" in
+            site)
+              configured_names=("$(jq --raw-output .staticWebAppName "$config_file")")
+              ;;
+            api)
+              configured_names=(
+                "$(jq --raw-output .staticWebAppName "$config_file")"
+                "$(jq --raw-output .functionAppName "$config_file")"
+              )
+              ;;
+            ai)
+              configured_names=(
+                "$(jq --raw-output .functionAppName "$config_file")"
+                "$(jq --raw-output .openAi.accountName "$config_file")"
+              )
+              ;;
+          esac
+
+          for configured_name in "${configured_names[@]}"; do
+            if [[ "$configured_name" == replace-with-* ]]; then
+              echo "::error title=Placeholder Azure resource name::Replace the $COMPONENT resource names in $config_file before deployment."
+              exit 1
+            fi
+          done
+
+      - name: Verify OIDC bootstrap configuration
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_API_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_API_PRINCIPAL_OBJECT_ID }}
+          COMPONENT: ${{ inputs.component }}
+        run: |
+          : "${AZURE_CLIENT_ID:?Run infra/azure/bootstrap.sh to configure AZURE_CLIENT_ID}"
+          : "${AZURE_TENANT_ID:?Run infra/azure/bootstrap.sh to configure AZURE_TENANT_ID}"
+          : "${AZURE_SUBSCRIPTION_ID:?Run infra/azure/bootstrap.sh to configure AZURE_SUBSCRIPTION_ID}"
+          if [[ "$COMPONENT" == api ]]; then
+            : "${AZURE_API_PRINCIPAL_OBJECT_ID:?Run infra/azure/bootstrap.sh to configure API deployment identity}"
+          fi
+
+      - name: Sign in to Azure
+        uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify Azure resource prerequisites
+        env:
+          COMPONENT: ${{ inputs.component }}
+        run: |
+          : "${AZURE_LOCATION:?Set the organization or environment variable AZURE_LOCATION}"
+
+          if [[ "$(az group exists --name "$AZURE_RESOURCE_GROUP")" != true ]]; then
+            echo "::error title=Missing Azure resource group::Run infra/azure/bootstrap.sh to create '$AZURE_RESOURCE_GROUP' and configure OIDC."
+            exit 1
+          fi
+
+          case "$COMPONENT" in
+            api)
+              if ! az staticwebapp show \
+                --resource-group "$AZURE_RESOURCE_GROUP" \
+                --name "$AZURE_STATIC_WEB_APP_NAME" \
+                --output none 2>/dev/null; then
+                echo "::error title=Missing Static Web App::Deploy infrastructure component 'site' before component 'api'."
+                exit 1
+              fi
+              ;;
+            ai)
+              if ! az functionapp show \
+                --resource-group "$AZURE_RESOURCE_GROUP" \
+                --name "$AZURE_FUNCTIONAPP_NAME" \
+                --output none 2>/dev/null; then
+                echo "::error title=Missing Function App::Deploy infrastructure component 'api' before component 'ai'."
+                exit 1
+              fi
+              ;;
+          esac
+
+      - name: Evaluate or deploy selected stack
+        env:
+          AZURE_API_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_API_PRINCIPAL_OBJECT_ID }}
+          COMPONENT: ${{ inputs.component }}
+          OPERATION: ${{ inputs.operation }}
+        run: |
+          : "${AZURE_LOCATION:?Set AZURE_LOCATION in the azure-infrastructure environment}"
+          : "${AZURE_RESOURCE_GROUP:?Set resourceGroup in infra/azure/config.json}"
+
+          command_name="$OPERATION"
+          if [[ "$OPERATION" == "deploy" ]]; then
+            command_name="create"
+          fi
+
+          parameters=(location="$AZURE_LOCATION")
+          case "$COMPONENT" in
+            site)
+              : "${AZURE_STATIC_WEB_APP_NAME:?Set staticWebAppName in infra/azure/config.json}"
+              parameters+=(
+                siteName="$AZURE_STATIC_WEB_APP_NAME"
+                siteSkuName="$AZURE_SITE_SKU"
+              )
+              ;;
+            api)
+              : "${AZURE_FUNCTIONAPP_NAME:?Set functionAppName in infra/azure/config.json}"
+              static_web_app_hostname="$(az staticwebapp show \
+                --resource-group "$AZURE_RESOURCE_GROUP" \
+                --name "$AZURE_STATIC_WEB_APP_NAME" \
+                --query defaultHostname \
+                --output tsv)"
+              : "${static_web_app_hostname:?Deploy the configured Static Web App before the API}"
+              parameters+=(
+                functionAppName="$AZURE_FUNCTIONAPP_NAME"
+                instanceMemoryMB="$AZURE_FUNCTION_INSTANCE_MEMORY_MB"
+                maximumInstanceCount="$AZURE_FUNCTION_MAXIMUM_INSTANCE_COUNT"
+                alwaysReadyInstanceCount="$AZURE_FUNCTION_ALWAYS_READY_INSTANCES"
+                storageSkuName="$AZURE_FUNCTION_STORAGE_SKU"
+                apiDeploymentPrincipalId="$AZURE_API_PRINCIPAL_OBJECT_ID"
+                allowedOrigins="[\"https://$static_web_app_hostname\"]"
+              )
+              ;;
+            ai)
+              : "${AZURE_FUNCTIONAPP_NAME:?Set functionAppName in infra/azure/config.json}"
+              : "${AZURE_OPENAI_ACCOUNT_NAME:?Set openAi.accountName in infra/azure/config.json}"
+              parameters+=(
+                functionAppName="$AZURE_FUNCTIONAPP_NAME"
+                openAiAccountName="$AZURE_OPENAI_ACCOUNT_NAME"
+                modelName="$AZURE_OPENAI_MODEL_NAME"
+                modelDeploymentName="$AZURE_OPENAI_MODEL_DEPLOYMENT"
+                modelDeploymentSkuName="$AZURE_OPENAI_DEPLOYMENT_SKU"
+                modelCapacity="$AZURE_OPENAI_MODEL_CAPACITY"
+              )
+              ;;
+          esac
+
+          az deployment group "$command_name" \
+            --name "sentinel-optimizer-$COMPONENT-${GITHUB_RUN_NUMBER}" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --template-file "infra/azure/$COMPONENT/azuredeploy.json" \
+            --parameters "${parameters[@]}"

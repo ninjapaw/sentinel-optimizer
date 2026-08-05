@@ -9,7 +9,7 @@ import {
 import type { ExportProvenance } from "../lib/exporters.js";
 import { VENDORS, type Vendor, type VendorMeta } from "../lib/examples.js";
 import { requestAiExample } from "../lib/aiClient.js";
-import { USER_CONFIG } from "@shared/config/user.config.js";
+import { USER_CONFIG, utf8ByteLength } from "@shared/index.js";
 
 interface Props {
   vendor: Vendor;
@@ -41,7 +41,7 @@ function parseFor(meta: VendorMeta, raw: string): NormalizedResult {
 }
 
 function exceedsInputLimit(raw: string): boolean {
-  return new TextEncoder().encode(raw).byteLength > USER_CONFIG.input.maxBytes;
+  return utf8ByteLength(raw) > USER_CONFIG.input.maxBytes;
 }
 
 export default function DataInput({ vendor, onVendorChange, onParsed }: Props) {

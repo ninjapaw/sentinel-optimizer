@@ -7,22 +7,21 @@ on:
     paths:
       - .github/workflows/deploy-azure-site.yml
       - estimators/**
+      - infra/azure/config.json
+      - infra/azure/export-config.jq
       - parsers/**
       - pricing/**
       - schema/**
       - shared/**
       - web/**
   pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-      - closed
     branches:
       - main
     paths:
       - .github/workflows/deploy-azure-site.yml
       - estimators/**
+      - infra/azure/config.json
+      - infra/azure/export-config.jq
       - parsers/**
       - pricing/**
       - schema/**
@@ -39,19 +38,53 @@ concurrency:
 
 jobs:
   build:
-    if: github.event_name != 'pull_request' || github.event.action != 'closed'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Load tool versions
+        run: jq --raw-output --from-file .devcontainer/export-tool-versions.jq .devcontainer/tool-versions.json >> "$GITHUB_ENV"
+
+      - name: Load shared infrastructure configuration
+        id: infrastructure-config
+        run: |
+          jq --raw-output --from-file infra/azure/export-config.jq \
+            infra/azure/config.json > /dev/null
+          public_site_url="$(jq --raw-output '.publicSiteUrl' infra/azure/config.json)"
+          use_api="$(jq --raw-output '.useApi' infra/azure/config.json)"
+          function_app_name="$(jq --raw-output '.functionAppName' infra/azure/config.json)"
+
+          api_base=""
+          if [[ "$use_api" == "true" ]]; then
+            api_base="https://$function_app_name.azurewebsites.net"
+          fi
+
+          echo "public-site-url=$public_site_url" >> "$GITHUB_OUTPUT"
+          echo "api-base=$api_base" >> "$GITHUB_OUTPUT"
+
+      - name: Verify enabled API is available
+        if: steps.infrastructure-config.outputs.api-base != ''
+        env:
+          API_BASE: ${{ steps.infrastructure-config.outputs.api-base }}
+        run: |
+          if ! curl --fail --silent --show-error \
+            --max-time 20 \
+            "$API_BASE/api/health" > /dev/null; then
+            echo "::error title=Azure API unavailable::Deploy the API infrastructure and code, or set useApi to false in infra/azure/config.json."
+            exit 1
+          fi
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: web/package-lock.json
+
+      - name: Set up npm
+        run: npm install --global "npm@${NPM_VERSION}"
 
       - name: Install dependencies
         working-directory: web
@@ -65,13 +98,13 @@ jobs:
         working-directory: web
         run: npm run build
         env:
-          PUBLIC_SITE_URL: ${{ vars.AZURE_STATIC_WEB_APP_URL || 'https://sentineloptimizer.com' }}
+          PUBLIC_SITE_URL: ${{ steps.infrastructure-config.outputs.public-site-url }}
           PUBLIC_SITE_BASE: /
-          PUBLIC_AI_API_BASE: ${{ vars.PUBLIC_AI_API_BASE || '' }}
+          PUBLIC_AI_API_BASE: ${{ steps.infrastructure-config.outputs.api-base }}
 
       - name: Upload site artifact
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: azure-static-site
           path: web/dist
@@ -79,24 +112,29 @@ jobs:
           retention-days: 7
 
   deploy-site:
-    if: >-
-      (github.event_name != 'pull_request' || github.event.action != 'closed') &&
-      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    environment: azure-site
     permissions:
       contents: read
       pull-requests: write
     steps:
       - name: Download site artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: azure-static-site
           path: site-package
 
+      - name: Verify Static Web Apps deployment token
+        env:
+          AZURE_STATIC_WEB_APPS_API_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+        run: |
+          : "${AZURE_STATIC_WEB_APPS_API_TOKEN:?Add AZURE_STATIC_WEB_APPS_API_TOKEN after deploying the site infrastructure}"
+
       - name: Deploy Azure Static Web Apps site
-        uses: Azure/static-web-apps-deploy@v1
+        uses: Azure/static-web-apps-deploy@1a947af9992250f3bc2e68ad0754c0b0c11566c9 # v1
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -105,20 +143,3 @@ jobs:
           api_location: ""
           output_location: ""
           skip_app_build: true
-
-  close-pull-request:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - name: Close Azure preview environment
-        uses: Azure/static-web-apps-deploy@v1
-        with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          action: close

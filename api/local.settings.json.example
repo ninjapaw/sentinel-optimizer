@@ -3,6 +3,7 @@
   "Values": {
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AI_API_ENABLED": "false",
     "AZURE_OPENAI_ENDPOINT": "https://YOUR-RESOURCE.openai.azure.com",
     "AZURE_OPENAI_DEPLOYMENT": "YOUR-DEPLOYMENT-NAME"
   }

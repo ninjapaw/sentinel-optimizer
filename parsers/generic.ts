@@ -1,4 +1,5 @@
 import {
+  BYTES_PER_GB,
   bytesToGbPerDay,
   computeTotals,
   type NormalizedResult,
@@ -108,8 +109,7 @@ const EVENTS_KEYS = [
   "messages",
 ];
 
-const GB_TO_BYTES = 1_000_000_000;
-const MB_TO_BYTES = 1_000_000;
+const MB_TO_BYTES = BYTES_PER_GB / 1000;
 
 function toNumber(value: unknown): number | undefined {
   if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
@@ -163,7 +163,7 @@ export function parseGeneric(
     let bytes = firstNumber(row, BYTES_KEYS);
     if (bytes === undefined) {
       const gb = firstNumber(row, GB_KEYS);
-      if (gb !== undefined) bytes = gb * GB_TO_BYTES;
+      if (gb !== undefined) bytes = gb * BYTES_PER_GB;
     }
     if (bytes === undefined) {
       const mb = firstNumber(row, MB_KEYS);
@@ -185,7 +185,9 @@ export function parseGeneric(
     const gbPerDay = firstNumber(row, GBPERDAY_KEYS);
     if (gbPerDay !== undefined) {
       source.gbPerDay = gbPerDay;
-      if (source.bytes === undefined) source.bytes = gbPerDay * windowDays * GB_TO_BYTES;
+      if (source.bytes === undefined) {
+        source.bytes = gbPerDay * windowDays * BYTES_PER_GB;
+      }
     }
 
     return source;

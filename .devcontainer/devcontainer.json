@@ -1,0 +1,44 @@
+{
+  "name": "Sentinel Optimizer",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22.12.0",
+      "npmVersion": "11.9.0"
+    },
+    "ghcr.io/devcontainers/features/azure-cli:1": {
+      "version": "2.89.0",
+      "installBicep": true,
+      "bicepVersion": "v0.46.1"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "2.88.0"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "forwardPorts": [4321, 7071],
+  "portsAttributes": {
+    "4321": {
+      "label": "Sentinel Optimizer web",
+      "onAutoForward": "notify"
+    },
+    "7071": {
+      "label": "Sentinel Optimizer API",
+      "onAutoForward": "silent"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "astro-build.astro-vscode",
+        "github.vscode-github-actions",
+        "ms-azuretools.vscode-azurefunctions",
+        "ms-azuretools.vscode-bicep"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+  "remoteUser": "vscode"
+}

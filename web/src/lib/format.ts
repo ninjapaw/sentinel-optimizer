@@ -18,6 +18,12 @@ export function money(n: number): string {
   return Math.abs(n) >= 100 ? usd.format(n) : usd2.format(n);
 }
 
+export function rate(n: number): string {
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  if (n >= 0.01) return `$${n.toFixed(3)}`;
+  return `$${n.toFixed(4)}`;
+}
+
 export function number(n: number): string {
   return int.format(n);
 }

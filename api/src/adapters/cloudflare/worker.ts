@@ -11,6 +11,7 @@ import {
 
 interface Env {
   AI?: WorkersAiBinding;
+  AI_API_ENABLED?: string;
   AI_MODEL?: string;
   ALLOWED_ORIGINS?: string;
 }
@@ -45,7 +46,9 @@ export default {
     }
 
     const url = new URL(request.url);
-    const provider = createWorkersAiProvider(environment.AI, environment.AI_MODEL);
+    const provider = environment.AI_API_ENABLED === "true"
+      ? createWorkersAiProvider(environment.AI, environment.AI_MODEL)
+      : undefined;
     const response = await routeApiRequest(
       request.method,
       url.pathname,

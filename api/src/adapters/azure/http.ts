@@ -10,7 +10,9 @@ import { routeApiRequest } from "../../core/router.js";
 import { createOpenAiProvider } from "../../providers/openai.js";
 import { INTERNAL_CONFIG } from "../../../../shared/index.js";
 
-const provider = createOpenAiProvider();
+const provider = process.env.AI_API_ENABLED === "true"
+  ? createOpenAiProvider()
+  : undefined;
 
 export function declaredBodyTooLarge(
   request: HttpRequest,

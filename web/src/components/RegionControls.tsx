@@ -10,18 +10,12 @@ import {
   regionById,
   type SentinelRegion,
 } from "@engine/pricing/regions.js";
-import { money } from "../lib/format.js";
+import { money, rate } from "../lib/format.js";
 
 interface Props {
   input: SentinelCostInput;
   cost: SentinelCostEstimate;
   onChange: (patch: Partial<SentinelCostInput>) => void;
-}
-
-function rate(n: number): string {
-  if (n >= 1) return `$${n.toFixed(2)}`;
-  if (n >= 0.01) return `$${n.toFixed(3)}`;
-  return `$${n.toFixed(4)}`;
 }
 
 function byGeo(): { geo: string; regions: SentinelRegion[] }[] {

@@ -8,19 +8,9 @@
  * real paste looks like. Everything is parsed in the browser — nothing uploads.
  */
 
-export type Vendor =
-  | "sentinel"
-  | "splunk"
-  | "elastic"
-  | "rapid7"
-  | "qradar"
-  | "sumologic"
-  | "logscale"
-  | "chronicle"
-  | "datadog"
-  | "exabeam"
-  | "logrhythm"
-  | "arcticwolf";
+import type { Vendor as NormalizedVendor } from "@engine/schema/normalization.js";
+
+export type Vendor = NormalizedVendor;
 
 /** Which engine parser handles a vendor's paste. */
 export type ParserKind = "sentinel" | "splunk" | "elastic" | "generic";

@@ -1,4 +1,7 @@
-import type { NormalizedResult } from "@engine/schema/normalization.js";
+import {
+  getTotalGbPerDay,
+  type NormalizedResult,
+} from "@engine/schema/normalization.js";
 import type { SentinelCostEstimate, SentinelCostInput } from "@engine/pricing/sentinelPricing.js";
 import type { ProviderComparisonModel } from "../lib/providerComparison.js";
 import { money, gbPerDay, gb, pct } from "../lib/format.js";
@@ -12,7 +15,7 @@ interface Props {
 }
 
 export default function ResultsDashboard({ result, cost, input, vendorLabel, providerComparison }: Props) {
-  const totalGbDay = result.totals?.gbPerDay ?? result.sources.reduce((a, s) => a + (s.gbPerDay ?? 0), 0);
+  const totalGbDay = getTotalGbPerDay(result);
   const sorted = [...result.sources].sort((a, b) => (b.gbPerDay ?? 0) - (a.gbPerDay ?? 0));
   const basicAuxGbDay = Math.max(0, input.basicAuxGbPerDay ?? 0);
   const dataLakeGbDay = Math.max(0, input.dataLakeGbPerDay ?? 0);
@@ -169,7 +172,7 @@ export default function ResultsDashboard({ result, cost, input, vendorLabel, pro
                 <tr key={s.name}>
                   <td>{s.name}</td>
                   <td className="num">{gbPerDay(g)}</td>
-                  <td className="num">{gb(g * (365 / 12))}</td>
+                  <td className="num">{gb(g * cost.rates.daysPerMonth)}</td>
                   <td className="num">{(share * 100).toFixed(1)}%</td>
                 </tr>
               );

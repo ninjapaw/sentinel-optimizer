@@ -22,14 +22,23 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Load tool versions
+        run: jq --raw-output --from-file .devcontainer/export-tool-versions.jq .devcontainer/tool-versions.json >> "$GITHUB_ENV"
+
+      - name: Validate tool versions
+        run: bash .devcontainer/validate-tool-versions.sh
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: package-lock.json
+
+      - name: Set up npm
+        run: npm install --global "npm@${NPM_VERSION}"
 
       - name: Install dependencies
         run: npm ci
@@ -51,14 +60,21 @@ jobs:
         working-directory: api
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Load tool versions
+        working-directory: .
+        run: jq --raw-output --from-file .devcontainer/export-tool-versions.jq .devcontainer/tool-versions.json >> "$GITHUB_ENV"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: api/package-lock.json
+
+      - name: Set up npm
+        run: npm install --global "npm@${NPM_VERSION}"
 
       - name: Install dependencies
         run: npm ci
@@ -86,14 +102,21 @@ jobs:
         working-directory: web
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Load tool versions
+        working-directory: .
+        run: jq --raw-output --from-file .devcontainer/export-tool-versions.jq .devcontainer/tool-versions.json >> "$GITHUB_ENV"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: web/package-lock.json
+
+      - name: Set up npm
+        run: npm install --global "npm@${NPM_VERSION}"
 
       - name: Install dependencies
         run: npm ci

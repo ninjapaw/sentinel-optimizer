@@ -4,6 +4,7 @@ import type { SentinelCostEstimate, SentinelCostInput } from "@engine/pricing/se
 import { generateRecommendations, totalSavings, type Recommendation } from "../lib/recommendations.js";
 import { getAiSummaryEndpoint } from "../lib/aiClient.js";
 import { money } from "../lib/format.js";
+import type { SummaryStyle } from "@shared/index.js";
 
 export interface AiState {
   text: string | null;
@@ -18,8 +19,8 @@ interface Props {
   input: SentinelCostInput;
   vendorLabel: string;
   ai: AiState;
-  aiStyle: "executive" | "technical" | "board";
-  onAiStyleChange: (style: "executive" | "technical" | "board") => void;
+  aiStyle: SummaryStyle;
+  onAiStyleChange: (style: SummaryStyle) => void;
   onEnhance: () => void;
 }
 
@@ -91,7 +92,7 @@ export default function Recommendations({
             <select
               id="ai-style"
               value={aiStyle}
-              onChange={(e) => onAiStyleChange(e.target.value as "executive" | "technical" | "board")}
+              onChange={(e) => onAiStyleChange(e.target.value as SummaryStyle)}
               disabled={ai.state === "loading"}
             >
               <option value="executive">Executive</option>

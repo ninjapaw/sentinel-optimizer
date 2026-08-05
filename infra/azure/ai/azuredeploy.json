@@ -1,0 +1,161 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "17257484831037473780"
+    }
+  },
+  "parameters": {
+    "openAiAccountName": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64,
+      "metadata": {
+        "description": "Globally unique Azure OpenAI account name."
+      }
+    },
+    "functionAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the existing Azure Function App that will call Azure OpenAI."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region where the selected Azure OpenAI model is available."
+      }
+    },
+    "modelDeploymentName": {
+      "type": "string",
+      "defaultValue": "sentinel-optimizer-model",
+      "metadata": {
+        "description": "Azure OpenAI deployment name written to the Function App settings."
+      }
+    },
+    "modelName": {
+      "type": "string",
+      "defaultValue": "gpt-4.1-mini",
+      "metadata": {
+        "description": "Azure OpenAI model name. Availability varies by region and subscription."
+      }
+    },
+    "modelVersion": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional model version. Leave blank to use the service default version."
+      }
+    },
+    "modelDeploymentSkuName": {
+      "type": "string",
+      "defaultValue": "GlobalStandard",
+      "allowedValues": [
+        "GlobalStandard",
+        "DataZoneStandard",
+        "Standard"
+      ],
+      "metadata": {
+        "description": "Azure OpenAI deployment type. GlobalStandard is the recommended pay-as-you-go default; choose a narrower geography only for data-processing requirements."
+      }
+    },
+    "modelCapacity": {
+      "type": "int",
+      "defaultValue": 1,
+      "minValue": 1,
+      "metadata": {
+        "description": "Model deployment capacity in thousands of tokens per minute. Start at 1 and increase only when observed throughput requires it."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Resource tags applied to Azure OpenAI resources."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.CognitiveServices/accounts",
+      "apiVersion": "2025-06-01",
+      "name": "[parameters('openAiAccountName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "kind": "OpenAI",
+      "sku": {
+        "name": "S0"
+      },
+      "properties": {
+        "customSubDomainName": "[parameters('openAiAccountName')]",
+        "disableLocalAuth": true,
+        "networkAcls": {
+          "defaultAction": "Allow"
+        },
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts/deployments",
+      "apiVersion": "2025-06-01",
+      "name": "[format('{0}/{1}', parameters('openAiAccountName'), parameters('modelDeploymentName'))]",
+      "sku": {
+        "name": "[parameters('modelDeploymentSkuName')]",
+        "capacity": "[parameters('modelCapacity')]"
+      },
+      "properties": {
+        "model": "[union(createObject('format', 'OpenAI', 'name', parameters('modelName')), if(empty(parameters('modelVersion')), createObject(), createObject('version', parameters('modelVersion'))))]",
+        "versionUpgradeOption": "OnceNewDefaultVersionAvailable"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiAccountName'))]",
+      "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiAccountName')), resourceId('Microsoft.Web/sites', parameters('functionAppName')), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'))]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2024-04-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Web/sites/config",
+      "apiVersion": "2024-04-01",
+      "name": "[format('{0}/{1}', parameters('functionAppName'), 'appsettings')]",
+      "properties": "[union(listApplicationSettings(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2024-04-01').properties, createObject('AZURE_OPENAI_DEPLOYMENT', parameters('modelDeploymentName'), 'AZURE_OPENAI_ENDPOINT', reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiAccountName')), '2025-06-01').endpoint))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts/deployments', parameters('openAiAccountName'), parameters('modelDeploymentName'))]",
+        "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiAccountName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "resourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiAccountName'))]"
+    },
+    "endpoint": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiAccountName')), '2025-06-01').endpoint]"
+    },
+    "modelDeploymentName": {
+      "type": "string",
+      "value": "[parameters('modelDeploymentName')]"
+    },
+    "functionAppName": {
+      "type": "string",
+      "value": "[parameters('functionAppName')]"
+    }
+  }
+}

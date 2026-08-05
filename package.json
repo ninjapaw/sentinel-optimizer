@@ -4,6 +4,11 @@
   "private": true,
   "description": "Client-side Sentinel migration and cost-optimization analysis for SIEM ingestion, with privacy-preserving local processing.",
   "type": "module",
+  "engines": {
+    "node": "22.12.0",
+    "npm": "11.9.0"
+  },
+  "packageManager": "npm@11.9.0",
   "scripts": {
     "dev": "concurrently --kill-others-on-fail --names api,web \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "npm --prefix api run dev",

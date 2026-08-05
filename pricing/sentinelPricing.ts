@@ -8,7 +8,11 @@
  * Pure and deterministic: no I/O, no network, no globals.
  */
 
-import { type NormalizedResult } from "../schema/normalization.js";
+import {
+  getTotalGbPerDay,
+  type NormalizedResult,
+} from "../schema/normalization.js";
+import { roundTo } from "../shared/index.js";
 import { ratesForRegion } from "./regions.js";
 
 /** Configurable pricing rates. Defaults are public list prices (USD). */
@@ -269,7 +273,7 @@ export interface SentinelCostEstimate {
 }
 
 function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+  return roundTo(n, 2);
 }
 
 function clamp(n: number, min: number, max: number): number {
@@ -536,7 +540,7 @@ export function estimateMonthlyCostFromResult(
   options: Omit<SentinelCostInput, "analyticsGbPerDay"> = {},
 ): SentinelCostEstimate {
   return estimateMonthlyCost({
-    analyticsGbPerDay: result.totals?.gbPerDay ?? 0,
+    analyticsGbPerDay: getTotalGbPerDay(result),
     ...options,
   });
 }

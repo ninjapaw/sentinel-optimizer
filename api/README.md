@@ -90,8 +90,8 @@ npm run dev
 `npm run dev` starts the standalone API on port `7071` and Astro on port `4321`.
 Astro proxies `/api/*` to the local API, so the browser uses the same-origin
 paths it uses in production. Set `LOCAL_API_URL` before starting Astro to proxy
-to a different backend. If `.env` has no valid model configuration, health
-checks still succeed and AI routes return `501` by design.
+to a different backend. Health checks remain available, but AI routes return
+`501` unless `AI_API_ENABLED=true` and a valid provider is configured.
 
 Run the services independently when needed:
 
@@ -114,9 +114,10 @@ invariants and should not be used for deployment customization.
 ### OpenAI-compatible APIs
 
 The standalone Node adapter supports OpenAI and compatible chat-completion
-services:
+services. Keep the kill switch off until access and spending controls exist:
 
 ```dotenv
+AI_API_ENABLED=false
 AI_BASE_URL=https://api.openai.com/v1
 AI_API_KEY=replace-me
 AI_MODEL=replace-me
@@ -154,7 +155,8 @@ npm run dev:cloudflare
 
 Set `ALLOWED_ORIGINS` to a comma-separated list of exact frontend origins. Do
 not use `*` for a production API. CORS controls browser response access; it does
-not authenticate callers or prevent direct requests.
+not authenticate callers or prevent direct requests. Set `AI_API_ENABLED=true`
+only after adding authentication, rate limits, quotas, and spending controls.
 
 ## Deploy independently
 
@@ -170,7 +172,7 @@ The repository workflow is `.github/workflows/deploy-azure-api.yml`. It builds,
 tests, removes development dependencies, packages the root `api/` Function App,
 and deploys the zip through GitHub OIDC and `Azure/functions-action`. It does not
 use a container registry, Dockerfile, or custom image. Validation always runs;
-deployment occurs only when repository variable `AZURE_API_ENABLED` is `true`.
+deployment occurs only when `deployApi` in `infra/azure/config.json` is `true`.
 
 1. Create a Linux Node.js 22 Azure Function App on **Flex Consumption**.
 1. Keep **Always ready instances** at `0` so the app can scale to zero and use
@@ -184,21 +186,23 @@ deployment occurs only when repository variable `AZURE_API_ENABLED` is `true`.
    OpenAI resource.
 1. Add `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT`, and
    `FUNCTIONS_NODE_BLOCK_ON_ENTRY_POINT_ERROR=true` as Function App settings.
-1. Create the GitHub environment `azure-api`.
-1. Create an Entra federated credential with subject
-   `repo:ninjapaw/sentinel-optimizer:environment:azure-api`.
-1. Grant its service principal **Website Contributor** at the Function App
-   scope.
-1. Add GitHub secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and
-   `AZURE_SUBSCRIPTION_ID`, plus variable `AZURE_FUNCTIONAPP_NAME`.
-1. Add repository variable `AZURE_API_ENABLED=true` only when the API should be
-   deployed. Leave it unset or `false` for a site-only setup.
+1. Run `infra/azure/bootstrap.sh`; it creates the `azure-api` environment,
+   separate Entra identity, federated credential, and OIDC secrets.
+1. Deploy API infrastructure; Bicep grants the bootstrap-created API principal
+   **Website Contributor** only at the Function App scope.
+1. Set `functionAppName` in `infra/azure/config.json`, and set `deployApi` to
+   `true` only when the API should be deployed. Leave it `false` for a
+   site-only setup.
 1. Run **Deploy Azure API**.
+1. After `/api/health` succeeds, set `useApi` to `true` to enable the API in the
+   Azure site build.
 
 The checked-in Functions use anonymous HTTP triggers so a separately hosted
-static frontend can call them. Do not expose a configured paid API without an authenticating
-gateway or platform access control, per-client rate limits, quotas, and provider
-budgets. If the API is not used by a public frontend, change the trigger access
+static frontend can call them, but Bicep sets `AI_API_ENABLED=false` by default.
+Do not enable it without an authenticating gateway or platform access control,
+per-client rate limits, quotas, and provider budgets. Set the
+`enableAnonymousAiRoutes` Bicep parameter to `true` only after those controls
+exist. If the API is not used by a public frontend, change the trigger access
 model to match the host's authentication mechanism.
 
 For local Functions host testing:
@@ -211,10 +215,10 @@ npm run start:azure
 ```
 
 For the lowest-cost topology, do not link this Function App to Static Web Apps.
-Keep the site on Free, set its `PUBLIC_AI_API_BASE` build variable to the direct
-Function App origin, and add the exact site origin to the Function App's
-**API > CORS** allowlist. Linking an existing Function App under **Settings >
-APIs** requires Static Web Apps Standard and is an intentional paid upgrade.
+Keep the site on Free. The Azure workflows derive `PUBLIC_AI_API_BASE` from the
+configured Function App name and read the deployed site hostname for the
+Function App CORS allowlist. Linking an existing Function App under **Settings
+> APIs** requires Static Web Apps Standard and is an intentional paid upgrade.
 
 Flex Consumption free grants and prices can change and apply at the subscription
 scope. Always-ready instances have baseline charges and no free grant. Azure

@@ -9,7 +9,7 @@ export const USER_CONFIG = Object.freeze({
   site: Object.freeze({
     name: "Sentinel Optimizer",
     tagline: "SIEM cost & migration estimator",
-    owner: "Dr. Bill Mcilhargey",
+    owner: "Sentinel Optimizer contributors",
     repository: "ninjapaw/sentinel-optimizer",
     productionUrl: "https://sentineloptimizer.com",
     language: "en",

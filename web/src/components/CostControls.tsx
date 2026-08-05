@@ -4,7 +4,7 @@ import type { SentinelCostInput } from "@engine/pricing/sentinelPricing.js";
 import type { SentinelCostEstimate } from "@engine/pricing/sentinelPricing.js";
 import type { TableRetention } from "@engine/pricing/sentinelPricing.js";
 import { DEFAULT_SENTINEL_RATES } from "@engine/pricing/index.js";
-import { gbPerDay, gb, money } from "../lib/format.js";
+import { gbPerDay, gb, money, rate } from "../lib/format.js";
 
 interface Props {
   result: NormalizedResult;
@@ -43,12 +43,6 @@ interface IngestionLaneRow {
 
 type LanePlanningMode = "guided" | "advanced";
 type LaneProfile = "detectionFirst" | "balanced" | "costFirst";
-
-function rate(n: number): string {
-  if (n >= 1) return `$${n.toFixed(2)}`;
-  if (n >= 0.01) return `$${n.toFixed(3)}`;
-  return `$${n.toFixed(4)}`;
-}
 
 function num(v: string): number | undefined {
   if (v.trim() === "") return undefined;

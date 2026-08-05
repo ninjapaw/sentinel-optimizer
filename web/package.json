@@ -5,8 +5,10 @@
   "type": "module",
   "description": "Interactive, zero-trust web app for the Sentinel Optimizer engine — paste/upload SIEM exports, walk an inventory wizard, model Microsoft Sentinel cost, and get recommendations. All parsing runs client-side.",
   "engines": {
-    "node": "^22.12.0 || ^24.0.0"
+    "node": "22.12.0",
+    "npm": "11.9.0"
   },
+  "packageManager": "npm@11.9.0",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",

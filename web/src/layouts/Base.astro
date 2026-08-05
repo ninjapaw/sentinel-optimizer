@@ -6,10 +6,11 @@ interface Props {
 
 import Disclaimer from "../components/Disclaimer.astro";
 import { BRAND } from "../lib/brand";
+import { USER_CONFIG } from "@shared/index.js";
 
 const {
-  title = "Sentinel Optimizer — SIEM cost & ingestion analyzer",
-  description = "Analyze SIEM ingestion, estimate Microsoft Sentinel cost, and get optimization recommendations — entirely in your browser.",
+  title = `${USER_CONFIG.site.name}${USER_CONFIG.site.titleSeparator}${USER_CONFIG.site.tagline}`,
+  description = USER_CONFIG.site.defaultDescription,
 } = Astro.props;
 
 const base = import.meta.env.BASE_URL;
@@ -17,7 +18,11 @@ const siteUrl = new URL(base, Astro.site ?? Astro.url.origin).toString();
 ---
 
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html
+  lang={USER_CONFIG.site.language}
+  dir={USER_CONFIG.site.direction}
+  data-theme="dark"
+>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -46,13 +51,6 @@ const siteUrl = new URL(base, Astro.site ?? Astro.url.origin).toString();
       })();
     </script>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@600;700;800&display=swap"
-      rel="stylesheet"
-    />
-
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -63,10 +61,6 @@ const siteUrl = new URL(base, Astro.site ?? Astro.url.origin).toString();
       "@type": "WebSite",
       name: BRAND.name,
       description: BRAND.tagline,
-      author: {
-        "@type": "Person",
-        name: BRAND.owner,
-      },
       url: siteUrl,
     })} />
   </head>

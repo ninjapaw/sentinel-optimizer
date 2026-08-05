@@ -1,4 +1,5 @@
 import {
+  BYTES_PER_GB,
   bytesToGbPerDay,
   computeTotals,
   type NormalizedConnector,
@@ -33,7 +34,7 @@ export interface SentinelInput {
   windowDays?: number;
 }
 
-const MB_TO_BYTES = 1_000_000;
+const MB_TO_BYTES = BYTES_PER_GB / 1000;
 
 export function parseSentinel(input: SentinelInput): NormalizedResult {
   const windowDays = input.windowDays ?? 30;

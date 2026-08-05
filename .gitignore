@@ -4,5 +4,7 @@ dist/
 .env
 .wrangler/
 local.settings.json
+*.local.bicepparam
+.azure/
 *.log
 .DS_Store

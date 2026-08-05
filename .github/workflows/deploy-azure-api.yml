@@ -35,16 +35,45 @@ jobs:
     defaults:
       run:
         working-directory: api
+    outputs:
+      api-enabled: ${{ steps.infrastructure-config.outputs.api-enabled }}
+      function-app-name: ${{ steps.infrastructure-config.outputs.function-app-name }}
+      resource-group: ${{ steps.infrastructure-config.outputs.resource-group }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Load tool versions
+        working-directory: .
+        run: jq --raw-output --from-file .devcontainer/export-tool-versions.jq .devcontainer/tool-versions.json >> "$GITHUB_ENV"
+
+      - name: Load shared infrastructure configuration
+        id: infrastructure-config
+        working-directory: .
+        run: |
+          jq --raw-output --from-file infra/azure/export-config.jq \
+            infra/azure/config.json > /dev/null
+          api_enabled="$(jq --raw-output .deployApi infra/azure/config.json)"
+          function_app_name="$(jq --raw-output .functionAppName infra/azure/config.json)"
+          if [[ "$api_enabled" == true && "$function_app_name" == replace-with-* ]]; then
+            echo "::error title=Placeholder Function App name::Set functionAppName in infra/azure/config.json before enabling API deployment."
+            exit 1
+          fi
+          {
+            echo "api-enabled=$api_enabled"
+            echo "function-app-name=$function_app_name"
+            echo "resource-group=$(jq --raw-output .resourceGroup infra/azure/config.json)"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: api/package-lock.json
+
+      - name: Set up npm
+        run: npm install --global "npm@${NPM_VERSION}"
 
       - name: Install dependencies
         run: npm ci
@@ -68,8 +97,8 @@ jobs:
         run: zip -r "$RUNNER_TEMP/function-app.zip" dist host.json node_modules package.json package-lock.json
 
       - name: Upload deployment package
-        if: github.event_name != 'pull_request' && vars.AZURE_API_ENABLED == 'true'
-        uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request' && steps.infrastructure-config.outputs.api-enabled == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: azure-function-app
           path: ${{ runner.temp }}/function-app.zip
@@ -77,7 +106,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    if: github.event_name != 'pull_request' && vars.AZURE_API_ENABLED == 'true'
+    if: github.event_name != 'pull_request' && needs.build.outputs.api-enabled == 'true'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -86,23 +115,46 @@ jobs:
       id-token: write
     environment:
       name: azure-api
-      url: https://${{ vars.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net
+      url: https://${{ needs.build.outputs.function-app-name }}.azurewebsites.net
     steps:
       - name: Download deployment package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: azure-function-app
           path: function-package
 
+      - name: Verify OIDC bootstrap configuration
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          : "${AZURE_CLIENT_ID:?Run infra/azure/bootstrap.sh to configure AZURE_CLIENT_ID}"
+          : "${AZURE_TENANT_ID:?Run infra/azure/bootstrap.sh to configure AZURE_TENANT_ID}"
+          : "${AZURE_SUBSCRIPTION_ID:?Run infra/azure/bootstrap.sh to configure AZURE_SUBSCRIPTION_ID}"
+
       - name: Sign in to Azure
-        uses: azure/login@v2
+        uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Verify Function App infrastructure
+        env:
+          FUNCTION_APP_NAME: ${{ needs.build.outputs.function-app-name }}
+          RESOURCE_GROUP: ${{ needs.build.outputs.resource-group }}
+        run: |
+          if ! az functionapp show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$FUNCTION_APP_NAME" \
+            --output none 2>/dev/null; then
+            echo "::error title=Missing Function App::Deploy infrastructure component 'api' before publishing API code."
+            exit 1
+          fi
+
       - name: Deploy Azure Functions API
-        uses: Azure/functions-action@v1
+        uses: Azure/functions-action@c9cc8ee93d1285e2a17312cc8357dc1775955272 # v1
         with:
-          app-name: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+          app-name: ${{ needs.build.outputs.function-app-name }}
           package: function-package/function-app.zip

@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   bytesToGbPerDay,
   computeTotals,
+  getTotalGbPerDay,
+  type NormalizedResult,
   type NormalizedSource,
 } from "../schema/normalization.js";
 
@@ -35,5 +37,23 @@ describe("computeTotals", () => {
 
   it("returns an empty object for no metrics", () => {
     expect(computeTotals([{ name: "a" }])).toEqual({});
+  });
+});
+
+describe("getTotalGbPerDay", () => {
+  const result: NormalizedResult = {
+    vendor: "sentinel",
+    sources: [
+      { name: "a", gbPerDay: 1 },
+      { name: "b", gbPerDay: 2 },
+    ],
+  };
+
+  it("uses the declared total when available", () => {
+    expect(getTotalGbPerDay({ ...result, totals: { gbPerDay: 10 } })).toBe(10);
+  });
+
+  it("falls back to summing source volumes", () => {
+    expect(getTotalGbPerDay(result)).toBe(3);
   });
 });

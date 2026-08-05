@@ -108,12 +108,15 @@ or private endpoint. Verify current limits in the Azure
 
 1. Create the resource. From its **Overview** page, select **Manage deployment
   token** and copy the token.
-1. In GitHub, open **Settings > Secrets and variables > Actions** and create:
+1. In GitHub, open **Settings > Environments**, create or select `azure-site`,
+  restrict it to `main`, add required reviewers for production, and create:
 
   | Type | Name | Value |
   | --- | --- | --- |
-  | Secret | `AZURE_STATIC_WEB_APPS_API_TOKEN` | The Azure deployment token |
-  | Variable | `AZURE_STATIC_WEB_APP_URL` | The generated URL from the Azure resource Overview page |
+  | Environment secret | `AZURE_STATIC_WEB_APPS_API_TOKEN` | The Azure deployment token |
+
+1. Set `publicSiteUrl` in `infra/azure/config.json` to the generated Static Web
+  Apps URL or the production custom-domain origin.
 
   The existing workflow deploys the output produced by its preceding build
   step:
@@ -126,19 +129,18 @@ with:
   skip_app_build: true
 ```
 
-1. The `AZURE_STATIC_WEB_APP_URL` repository variable is exposed to the Astro
-  build as follows:
+1. The workflow exposes the shared configuration to the Astro build as follows:
 
 ```yaml
 env:
-  PUBLIC_SITE_URL: ${{ vars.AZURE_STATIC_WEB_APP_URL }}
+  PUBLIC_SITE_URL: ${{ steps.infrastructure-config.outputs.public-site-url }}
   PUBLIC_SITE_BASE: "/"
 ```
 
 1. Run **Deploy Azure Site** from the repository's **Actions**
    tab. After it succeeds, open the Static Web App's URL. Add a custom domain
-   under **Settings > Custom domains** if needed, then change
-   `AZURE_STATIC_WEB_APP_URL` to that origin and rerun the workflow.
+  under **Settings > Custom domains** if needed, then change `publicSiteUrl`
+  in `infra/azure/config.json` to that origin and rerun the workflow.
 
 ### Free site with optional consumption API
 
@@ -146,16 +148,18 @@ Keep the Function App separate to preserve the Static Web Apps Free plan:
 
 1. Deploy the API using the Flex Consumption guidance in the
   [API README](../api/README.md).
-1. Set repository variable `PUBLIC_AI_API_BASE` to the Function App origin,
-  such as `https://YOUR-APP.azurewebsites.net`.
-1. Add the exact Static Web Apps or custom-domain origin to the Function App's
-  **API > CORS** allowlist. Do not use `*`.
+1. Set `deployApi` to `true` and `functionAppName` to the deployed app name in
+  `infra/azure/config.json`, then deploy API infrastructure and code.
+1. After `/api/health` succeeds, set `useApi` to `true`. The site workflow then
+  derives `PUBLIC_AI_API_BASE` and requires the API health check to pass.
+1. Deploy the API infrastructure after the site; its workflow reads the exact
+  Static Web Apps hostname for the CORS allowlist. Do not use `*`.
 1. Rerun **Deploy Azure Site** so Astro embeds the API origin.
 
 Do not use **Settings > APIs > Link** for this topology. Linking an existing
 Function App is a Static Web Apps Standard feature. The site remains fully
 usable at no API hosting or model cost when `PUBLIC_AI_API_BASE` is unset and
-the API is not deployed.
+`useApi` is `false`.
 
 Pull requests targeting `main` from the same repository receive Azure preview
 environments. Pull requests from forks run the type-check and build but skip
@@ -187,6 +191,11 @@ PUBLIC_SITE_URL="https://<owner>.github.io" \
 PUBLIC_SITE_BASE="/sentinel-optimizer/" \
 npm run build
 ```
+
+The GitHub Pages workflow always builds for validation but deploys only when
+repository variable `PAGES_DEPLOY_ENABLED` is `true`. Enable Pages with GitHub
+Actions as its source before setting that variable. This prevents Pages and
+Azure hosting pipelines from both deploying by default.
 
 A user/organization Pages site or a custom domain normally uses `/` instead.
 Hosts with a configurable root directory should use `web`; do not deploy only a

@@ -1,4 +1,5 @@
 import type { ApiResult } from "./contracts.js";
+import { utf8ByteLength } from "../../../shared/index.js";
 
 export type JsonReadResult =
   | { ok: true; value: unknown }
@@ -9,7 +10,7 @@ export function result(body: Record<string, unknown>, status = 200): ApiResult {
 }
 
 export function readJson(rawBody: string, maxBytes: number): JsonReadResult {
-  if (new TextEncoder().encode(rawBody).byteLength > maxBytes) {
+  if (utf8ByteLength(rawBody) > maxBytes) {
     return { ok: false, result: result({ error: "Payload too large." }, 413) };
   }
 

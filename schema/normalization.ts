@@ -106,3 +106,10 @@ export function computeTotals(sources: NormalizedSource[]): NormalizedTotals {
 
   return totals;
 }
+
+export function getTotalGbPerDay(result: NormalizedResult): number {
+  return (
+    result.totals?.gbPerDay ??
+    result.sources.reduce((total, source) => total + (source.gbPerDay ?? 0), 0)
+  );
+}

@@ -40,6 +40,7 @@ export default function ExportBar({ result, cost, input, vendorLabel, provenance
         vendorLabel,
         recommendations: recs,
         totalSavings: totalSavings(recs),
+        includeSensitiveEvidence: kind === "json",
         ...(aiSummary ? { aiSummary } : {}),
         ...(aiModel ? { aiModel } : {}),
       });
@@ -94,11 +95,10 @@ export default function ExportBar({ result, cost, input, vendorLabel, provenance
       </div>
       <p className="ai-note">
         Exports run entirely in your browser — nothing is uploaded. The PDF and PowerPoint include
-        the summary, provider comparison model (current provider vs Sentinel), charts, recommendations, and reproducibility appendices (interpretation notes,
-        query evidence, extracted rows, and exact inputs/parameters used)
+        the summary, provider comparison model (current provider vs Sentinel), charts, recommendations, and reproducibility appendices. PDF and PowerPoint exclude the raw pasted payload
         {aiSummary ? ", plus the AI executive summary you generated." : ". Generate the AI executive summary above to include it."}
         {" "}The provider comparison is also included as a dedicated slide and PDF section with graph summary.
-        {" "}The evidence JSON contains the same reproducibility payload in machine-readable form.
+        {" "}The evidence JSON includes the raw input and exact parameters for reproducibility; review it for sensitive source names or customer data before sharing.
         {" "}The PowerPoint follows the Microsoft Sentinel pricing-offer layout and is clearly marked
         as an unofficial, independent estimate.
       </p>

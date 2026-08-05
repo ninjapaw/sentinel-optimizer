@@ -14,7 +14,9 @@ try {
   loadEnvFile();
 } catch {}
 
-const provider = createOpenAiProvider();
+const provider = process.env.AI_API_ENABLED === "true"
+  ? createOpenAiProvider()
+  : undefined;
 const port = parsePort(process.env.PORT || process.env.API_PORT, USER_CONFIG.api.port);
 const host = process.env.HOST || USER_CONFIG.api.host;
 
@@ -89,7 +91,7 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Sentinel Optimizer API listening on http://${host}:${port}`);
+  console.log(`${USER_CONFIG.site.name} API listening on http://${host}:${port}`);
 });
 
 function shutdown(): void {

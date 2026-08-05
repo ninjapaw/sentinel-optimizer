@@ -6,5 +6,6 @@ compatibility_date = "2026-08-03"
 binding = "AI"
 
 [vars]
+AI_API_ENABLED = "false"
 AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
 ALLOWED_ORIGINS = "https://sentineloptimizer.com,https://ninjapaw.github.io"

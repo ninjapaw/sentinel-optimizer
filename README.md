@@ -64,11 +64,85 @@ schema is vendor-agnostic and designed to extend to additional SIEMs.
 | `pricing/index.ts` | Pricing registry |
 | `shared/config/user.config.ts` | Supported public project customization |
 | `shared/config/internal.config.ts` | Protocol and compatibility invariants; not a customization surface |
+| `shared/contracts/` | Browser-safe cross-runtime wire contracts and guards |
 | `shared/utils/` | Pure helpers shared across runtime boundaries |
 | `api/` | Independently deployable, provider-neutral optional AI API |
 | `web/` | Static Astro and React frontend |
+| `infra/azure/` | Independent Bicep stacks for the site, API, and optional Azure OpenAI resources |
 | `samples/<vendor>.json` | Sample query/export output used by tests |
 | `test/` | Unit tests (Vitest) |
+
+## Codespaces setup
+
+The checked-in dev container installs Node.js 22, Azure CLI, Bicep, GitHub CLI,
+`jq`, ShellCheck, the recommended VS Code extensions, and all locked npm
+dependencies. In an existing Codespace, run **Codespaces: Rebuild Container**
+from the command palette after pulling changes to `.devcontainer/`.
+
+Exact development and CI tool versions are maintained in
+`.devcontainer/tool-versions.json`. Update that file first. Because dev-container
+features are resolved before repository scripts run, copy the same values into
+the matching feature options in `.devcontainer/devcontainer.json`; the
+post-create script rejects mismatches. GitHub workflows load Node and Bicep
+versions from the manifest automatically. Use full numeric versions such as
+`22.12.0`, not floating majors or `latest`, then rebuild the container.
+
+The image contains no Azure or GitHub credentials. Authenticate only when a
+deployment task needs them:
+
+```bash
+az login
+gh auth login
+az account show
+gh auth status
+```
+
+For a tenant-specific Azure login, use `az login --tenant <tenant-id>`. Verify
+the active subscription before running the OIDC bootstrap because its RBAC
+assignments are scoped to that subscription and the configured resource group.
+The default `npm run dev` uses the portable Node API adapter and does not need
+Azure Functions Core Tools. Install Core Tools separately only when exercising
+the optional `npm --prefix api run start:azure` workflow.
+
+## Deploy to Azure
+
+Each button provisions one independent resource boundary. Start with the free
+static website, add the consumption-based API only when optional AI is needed,
+and add Azure OpenAI last. The buttons provision infrastructure; the existing
+GitHub workflows deploy application code after their credentials are configured.
+
+| Component | Deployment | Cost boundary |
+| --- | --- | --- |
+| Resource group bootstrap | [![Create Azure resource group](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fninjapaw%2Fsentinel-optimizer%2Fmain%2Finfra%2Fazure%2Fbootstrap%2Fazuredeploy.json) | No resource charge; contained resources may be billed |
+| Static website | [![Deploy static website to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fninjapaw%2Fsentinel-optimizer%2Fmain%2Finfra%2Fazure%2Fsite%2Fazuredeploy.json) | Azure Static Web Apps Free |
+| Functions API | [![Deploy Functions API to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fninjapaw%2Fsentinel-optimizer%2Fmain%2Finfra%2Fazure%2Fapi%2Fazuredeploy.json) | Flex Consumption, scale-to-zero |
+| Azure OpenAI | [![Deploy Azure OpenAI components](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fninjapaw%2Fsentinel-optimizer%2Fmain%2Finfra%2Fazure%2Fai%2Fazuredeploy.json) | Optional, separately billed inference |
+
+For the recommended setup, authenticate Azure CLI and GitHub CLI, then run
+`infra/azure/bootstrap.sh`. It creates or reuses the resource group, OIDC
+identities, federated credentials, scoped RBAC, GitHub environments, and GitHub
+OIDC secrets without a client secret. Deploy components in the order shown.
+The API template accepts the static site's exact origin
+for CORS. The AI template then grants the existing Function App's managed
+identity access and configures its non-secret endpoint/deployment settings.
+See [Azure infrastructure](infra/azure/README.md) for prerequisites, GitHub
+configuration, CLI commands, parameters, and post-deployment steps.
+
+## Repository strategy
+
+Keep this project in one repository. The engine, shared configuration, API
+contracts, and frontend are changed and tested together, so splitting them
+would add version coordination without creating a useful security boundary.
+They already have separate package manifests, deployment workflows, and Azure
+stacks, which provides independent deployment without independent repositories.
+
+The AI provider implementation also belongs under `api/src/providers/`: it
+implements the API's internal `AiProvider` contract and is not a standalone
+service. Azure OpenAI infrastructure is separate under `infra/azure/ai/`
+because it has an optional lifecycle, permissions, quota, and billing boundary.
+Consider multiple repositories only if components gain different owners,
+release schedules, access controls, or external consumers that require stable
+versioned packages.
 
 ## Documentation
 
@@ -253,9 +327,9 @@ part of the Azure site or API workflows.
 - Leave the optional API undeployed for a static-site-only footprint. Parsing,
   pricing, and deterministic recommendations still work.
 - When AI is needed, host `api/` separately on **Azure Functions Flex
-  Consumption** in on-demand mode with zero always-ready instances. Set the
-  site build variable `PUBLIC_AI_API_BASE` to the Function App origin and add
-  the exact site origin to the Function App CORS allowlist.
+  Consumption** in on-demand mode with zero always-ready instances. Set
+  `deployApi` in `infra/azure/config.json`; Azure workflows derive the Function
+  App origin and site CORS allowlist from that shared public configuration.
 - Do not link the Function App under Static Web Apps **APIs** unless
   intentionally upgrading the site to Standard. Bring-your-own backend linking
   is not available on the Free plan.

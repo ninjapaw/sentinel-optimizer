@@ -1,5 +1,8 @@
 import { useState } from "react";
-import type { NormalizedResult } from "@engine/schema/normalization.js";
+import {
+  getTotalGbPerDay,
+  type NormalizedResult,
+} from "@engine/schema/normalization.js";
 import type { SentinelCostInput } from "@engine/pricing/sentinelPricing.js";
 import { estimateMonthlyCost } from "@engine/pricing/index.js";
 import { DEFAULT_REGION_ID } from "@engine/pricing/regions.js";
@@ -17,6 +20,7 @@ import ResultsDashboard from "./ResultsDashboard.js";
 import { SourceBreakdownChart, CostBreakdownChart, ProviderSpendComparisonChart } from "./Charts.js";
 import Recommendations, { type AiState } from "./Recommendations.js";
 import ExportBar from "./ExportBar.js";
+import type { SummaryStyle } from "@shared/index.js";
 
 type Mode = "paste" | "wizard";
 
@@ -35,7 +39,7 @@ export default function Optimizer() {
   const [vendorLabel, setVendorLabel] = useState("Microsoft Sentinel");
   const [costInput, setCostInput] = useState<SentinelCostInput>(BASE_INPUT);
   const [ai, setAi] = useState<AiState>(IDLE_AI);
-  const [aiStyle, setAiStyle] = useState<"executive" | "technical" | "board">("executive");
+  const [aiStyle, setAiStyle] = useState<SummaryStyle>("executive");
   const [provenance, setProvenance] = useState<ExportProvenance>(DEFAULT_PROVENANCE);
 
   function adoptResult(r: NormalizedResult, label: string, src: ExportProvenance) {
@@ -45,7 +49,7 @@ export default function Optimizer() {
     setAi(IDLE_AI);
     setCostInput((prev) => ({
       ...prev,
-      analyticsGbPerDay: r.totals?.gbPerDay ?? 0,
+      analyticsGbPerDay: getTotalGbPerDay(r),
       basicAuxGbPerDay: undefined,
       dataLakeGbPerDay: undefined,
       tableRetention: undefined,
@@ -61,7 +65,7 @@ export default function Optimizer() {
 
   const providerComparison = (() => {
     if (!result || !cost) return null;
-    const totalGbPerDay = result.totals?.gbPerDay ?? result.sources.reduce((a, s) => a + (s.gbPerDay ?? 0), 0);
+    const totalGbPerDay = getTotalGbPerDay(result);
     return buildProviderComparison({
       currentVendor: vendor,
       totalGbPerDay,
@@ -73,7 +77,7 @@ export default function Optimizer() {
     setCostInput((prev) => ({ ...prev, ...patch }));
   }
 
-  async function enhance(styleOverride?: "executive" | "technical" | "board") {
+  async function enhance(styleOverride?: SummaryStyle) {
     if (!result || !cost) return;
     const styleToUse =
       styleOverride === "executive" || styleOverride === "technical" || styleOverride === "board"
@@ -84,7 +88,7 @@ export default function Optimizer() {
     const summary = buildSummary({
       vendor: vendorLabel,
       summaryStyle: styleToUse,
-      totalGbPerDay: result.totals?.gbPerDay ?? 0,
+      totalGbPerDay: getTotalGbPerDay(result),
       sources: result.sources,
       monthlyCost: cost.monthlyCost,
       breakdown: cost.breakdown as unknown as Record<string, number>,
@@ -100,7 +104,7 @@ export default function Optimizer() {
     }
   }
 
-  function changeAiStyle(nextStyle: "executive" | "technical" | "board") {
+  function changeAiStyle(nextStyle: SummaryStyle) {
     setAiStyle(nextStyle);
     if (ai.state === "loading") return;
     if (ai.text) {
@@ -174,7 +178,7 @@ export default function Optimizer() {
                   cost={cost}
                   onChange={patchInput}
                   suggestedLaneProfile={suggestedLaneProfile}
-                  autoPlacementSeed={`${vendor}:${result.totals?.gbPerDay ?? 0}:${provenance.mode}`}
+                  autoPlacementSeed={`${vendor}:${getTotalGbPerDay(result)}:${provenance.mode}`}
                 />
               </div>
               <div className="panel panel-pad">

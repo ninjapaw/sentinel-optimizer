@@ -1,0 +1,77 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "15995656143377795331"
+    }
+  },
+  "parameters": {
+    "siteName": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 40,
+      "metadata": {
+        "description": "Globally unique Azure Static Web App name."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "eastus2",
+      "metadata": {
+        "description": "Azure region for the Static Web App resource metadata."
+      }
+    },
+    "siteSkuName": {
+      "type": "string",
+      "defaultValue": "Free",
+      "allowedValues": [
+        "Free",
+        "Standard"
+      ],
+      "metadata": {
+        "description": "Static Web Apps plan. Free is recommended until Standard-only limits or features are required."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Resource tags applied to the Static Web App."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/staticSites",
+      "apiVersion": "2025-03-01",
+      "name": "[parameters('siteName')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "sku": {
+        "name": "[parameters('siteSkuName')]",
+        "tier": "[parameters('siteSkuName')]"
+      },
+      "properties": {
+        "allowConfigFileUpdates": true,
+        "stagingEnvironmentPolicy": "Enabled"
+      }
+    }
+  ],
+  "outputs": {
+    "resourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Web/staticSites', parameters('siteName'))]"
+    },
+    "defaultHostname": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/staticSites', parameters('siteName')), '2025-03-01').defaultHostname]"
+    },
+    "siteUrl": {
+      "type": "string",
+      "value": "[format('https://{0}', reference(resourceId('Microsoft.Web/staticSites', parameters('siteName')), '2025-03-01').defaultHostname)]"
+    }
+  }
+}

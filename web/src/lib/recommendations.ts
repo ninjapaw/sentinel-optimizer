@@ -11,13 +11,17 @@
  * for directional planning — not quotes.
  */
 
-import type { NormalizedResult } from "@engine/schema/normalization.js";
+import {
+  getTotalGbPerDay,
+  type NormalizedResult,
+} from "@engine/schema/normalization.js";
 import type {
   SentinelCostEstimate,
   SentinelCostInput,
   SentinelRates,
 } from "@engine/pricing/sentinelPricing.js";
 import { DEFAULT_SENTINEL_RATES } from "@engine/pricing/index.js";
+import { roundTo } from "@shared/index.js";
 
 export type Severity = "high" | "med" | "low";
 
@@ -149,7 +153,7 @@ export function generateRecommendations(ctx: RecommendationContext): Recommendat
   const recs: Recommendation[] = [];
 
   const sources = [...result.sources].sort((a, b) => (b.gbPerDay ?? 0) - (a.gbPerDay ?? 0));
-  const totalGbPerDay = result.totals?.gbPerDay ?? sources.reduce((a, s) => a + (s.gbPerDay ?? 0), 0);
+  const totalGbPerDay = getTotalGbPerDay(result);
   const monthlyGb = totalGbPerDay * rates.daysPerMonth;
 
   // 1) Single-source concentration.
@@ -322,5 +326,5 @@ export function totalSavings(recs: Recommendation[]): number {
 }
 
 function round(n: number): number {
-  return Math.round(n * 100) / 100;
+  return roundTo(n, 2);
 }

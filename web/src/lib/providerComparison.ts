@@ -1,4 +1,5 @@
 import type { Vendor } from "./examples.js";
+import { roundTo } from "@shared/index.js";
 
 export interface ProviderRateCard {
   vendor: Vendor;
@@ -64,7 +65,7 @@ const RATE_CARD: ProviderRateCard[] = [
 ];
 
 function round2(n: number): number {
-  return Math.round(n * 100) / 100;
+  return roundTo(n, 2);
 }
 
 export function buildProviderComparison(args: {

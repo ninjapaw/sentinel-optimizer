@@ -1,30 +1,12 @@
 import type { AiProvider, ApiResult } from "./contracts.js";
-import { isRecord, readJson, result } from "./http.js";
-import { USER_CONFIG } from "../../../shared/index.js";
-
-interface ExampleRequest {
-  vendor: string;
-  label: string;
-  schemaHint: string;
-  template: string;
-}
+import { readJson, result } from "./http.js";
+import {
+  isExampleRequest,
+  USER_CONFIG,
+  type ExampleRequest,
+} from "../../../shared/index.js";
 
 export const EXAMPLE_MAX_BODY_BYTES = USER_CONFIG.api.example.maxBodyBytes;
-const MAX_TEMPLATE_CHARS = USER_CONFIG.api.example.maxTemplateCharacters;
-
-function isExampleRequest(value: unknown): value is ExampleRequest {
-  return (
-    isRecord(value) &&
-    typeof value.vendor === "string" &&
-    value.vendor.length <= 100 &&
-    typeof value.label === "string" &&
-    value.label.length <= 200 &&
-    typeof value.schemaHint === "string" &&
-    value.schemaHint.length <= 1000 &&
-    typeof value.template === "string" &&
-    value.template.length <= MAX_TEMPLATE_CHARS
-  );
-}
 
 function extractJson(raw: string): string | null {
   let candidate = raw.trim();

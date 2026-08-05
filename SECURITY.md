@@ -27,10 +27,11 @@ mitigation. Security reports will be assessed against the current `main` branch.
   a configured API publicly, enforce authentication or gateway access control,
   per-client rate limits, request quotas, and provider spending limits. CORS is
   not authentication.
-- Keep Azure API deployment opt-in with `AZURE_API_ENABLED`. For minimum Azure
-  hosting cost, use Static Web Apps Free plus a separate Flex Consumption
-  Function App with zero always-ready instances. A direct cross-origin API URL
-  avoids upgrading the site solely to link the backend.
+- Keep Azure API deployment opt-in with `deployApi` in the public
+  `infra/azure/config.json`. For minimum Azure hosting cost, use Static Web Apps
+  Free plus a separate Flex Consumption Function App with zero always-ready
+  instances. A direct cross-origin API URL avoids upgrading the site solely to
+  link the backend.
 - Restrict cross-origin access to exact production origins. Do not use `*` for
   the paid API routes.
 - Keep request-body logging disabled. Log status, latency, throttling, and
@@ -39,8 +40,8 @@ mitigation. Security reports will be assessed against the current `main` branch.
   to the target resource.
 - The Azure Static Web Apps header policy is in
   `web/public/staticwebapp.config.json`. Configure equivalent headers on other
-  hosts. Add a host-specific Content Security Policy after including the exact
-  `PUBLIC_AI_API_BASE`, font, and asset origins used by that deployment.
+  hosts. Keep its Content Security Policy synchronized with any deliberately
+  added API or asset origins. The site does not load third-party fonts.
 - Run `npm run typecheck`, `npm test`, `npm run build`, dependency audits, and
   container scanning before release.
 

@@ -5,31 +5,22 @@
 
 import type { Recommendation } from "./recommendations.js";
 import {
+  INTERNAL_CONFIG,
+  isAiTextResponse,
+  isApiErrorResponse,
   rankSourcesWithoutNames,
   redactSourceNames,
-} from "@shared/utils/privacy.js";
+  roundTo,
+  type AggregatedSummary as SharedAggregatedSummary,
+  type AiTextResponse,
+  type ExampleRequest,
+  type SummaryStyle,
+} from "@shared/index.js";
 
 const CONFIGURED_AI_API_BASE = readConfiguredAiApiBase();
 
-/** The ONLY shape that crosses the network for AI enhancement. */
-export interface AggregatedSummary {
-  vendor: string;
-  summaryStyle?: "executive" | "technical" | "board";
-  totalGbPerDay: number;
-  sourceCount: number;
-  /** Top sources by GB/day — names + share only, no raw values/bytes. */
-  topSources: { name: string; sharePct: number }[];
-  monthlyCost: number;
-  breakdown: Record<string, number>;
-  billableAnalyticsGbPerDay: number;
-  benefitGbPerDay: number;
-  recommendations: { title: string; severity: string; monthlySavings?: number }[];
-}
-
-export interface AiResult {
-  text: string;
-  model?: string;
-}
+export type AggregatedSummary = SharedAggregatedSummary;
+export type AiResult = AiTextResponse;
 
 export function getAiSummaryEndpoint(): string {
   return resolveApiEndpoint("recommend");
@@ -41,7 +32,7 @@ export function getAiExampleEndpoint(): string {
 
 export function buildSummary(args: {
   vendor: string;
-  summaryStyle?: "executive" | "technical" | "board";
+  summaryStyle?: SummaryStyle;
   totalGbPerDay: number;
   sources: { name: string; gbPerDay?: number }[];
   monthlyCost: number;
@@ -93,14 +84,16 @@ export async function requestAiSummary(summary: AggregatedSummary, signal?: Abor
     throw new Error("AI enhancement isn't enabled for this deployment. The deterministic recommendations above are fully usable.");
   }
   if (!res.ok) throw new Error(`AI service returned an error (HTTP ${res.status}).`);
-  const data = (await res.json()) as Partial<AiResult> & { error?: string };
-  if (data.error) throw new Error(data.error);
-  if (!data.text) throw new Error("AI service returned an empty response.");
-  return { text: data.text, ...(data.model ? { model: data.model } : {}) };
+  const data: unknown = await res.json();
+  if (isApiErrorResponse(data)) throw new Error(data.error);
+  if (!isAiTextResponse(data)) {
+    throw new Error("AI service returned an empty response.");
+  }
+  return data;
 }
 
 function round(n: number): number {
-  return Math.round(n * 100) / 100;
+  return roundTo(n, 2);
 }
 
 /**
@@ -111,7 +104,7 @@ function round(n: number): number {
  * built-in static example.
  */
 export async function requestAiExample(
-  req: { vendor: string; label: string; schemaHint: string; template: string },
+  req: ExampleRequest,
   signal?: AbortSignal,
 ): Promise<string> {
   const endpoints = resolveApiEndpoints("example");
@@ -127,9 +120,11 @@ export async function requestAiExample(
     throw new Error("AI example generation isn't enabled for this deployment.");
   }
   if (!res.ok) throw new Error(`AI service returned an error (HTTP ${res.status}).`);
-  const data = (await res.json()) as { text?: string; error?: string };
-  if (data.error) throw new Error(data.error);
-  if (!data.text) throw new Error("AI service returned an empty example.");
+  const data: unknown = await res.json();
+  if (isApiErrorResponse(data)) throw new Error(data.error);
+  if (!isAiTextResponse(data)) {
+    throw new Error("AI service returned an empty example.");
+  }
   return data.text;
 }
 
@@ -139,12 +134,12 @@ export async function requestAiExample(
  * 2) App base path + /api/* on the current origin
  */
 function resolveApiEndpoint(route: "recommend" | "example"): string {
-  return resolveApiEndpoints(route)[0] || `/${route}`;
+  return resolveApiEndpoints(route)[0] || INTERNAL_CONFIG.api.routes[route];
 }
 
 function resolveApiEndpoints(route: "recommend" | "example"): string[] {
-  const absolutePath = `api/${route}`;
-  const rootRelative = `/api/${route}`;
+  const rootRelative = INTERNAL_CONFIG.api.routes[route];
+  const absolutePath = rootRelative.replace(/^\/+/, "");
 
   const resolved = new Set<string>();
 
