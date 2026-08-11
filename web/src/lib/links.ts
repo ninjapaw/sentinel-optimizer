@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { BRAND } from "./brand.js";
 
 export type NavLink = { href: string; label: string; external?: boolean };

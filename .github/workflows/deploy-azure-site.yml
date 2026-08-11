@@ -1,45 +1,46 @@
+# MIT License
+# Copyright (c) 2026 Microsoft Corporation
+# See LICENSE in the repository root.
+
 name: Deploy Azure Site
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/deploy-azure-site.yml
-      - estimators/**
-      - infra/azure/config.json
-      - infra/azure/export-config.jq
-      - parsers/**
-      - pricing/**
-      - schema/**
-      - shared/**
-      - web/**
-  pull_request:
-    branches:
-      - main
-    paths:
-      - .github/workflows/deploy-azure-site.yml
-      - estimators/**
-      - infra/azure/config.json
-      - infra/azure/export-config.jq
-      - parsers/**
-      - pricing/**
-      - schema/**
-      - shared/**
-      - web/**
   workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub Environment and Azure naming scope
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
 
 permissions:
   contents: read
 
 concurrency:
-  group: azure-site-${{ github.event.pull_request.number || github.ref }}
+  group: azure-site-${{ inputs.environment || 'manual' }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: azure-${{ inputs.environment }}
+    env:
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_STATIC_WEB_APP_NAME: ${{ vars.AZURE_STATIC_WEB_APP_NAME }}
+      AZURE_FUNCTIONAPP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+      AZURE_PUBLIC_SITE_URL: ${{ vars.AZURE_PUBLIC_SITE_URL }}
+      AZURE_DEPLOY_API: ${{ vars.AZURE_DEPLOY_API }}
+      AZURE_USE_API: ${{ vars.AZURE_USE_API }}
+      PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID }}
+      PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY }}
+      PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE }}
+      PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE }}
+      PUBLIC_ADMIN_API_BASE: ${{ vars.PUBLIC_ADMIN_API_BASE }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -47,21 +48,17 @@ jobs:
       - name: Load tool versions
         run: jq --raw-output --from-file .devcontainer/export-tool-versions.jq .devcontainer/tool-versions.json >> "$GITHUB_ENV"
 
-      - name: Load shared infrastructure configuration
+      - name: Load GitHub Environment configuration
         id: infrastructure-config
         run: |
-          jq --raw-output --from-file infra/azure/export-config.jq \
-            infra/azure/config.json > /dev/null
-          public_site_url="$(jq --raw-output '.publicSiteUrl' infra/azure/config.json)"
-          use_api="$(jq --raw-output '.useApi' infra/azure/config.json)"
-          function_app_name="$(jq --raw-output '.functionAppName' infra/azure/config.json)"
+          bash infra/azure/validate-environment.sh
 
           api_base=""
-          if [[ "$use_api" == "true" ]]; then
-            api_base="https://$function_app_name.azurewebsites.net"
+          if [[ "$AZURE_USE_API" == "true" ]]; then
+            api_base="https://$AZURE_FUNCTIONAPP_NAME.azurewebsites.net"
           fi
 
-          echo "public-site-url=$public_site_url" >> "$GITHUB_OUTPUT"
+          echo "public-site-url=$AZURE_PUBLIC_SITE_URL" >> "$GITHUB_OUTPUT"
           echo "api-base=$api_base" >> "$GITHUB_OUTPUT"
 
       - name: Verify enabled API is available
@@ -72,7 +69,7 @@ jobs:
           if ! curl --fail --silent --show-error \
             --max-time 20 \
             "$API_BASE/api/health" > /dev/null; then
-            echo "::error title=Azure API unavailable::Deploy the API infrastructure and code, or set useApi to false in infra/azure/config.json."
+            echo "::error title=Azure API unavailable::Deploy the API infrastructure and code, or set AZURE_USE_API=false in the selected GitHub Environment."
             exit 1
           fi
 
@@ -101,6 +98,11 @@ jobs:
           PUBLIC_SITE_URL: ${{ steps.infrastructure-config.outputs.public-site-url }}
           PUBLIC_SITE_BASE: /
           PUBLIC_AI_API_BASE: ${{ steps.infrastructure-config.outputs.api-base }}
+          PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID }}
+          PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY }}
+          PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE }}
+          PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE }}
+          PUBLIC_ADMIN_API_BASE: ${{ vars.PUBLIC_ADMIN_API_BASE }}
 
       - name: Upload site artifact
         if: github.event_name != 'pull_request'
@@ -112,11 +114,11 @@ jobs:
           retention-days: 7
 
   deploy-site:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: azure-site
+    environment: azure-${{ inputs.environment }}
     permissions:
       contents: read
       pull-requests: write

@@ -1,3 +1,7 @@
+# MIT License
+# Copyright (c) 2026 Microsoft Corporation
+# See LICENSE in the repository root.
+
 #!/usr/bin/env bash
 set -Eeuo pipefail
 

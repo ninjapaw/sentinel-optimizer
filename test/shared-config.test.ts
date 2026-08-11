@@ -1,8 +1,16 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { describe, expect, it } from "vitest";
 import { INTERNAL_CONFIG, USER_CONFIG } from "../shared/index.js";
 import {
+  ensureTrailingSlash,
   parseCommaSeparated,
   parsePort,
+  trimTrailingSlashes,
   withoutHash,
 } from "../shared/utils/config.js";
 
@@ -33,5 +41,15 @@ describe("shared project configuration", () => {
   it("converts CSS hex colors for document exporters", () => {
     expect(withoutHash("#30E5D0")).toBe("30E5D0");
     expect(withoutHash("30E5D0")).toBe("30E5D0");
+  });
+
+  it("normalizes URL boundary slashes", () => {
+    expect(ensureTrailingSlash("https://example.test/api")).toBe(
+      "https://example.test/api/",
+    );
+    expect(ensureTrailingSlash("/")).toBe("/");
+    expect(trimTrailingSlashes(" https://example.test/api/// ")).toBe(
+      "https://example.test/api",
+    );
   });
 });

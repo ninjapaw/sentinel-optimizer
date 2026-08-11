@@ -1,4 +1,10 @@
 /**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
+/**
  * Parser registry.
  *
  * Re-exports each vendor parser. Parsers are intentionally typed per-vendor

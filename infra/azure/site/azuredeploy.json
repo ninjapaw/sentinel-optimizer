@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "15995656143377795331"
+      "templateHash": "849675691325620246"
     }
   },
   "parameters": {
@@ -22,6 +22,13 @@
       "defaultValue": "eastus2",
       "metadata": {
         "description": "Azure region for the Static Web App resource metadata."
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "development",
+      "metadata": {
+        "description": "Deployment environment used for resource tags."
       }
     },
     "siteSkuName": {
@@ -43,13 +50,16 @@
       }
     }
   },
+  "variables": {
+    "resourceTags": "[union(createObject('application', 'sentinel-optimizer', 'environment', parameters('environmentName'), 'component', 'web', 'managedBy', 'bicep'), parameters('tags'))]"
+  },
   "resources": [
     {
       "type": "Microsoft.Web/staticSites",
       "apiVersion": "2025-03-01",
       "name": "[parameters('siteName')]",
       "location": "[parameters('location')]",
-      "tags": "[parameters('tags')]",
+      "tags": "[variables('resourceTags')]",
       "sku": {
         "name": "[parameters('siteSkuName')]",
         "tier": "[parameters('siteSkuName')]"

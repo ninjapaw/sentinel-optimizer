@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import type { Vendor } from "./examples.js";
 import { roundTo } from "@shared/index.js";
 

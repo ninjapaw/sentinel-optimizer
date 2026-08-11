@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import type { AiProvider, ChatRequest, ChatResult } from "../core/contracts.js";
 import { USER_CONFIG } from "../../../shared/index.js";
 

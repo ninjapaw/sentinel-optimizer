@@ -1,353 +1,169 @@
-# sentinel-optimizer
+# Sentinel Optimizer
 
-SentinelOptimizer is a client-side analysis tool that helps organizations migrate to
-Microsoft Sentinel and optimize their data ingestion strategy. It evaluates log
-sources, tables, and event volumes to identify cost-saving opportunities, reduce
-noise, and streamline onboarding. Deterministic analysis stays in your browser;
-optional AI uses the bounded data contract described below.
+Sentinel Optimizer is a client-side demo for estimating Microsoft Sentinel ingestion costs and comparing SIEM migration options. Parsing, normalization, estimation, pricing, and deterministic recommendations run in the browser.
 
-> Parsing, estimation, and deterministic recommendations run locally. Optional
-> AI features send only an aggregated summary or app-owned example template to
-> the separately configured API; raw exports and credentials are never sent.
+Optional AI features are disabled by default. When enabled, only the bounded API contract is sent to the configured API. Raw exports, credentials, and customer secrets are not sent by this project.
 
-## Positioning copy
+> **Unofficial community helper.** Ninja Paws is a fictional demo organization used by this repository. This is an independent community project, not a Microsoft product, and is not affiliated with, sponsored by, endorsed by, or supported by Microsoft Corporation. Contributions from Microsoft employees, if any, are made in an individual capacity and do not imply Microsoft endorsement or sponsorship. The project is provided publicly **at your own risk**. Cost figures are planning estimates based on public list pricing; verify Microsoft Sentinel pricing and entitlements with your Microsoft account team. The Microsoft Product Terms and [Azure pricing](https://azure.microsoft.com/pricing/) are the source of truth. Validate all estimates, security controls, costs, and deployment settings before using them in production. Microsoft trademarks and product names belong to Microsoft Corporation. See [License](LICENSE) and the official [Microsoft Product Terms](https://www.microsoft.com/licensing/terms/productoffering).
 
-- Enterprise-focused:
-  SentinelOptimizer accelerates your move to Microsoft Sentinel by providing a secure,
-  client-side assessment of your existing SIEM data. It maps ingestion patterns,
-  highlights unnecessary or high-cost data streams, and delivers actionable
-  recommendations to reduce spend and improve operational efficiency — all without
-  transmitting customer data.
+## Contents
 
-- Migration-focused:
-  SentinelOptimizer simplifies the transition to Microsoft Sentinel by analyzing your
-  current SIEM logs and identifying the optimal ingestion approach. It highlights
-  redundant, noisy, or high-cost data sources and provides guidance for structuring
-  your Sentinel workspace for performance and cost efficiency. All processing happens
-  locally in your browser.
+- [Sentinel Optimizer](#sentinel-optimizer)
+  - [Contents](#contents)
+  - [Features](#features)
+  - [Repository layout](#repository-layout)
+  - [Development](#development)
+  - [Azure deployment](#azure-deployment)
+    - [Environment variables](#environment-variables)
+    - [Environment secrets](#environment-secrets)
+    - [Built-in GitHub token](#built-in-github-token)
+    - [Infrastructure workflow inputs](#infrastructure-workflow-inputs)
+  - [Security](#security)
+  - [License](#license)
 
-- Cost-optimization-focused:
-  SentinelOptimizer helps organizations cut Microsoft Sentinel costs by analyzing log
-  ingestion patterns and identifying waste, duplication, and unnecessary data. It
-  provides clear recommendations for tuning data connectors, table usage, and
-  retention settings — with all analysis performed securely on the client side.
+## Features
 
-- Short description:
-  A privacy-preserving tool that helps you migrate to Microsoft Sentinel and optimize
-  your log ingestion for cost, clarity, and performance.
+- **Sentinel Cost Calculator**: Parse Sentinel, Splunk, and Elastic exports into one normalized model. Estimate data volume from infrastructure inventory. Model ingestion, retention, search, SOAR, and related costs.
+- **Defender for Cloud Cost Estimator**: Calculate monthly costs for various Azure Defender protection plans (Servers, Databases, Storage, App Service, Containers, Key Vault).
+- **Usage & Quota Tracker**: Monitor resource usage and quotas with real-time progress indicators and status alerts.
+- Export results for planning and review.
+- Run without an API, credentials, database, or cloud account.
+- Optionally deploy a static site and a separate Azure Functions API.
+- All processing runs client-side in the browser—no data sent externally unless AI features are enabled.
 
-## Trust model
-
-- **No credentials.** Never asks for tokens, keys, or secrets.
-- **Local analysis.** Parsing and cost calculations are pure and deterministic;
-  raw exports are not transmitted.
-- **Optional AI boundary.** AI requests contain only bounded aggregate fields
-  or app-owned example templates and can be disabled entirely.
-- **You run the queries.** Paste exported JSON from your own SIEM; the engine
-  never connects to it.
-
-## Supported vendors
-
-Parsers implemented: **Sentinel**, **Splunk**, **Elastic**. The normalized
-schema is vendor-agnostic and designed to extend to additional SIEMs.
-
-## Project layout
+## Repository layout
 
 | Path | Purpose |
-| ---- | ------- |
-| `schema/normalization.ts` | Canonical normalized schema + pure helpers |
-| `parsers/<vendor>.ts` | Vendor-specific parsers (pure, deterministic) |
-| `parsers/index.ts` | Parser registry |
-| `estimators/dataVolumeEstimator.ts` | Inventory-based GB/day estimator + source catalog |
-| `estimators/index.ts` | Estimator registry |
-| `pricing/sentinelPricing.ts` | Sentinel monthly cost model + public rate card |
-| `pricing/index.ts` | Pricing registry |
-| `shared/config/user.config.ts` | Supported public project customization |
-| `shared/config/internal.config.ts` | Protocol and compatibility invariants; not a customization surface |
-| `shared/contracts/` | Browser-safe cross-runtime wire contracts and guards |
-| `shared/utils/` | Pure helpers shared across runtime boundaries |
-| `api/` | Independently deployable, provider-neutral optional AI API |
-| `web/` | Static Astro and React frontend |
-| `infra/azure/` | Independent Bicep stacks for the site, API, and optional Azure OpenAI resources |
-| `samples/<vendor>.json` | Sample query/export output used by tests |
-| `test/` | Unit tests (Vitest) |
-
-## Codespaces setup
-
-The checked-in dev container installs Node.js 22, Azure CLI, Bicep, GitHub CLI,
-`jq`, ShellCheck, the recommended VS Code extensions, and all locked npm
-dependencies. In an existing Codespace, run **Codespaces: Rebuild Container**
-from the command palette after pulling changes to `.devcontainer/`.
-
-Exact development and CI tool versions are maintained in
-`.devcontainer/tool-versions.json`. Update that file first. Because dev-container
-features are resolved before repository scripts run, copy the same values into
-the matching feature options in `.devcontainer/devcontainer.json`; the
-post-create script rejects mismatches. npm is installed from the manifest by
-the post-create script because the Node feature does not provide an npm version
-option. GitHub workflows load Node and Bicep versions from the manifest
-automatically. Use full numeric versions such as `22.12.0`, not floating majors
-or `latest`, then rebuild the container.
-
-The image contains no Azure or GitHub credentials. Authenticate only when a
-deployment task needs them:
-
-```bash
-az login
-gh auth login
-az account show
-gh auth status
-```
-
-For a tenant-specific Azure login, use `az login --tenant <tenant-id>`. Verify
-the active subscription before running the OIDC bootstrap because its RBAC
-assignments are scoped to that subscription and the configured resource group.
-The default `npm run dev` uses the portable Node API adapter and does not need
-Azure Functions Core Tools. Install Core Tools separately only when exercising
-the optional `npm --prefix api run start:azure` workflow.
-
-## Deploy to Azure
-
-Each button provisions one independent resource boundary. Start with the free
-static website, add the consumption-based API only when optional AI is needed,
-and add Azure OpenAI last. The buttons provision infrastructure; the existing
-GitHub workflows deploy application code after their credentials are configured.
-
-| Component | Deployment | Cost boundary |
-| --- | --- | --- |
-| Resource group bootstrap | [![Create Azure resource group](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fninjapaw%2Fsentinel-optimizer%2Fmain%2Finfra%2Fazure%2Fbootstrap%2Fazuredeploy.json) | No resource charge; contained resources may be billed |
-| Static website | [![Deploy static website to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fninjapaw%2Fsentinel-optimizer%2Fmain%2Finfra%2Fazure%2Fsite%2Fazuredeploy.json) | Azure Static Web Apps Free |
-| Functions API | [![Deploy Functions API to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fninjapaw%2Fsentinel-optimizer%2Fmain%2Finfra%2Fazure%2Fapi%2Fazuredeploy.json) | Flex Consumption, scale-to-zero |
-| Azure OpenAI | [![Deploy Azure OpenAI components](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fninjapaw%2Fsentinel-optimizer%2Fmain%2Finfra%2Fazure%2Fai%2Fazuredeploy.json) | Optional, separately billed inference |
-
-For the recommended setup, authenticate Azure CLI and GitHub CLI, then run
-`infra/azure/bootstrap.sh`. It creates or reuses the resource group, OIDC
-identities, federated credentials, scoped RBAC, GitHub environments, and GitHub
-OIDC secrets without a client secret. Deploy components in the order shown.
-The API template accepts the static site's exact origin
-for CORS. The AI template then grants the existing Function App's managed
-identity access and configures its non-secret endpoint/deployment settings.
-See [Azure infrastructure](infra/azure/README.md) for prerequisites, GitHub
-configuration, CLI commands, parameters, and post-deployment steps.
-
-## Repository strategy
-
-Keep this project in one repository. The engine, shared configuration, API
-contracts, and frontend are changed and tested together, so splitting them
-would add version coordination without creating a useful security boundary.
-They already have separate package manifests, deployment workflows, and Azure
-stacks, which provides independent deployment without independent repositories.
-
-The AI provider implementation also belongs under `api/src/providers/`: it
-implements the API's internal `AiProvider` contract and is not a standalone
-service. Azure OpenAI infrastructure is separate under `infra/azure/ai/`
-because it has an optional lifecycle, permissions, quota, and billing boundary.
-Consider multiple repositories only if components gain different owners,
-release schedules, access controls, or external consumers that require stable
-versioned packages.
-
-## Documentation
-
-- [Web application and static hosting](web/README.md)
-- [Portable API, providers, and deployment](api/README.md)
-- [Shared configuration and utility contract](shared/README.md)
-- [Security policy and vulnerability reporting](SECURITY.md)
-
-## Normalized schema
-
-Every parser returns the same shape:
-
-```ts
-{
-  vendor: string,
-  sources: [
-    { name: string, events?: number, bytes?: number, gbPerDay?: number, storage?: string }
-  ],
-  connectors?: [...],
-  dcrs?: [...],
-  totals?: { gbPerDay?: number, events?: number, bytes?: number }
-}
-```
-
-## Usage
-
-```ts
-import { parseSentinel } from "./parsers/index.js";
-
-// `usage` is the JSON output of a KQL Usage query you ran in your tenant.
-const result = parseSentinel({ usage, windowDays: 30 });
-console.log(result.totals?.gbPerDay);
-```
-
-### Example: Microsoft Sentinel (KQL)
-
-Run this in Log Analytics, then paste the JSON result:
-
-```kql
-Usage
-| where TimeGenerated > ago(30d)
-| summarize QuantityMB = sum(Quantity) by DataType
-```
-
-`Quantity` in the `Usage` table is reported in MBytes, and is commonly
-converted to GB by dividing by 1000 in Microsoft examples.
-
-### Example: Splunk (SPL)
-
-```spl
-index=_internal source=*license_usage.log type=Usage
-| stats sum(b) as bytes by idx
-```
-
-### Example: Elasticsearch
-
-```http
-GET _cat/indices?format=json&bytes=b
-```
-
-## Data Volume Estimator
-
-When no logs are available yet, estimate Sentinel ingestion volume from an
-infrastructure inventory — node/endpoint/user counts per data-source type. No
-logs, credentials, or live environment are touched; it is a pure calculation.
-
-```ts
-import { estimateDataVolume } from "./estimators/index.js";
-
-const result = estimateDataVolume({
-  rows: [
-    { name: "Windows Servers w/ medium EPS", count: 200 },
-    { name: "Network Firewalls (DMZ)", count: 4 },
-  ],
-});
-console.log(result.totals?.gbPerDay);
-```
-
-Each source type carries a default average event size and events-per-second
-(see `DATA_SOURCE_CATALOG`), both overridable per row. Volume is computed with:
-
-```text
-GB/day = (avgEventSizeBytes × (count × avgEpsPerNode) × 86400) / 1024³
-```
-
-The estimator output uses the same normalized schema as the vendor parsers, so
-it feeds directly into cost modeling and optimization.
-
-## Cost model
-
-Turn normalized ingestion volume into an estimated monthly Sentinel cost. Rates
-default to Microsoft Sentinel's public, per-GB list pricing (USD) and are fully
-overridable for region, currency, or negotiated tiers.
-
-```ts
-import { estimateMonthlyCost } from "./pricing/index.js";
-
-const cost = estimateMonthlyCost({
-  analyticsGbPerDay: 500,
-  dataLakeGbPerDay: 2000,
-  searchTbPerMonth: 500,
-  benefits: { m365E5FreeGbPerDay: 50, defenderP2FreeGbPerDay: 30 },
-});
-console.log(cost.monthlyCost, cost.breakdown);
-```
-
-The model covers Analytics and Data Lake ingestion, interactive retention (with
-the free window), long-term storage, data search, SOAR, Security Copilot, and
-Sentinel for SAP. It also accounts for free-ingestion benefits (Microsoft 365
-E5, Defender for Servers P2, always-free sources) and an optional weekend
-ingestion-optimization discount. Pass a `NormalizedResult` directly with
-`estimateMonthlyCostFromResult(result, options)`.
-
-For data lake storage, the default model applies a 6:1 raw-to-billable
-compression ratio, which aligns with current Microsoft Sentinel data lake
-documentation.
-
-All rates live in `DEFAULT_SENTINEL_RATES`; nothing is hard-coded to a customer
-or contract.
-
-Rates and meter semantics can change by region, offer, and date. Validate
-production decisions with the Azure pricing calculator and current vendor billing
-exports.
+| --- | --- |
+| `parsers/`, `schema/` | Pure vendor parsing and normalized contracts |
+| `estimators/` | Data-volume estimation |
+| `pricing/` | Sentinel pricing model |
+| `shared/` | Browser-safe shared configuration, contracts, and utilities |
+| `api/` | Provider-neutral Node/Azure Functions API |
+| `web/` | Astro and React static frontend |
+| `infra/azure/` | Bicep stacks and zip-deployment support |
+| `test/` | Engine tests |
 
 ## Development
 
-### Project configuration
-
-Edit `shared/config/user.config.ts` for public branding, canonical URLs, local
-ports, model defaults, CORS defaults, and bounded API behavior. Do not put API
-keys, tokens, connection strings, or other secrets there because shared code is
-included in browser and server builds.
-
-Treat `shared/config/internal.config.ts` as application code rather than user
-configuration. It centralizes route names, storage identifiers, response
-headers, and other compatibility invariants; change it only with the consumers
-and tests that implement the same contract. Environment variables take
-precedence over shared defaults where a deployment supports an override.
+Requirements: Node.js `22.12.0` and npm `11.9.0`.
 
 ```bash
-npm install
-npm --prefix api install
-npm --prefix web install
-npm run typecheck # engine + API + web
-npm test          # engine + shared API core
-npm run build     # API + static web build
+npm ci
+npm --prefix api ci
+npm --prefix web ci
+npm run typecheck
+npm test
+npm run build
 ```
 
-For full-stack local development, optionally configure a model and start both
-services:
+Run locally:
 
 ```bash
-cp api/.env.example api/.env
 npm run dev
 ```
 
-The standalone API listens on `http://localhost:7071`; Astro listens on
-`http://localhost:4321` and proxies `/api/*` to the API. Without model settings,
-the application still runs and deterministic recommendations remain available.
+The web app runs on `http://localhost:4321`; the portable API runs on
+`http://localhost:7071`. The app works without model credentials.
 
-Parsers are pure and deterministic, and each vendor has a sample fixture in
-`samples/` plus a unit test in `test/`. Portable API behavior is tested under
-`api/src/core/`.
+Public defaults belong in `shared/config/user.config.ts`. Never place API keys,
+tokens, connection strings, customer exports, tenant secrets, or deployment
+credentials in source code, browser-exposed `PUBLIC_*` values, or committed
+configuration files.
 
-## Frontend/backend deployment modes
+## Azure deployment
 
-The frontend and API are separate packages and deployment boundaries:
+The lowest-cost topology is:
 
-- Frontend app: `web/`
-- Portable API: `api/`
+1. Azure Static Web Apps Free for the frontend.
+2. Azure Functions Flex Consumption for the optional API, deployed as a zip package.
+3. Azure OpenAI only when a required feature justifies its separate usage cost.
 
-The API has one shared core with adapters for Azure Functions, Cloudflare
-Workers, standalone Node.js, and OCI containers. Frontends use same-origin
-`/api/*` by default or `PUBLIC_AI_API_BASE` when hosted separately.
-Azure deployment uses the Functions adapter and a zip package; Docker is not
-part of the Azure site or API workflows.
+The repository uses Bicep. It does not require Docker for the Azure Functions deployment. The API Dockerfile remains available for local/container scenarios.
 
-### Lowest-cost Azure topology
+Azure deployment values belong in protected GitHub Environments, not this public repository. Create:
 
-- Host `web/` on **Azure Static Web Apps Free**. It needs no App Service plan,
-  server process, or linked backend.
-- Leave the optional API undeployed for a static-site-only footprint. Parsing,
-  pricing, and deterministic recommendations still work.
-- When AI is needed, host `api/` separately on **Azure Functions Flex
-  Consumption** in on-demand mode with zero always-ready instances. Set
-  `deployApi` in `infra/azure/config.json`; Azure workflows derive the Function
-  App origin and site CORS allowlist from that shared public configuration.
-- Do not link the Function App under Static Web Apps **APIs** unless
-  intentionally upgrading the site to Standard. Bring-your-own backend linking
-  is not available on the Free plan.
+- `azure-development`
+- `azure-production`
 
-Functions free grants can make light on-demand hosting very low cost, but they
-are quotas rather than a zero-cost guarantee. Model inference, storage, logs,
-bandwidth overages, custom DNS, and other attached services can incur charges.
+Use `infra/azure/bootstrap.sh --environment development` to seed one environment, then repeat for production. The bootstrap creates short-lived GitHub OIDC federation and scoped role assignments; it does not create a client secret.
 
-Deployment workflows:
+### Environment variables
 
-- `.github/workflows/deploy-github-pages-site.yml`
-- `.github/workflows/deploy-azure-site.yml`
-- `.github/workflows/deploy-azure-api.yml`
-- `.github/workflows/deploy-cloudflare-api.yml`
+Create these as **GitHub Environment variables** in both environments. Use
+separate names and URLs for development and production.
 
-See the [API README](api/README.md) for provider settings, local commands,
-identity and secret requirements, CORS, container deployment, and instructions
-for another adapter. Review the [security policy](SECURITY.md) before exposing
-configured AI routes publicly.
+| Variable | Required | Development example | Production example | Purpose and guidance |
+| --- | --- | --- | --- | --- |
+| `AZURE_ENVIRONMENT` | Yes | `development` | `production` | Environment tag applied by Bicep. |
+| `AZURE_LOCATION` | Yes | `centralus` | `centralus` | Azure deployment region. Confirm service availability and quota first. |
+| `AZURE_RESOURCE_GROUP` | Yes | `sentinel-optimizer-development` | `sentinel-optimizer-production` | Resource group owned by this environment. |
+| `AZURE_STATIC_WEB_APP_NAME` | Yes | `sentinel-optimizer-development-site` | `sentinel-optimizer-production-site` | Globally unique Static Web Apps resource name. |
+| `AZURE_FUNCTIONAPP_NAME` | Yes | `sentinel-optimizer-development-api` | `sentinel-optimizer-production-api` | Globally unique Azure Functions app name. |
+| `AZURE_PUBLIC_SITE_URL` | Yes | Generated dev URL or dev custom domain | Production custom domain or generated URL | Canonical site URL embedded into the static build. Must use `https://`. |
+| `AZURE_DEPLOY_API` | Yes | `false` initially; `true` when API is ready | `true` only when approved | Enables API code deployment. Keep `false` for a static-only deployment. |
+| `AZURE_USE_API` | Yes | `false` until health check passes | `true` after API validation | Makes the frontend call the separate Functions API. Requires `AZURE_DEPLOY_API=true`. |
+| `AZURE_ENABLE_ANONYMOUS_AI_ROUTES` | Yes | `false` | `false` | Controls paid anonymous AI routes. Keep `false` unless authentication, rate limits, quotas, and budgets are in place. |
+| `AZURE_OPENAI_ACCOUNT_NAME` | Yes for AI IaC | `sentinel-optimizer-development-openai` | `sentinel-optimizer-production-openai` | Azure OpenAI account name. Do not deploy the AI stack unless needed. |
+| `AZURE_OPENAI_MODEL_NAME` | Yes for AI IaC | `gpt-4.1-mini` | Approved supported model | Model identifier used by the optional AI stack. Check regional quota. |
+| `AZURE_OPENAI_MODEL_DEPLOYMENT` | Yes for AI IaC | `sentinel-optimizer-model` | `sentinel-optimizer-model` | Deployment name written to the Function App settings. |
+| `ENTRA_EXTERNAL_ID_ISSUER` | Admin API | External ID issuer URL | External ID issuer URL | Exact JWT issuer accepted by the admin API. |
+| `ENTRA_EXTERNAL_ID_JWKS_URI` | Admin API | External ID JWKS URL | External ID JWKS URL | Signing-key endpoint used for token validation. |
+| `ENTRA_EXTERNAL_ID_AUDIENCE` | Admin API | API application/client ID | API application/client ID | Expected access-token audience. |
+| `ENTRA_EXTERNAL_ID_ADMIN_ROLE` | Admin API | `SentinelOptimizer.Admin` | `SentinelOptimizer.Admin` | Required app-role claim. |
+| `PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID` | Admin site | SPA application/client ID | SPA application/client ID | Public SPA identifier; never a client secret. |
+| `PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY` | Admin site | External ID authority URL | External ID authority URL | MSAL authority used for login. |
+| `PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE` | Admin site | `api://.../access_as_user` | `api://.../access_as_user` | Scope requested for the admin API access token. |
+| `PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE` | Admin site | `SentinelOptimizer.Admin` | `SentinelOptimizer.Admin` | UI hint only; the API remains the authorization boundary. |
+| `PUBLIC_ADMIN_API_BASE` | Admin site | `https://...azurewebsites.net` | `https://...azurewebsites.net` | Admin API origin used by the management console. |
+
+### Environment secrets
+
+Create these as **GitHub Environment secrets**. Do not commit them, place them
+in `PUBLIC_*` variables, or print them in workflow logs.
+
+| Secret | Required by | Recommended value/source | Purpose and guidance |
+| --- | --- | --- | --- |
+| `AZURE_CLIENT_ID` | Infrastructure workflow | Infrastructure OIDC application client ID | Short-lived GitHub OIDC sign-in for Bicep deployment. No client secret is required. |
+| `AZURE_API_CLIENT_ID` | API workflow | API deployment OIDC application client ID | Separate least-privilege identity for publishing the Functions zip package. |
+| `AZURE_TENANT_ID` | Azure workflows | Microsoft Entra tenant ID | Tenant containing the OIDC applications. This identifier is not a password, but keep environment configuration consistent. |
+| `AZURE_SUBSCRIPTION_ID` | Azure workflows | Target Azure subscription ID | Select the subscription that owns the environment resource group. |
+| `AZURE_API_PRINCIPAL_OBJECT_ID` | Infrastructure API deployment | Object ID of the API deployment service principal | Used by Bicep to grant Website Contributor only on the Function App. |
+| `AZURE_STATIC_WEB_APPS_API_TOKEN` | Static site deployment | Retrieve from the Static Web App deployment-token command | Long-lived site deployment token. Store only in the selected GitHub Environment and rotate if exposed. |
+
+### Built-in GitHub token
+
+`GITHUB_TOKEN` is automatically created by GitHub Actions and is used for
+Static Web Apps pull-request integration. Do not create or copy it manually.
+
+### Infrastructure workflow inputs
+
+The **Validate and Deploy Azure Infrastructure** workflow also has manual
+inputs. These are not stored as Environment variables or secrets:
+
+| Input | Recommended default | Applies to | Guidance |
+| --- | --- | --- | --- |
+| `environment` | `development` | All stacks | Select `production` only with environment approvals. |
+| `component` | `site` | All stacks | Deploy in order: `site`, `api`, then optional `ai`. |
+| `operation` | `what-if` | All stacks | Review the preview before selecting `deploy`. |
+| `site-sku` | `Free` | Site | Use `Standard` only when its features or SLA are required. |
+| `function-memory-mb` | `512` | API | Increase only after measured memory or latency pressure. |
+| `storage-sku` | `Standard_LRS` | API | Choose ZRS/GRS variants only for a defined resilience requirement. |
+| `always-ready-instances` | `0` | API | Keeps scale-to-zero and avoids baseline instance cost. |
+| `function-maximum-instances` | `40` | API | Increase only after load testing and cost review. |
+| `openai-deployment-sku` | `GlobalStandard` | AI | Azure OpenAI is separately billed and has quota requirements. |
+| `openai-model-capacity` | `1` | AI | Increase only when measured throughput requires it. |
+
+Use `what-if` before applying infrastructure changes and require reviewers for `azure-production`. Do not deploy from pull requests. Keep runtime secrets in Azure Key Vault or managed identity-backed services. The public frontend must never contain a client secret.
+
+## Security
+
+This is a planning and estimation tool, not a security boundary. Review inputs and outputs before relying on them. Keep public API routes disabled unless authentication, rate limiting, CORS restrictions, abuse monitoring, quotas, and cost controls are configured. Do not enable AI routes without provider budgets and alerts.
+
+Report suspected vulnerabilities privately through the repository owner’s configured security process. Do not publish secrets, customer data, or exploit details in an issue.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+[Microsoft Sentinel documentation](https://learn.microsoft.com/azure/sentinel/) · [Azure Functions documentation](https://learn.microsoft.com/azure/azure-functions/) · [Azure Static Web Apps documentation](https://learn.microsoft.com/azure/static-web-apps/)

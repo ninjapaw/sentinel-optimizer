@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { readdir } from "node:fs/promises";
 
 const directory = new URL("../dist/api/src/adapters/azure/functions/", import.meta.url);

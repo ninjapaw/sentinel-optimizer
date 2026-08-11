@@ -1,9 +1,18 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { describe, expect, it } from "vitest";
 import {
+  apiResponseHeaders,
   isAggregatedSummary,
   isAiTextResponse,
   isApiErrorResponse,
   isExampleRequest,
+  isFiniteNumber,
+  isRecord,
   roundTo,
   utf8ByteLength,
   USER_CONFIG,
@@ -57,6 +66,26 @@ describe("shared AI contracts", () => {
 });
 
 describe("shared utilities", () => {
+  it("builds consistent API and CORS headers", () => {
+    expect(apiResponseHeaders()).toMatchObject({
+      "cache-control": "no-store",
+      "content-type": "application/json; charset=utf-8",
+    });
+    expect(apiResponseHeaders("https://example.test")).toMatchObject({
+      "access-control-allow-origin": "https://example.test",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+      vary: "Origin",
+    });
+  });
+
+  it("identifies records and finite numbers", () => {
+    expect(isRecord({ value: 1 })).toBe(true);
+    expect(isRecord([])).toBe(false);
+    expect(isRecord(null)).toBe(false);
+    expect(isFiniteNumber(1)).toBe(true);
+    expect(isFiniteNumber(Number.NaN)).toBe(false);
+  });
+
   it("counts UTF-8 bytes rather than UTF-16 code units", () => {
     expect(utf8ByteLength("abc")).toBe(3);
     expect(utf8ByteLength("é")).toBe(2);

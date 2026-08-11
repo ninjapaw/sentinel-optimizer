@@ -1,4 +1,10 @@
 /**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
+/**
  * Pricing registry.
  *
  * Cost models turn normalized ingestion volume into estimated monthly cost

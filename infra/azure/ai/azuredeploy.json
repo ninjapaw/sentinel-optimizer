@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "17257484831037473780"
+      "templateHash": "9606901986912162175"
     }
   },
   "parameters": {
@@ -28,6 +28,13 @@
       "defaultValue": "[resourceGroup().location]",
       "metadata": {
         "description": "Azure region where the selected Azure OpenAI model is available."
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "development",
+      "metadata": {
+        "description": "Deployment environment used for resource tags."
       }
     },
     "modelDeploymentName": {
@@ -79,13 +86,16 @@
       }
     }
   },
+  "variables": {
+    "resourceTags": "[union(createObject('application', 'sentinel-optimizer', 'environment', parameters('environmentName'), 'component', 'ai', 'managedBy', 'bicep'), parameters('tags'))]"
+  },
   "resources": [
     {
       "type": "Microsoft.CognitiveServices/accounts",
       "apiVersion": "2025-06-01",
       "name": "[parameters('openAiAccountName')]",
       "location": "[parameters('location')]",
-      "tags": "[parameters('tags')]",
+      "tags": "[variables('resourceTags')]",
       "kind": "OpenAI",
       "sku": {
         "name": "S0"

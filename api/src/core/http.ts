@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import type { ApiResult } from "./contracts.js";
 import { utf8ByteLength } from "../../../shared/index.js";
 
@@ -19,12 +25,4 @@ export function readJson(rawBody: string, maxBytes: number): JsonReadResult {
   } catch {
     return { ok: false, result: result({ error: "Invalid JSON." }, 400) };
   }
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
 }

@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { useMemo } from "react";
 import type { NormalizedResult } from "@engine/schema/normalization.js";
 import type {
@@ -5,6 +11,7 @@ import type {
   TableRetention,
 } from "@engine/pricing/sentinelPricing.js";
 import { gbPerDay } from "../lib/format.js";
+import { parseOptionalNumber } from "../lib/forms.js";
 
 interface Props {
   result: NormalizedResult;
@@ -22,12 +29,6 @@ const PRESETS: { label: string; months: number }[] = [
   { label: "1 year", months: 12 },
   { label: "2 years", months: 24 },
 ];
-
-function num(v: string): number | undefined {
-  if (v.trim() === "") return undefined;
-  const n = Number(v);
-  return Number.isFinite(n) && n >= 0 ? n : undefined;
-}
 
 type TableLane = "analytics" | "basicAux" | "dataLake" | "auto";
 
@@ -174,7 +175,7 @@ export default function RetentionTable({ result, input, onChange }: Props) {
                           value={interactive}
                           aria-label={`Interactive retention months for ${row.name}`}
                           onChange={(e) =>
-                            patchRow(row.name, { interactiveMonths: num(e.target.value) ?? 0 })
+                            patchRow(row.name, { interactiveMonths: parseOptionalNumber(e.target.value, 0) ?? 0 })
                           }
                         />
                       </td>
@@ -187,7 +188,7 @@ export default function RetentionTable({ result, input, onChange }: Props) {
                           value={total}
                           aria-label={`Total retention months for ${row.name}`}
                           onChange={(e) =>
-                            patchRow(row.name, { totalMonths: num(e.target.value) ?? 0 })
+                            patchRow(row.name, { totalMonths: parseOptionalNumber(e.target.value, 0) ?? 0 })
                           }
                         />
                       </td>

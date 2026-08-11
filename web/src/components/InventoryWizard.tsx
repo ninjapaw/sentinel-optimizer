@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { useState } from "react";
 import type { NormalizedResult } from "@engine/schema/normalization.js";
 import { estimateDataVolume, DATA_SOURCE_CATALOG, rowGbPerDay } from "@engine/estimators/index.js";

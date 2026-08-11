@@ -1,0 +1,19 @@
+---
+/*
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+import Base from "../layouts/Base.astro";
+import AdminConsole from "../components/AdminConsole.tsx";
+---
+
+<Base title="Admin | Sentinel Optimizer" description="Sentinel Optimizer management console.">
+  <main id="main" class="container" style="padding-block: 4rem;">
+    <h1>🔐 Administration</h1>
+    <p>
+      System management and insights for administrators. You need special admin access to view this page.
+    </p>
+    <AdminConsole client:load />
+  </main>
+</Base>

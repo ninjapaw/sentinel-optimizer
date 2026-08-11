@@ -1,4 +1,10 @@
 /**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
+/**
  * Universal SIEM Collector — normalization schema.
  *
  * Every vendor parser normalizes its raw query/export output into the

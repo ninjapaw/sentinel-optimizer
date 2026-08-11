@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import type { AiProvider, ApiResult } from "./contracts.js";
 import { readJson, result } from "./http.js";
 import {
@@ -11,7 +17,7 @@ export const EXAMPLE_MAX_BODY_BYTES = USER_CONFIG.api.example.maxBodyBytes;
 function extractJson(raw: string): string | null {
   let candidate = raw.trim();
   const fence = candidate.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fence) candidate = fence[1].trim();
+  if (fence?.[1]) candidate = fence[1].trim();
   const starts = [candidate.indexOf("{"), candidate.indexOf("[")].filter(
     (index) => index >= 0,
   );

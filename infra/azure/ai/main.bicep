@@ -1,3 +1,7 @@
+// MIT License
+// Copyright (c) 2026 Microsoft Corporation
+// See LICENSE in the repository root.
+
 targetScope = 'resourceGroup'
 
 @description('Globally unique Azure OpenAI account name.')
@@ -10,6 +14,9 @@ param functionAppName string
 
 @description('Azure region where the selected Azure OpenAI model is available.')
 param location string = resourceGroup().location
+
+@description('Deployment environment used for resource tags.')
+param environmentName string = 'development'
 
 @description('Azure OpenAI deployment name written to the Function App settings.')
 param modelDeploymentName string = 'sentinel-optimizer-model'
@@ -35,6 +42,13 @@ param modelCapacity int = 1
 @description('Resource tags applied to Azure OpenAI resources.')
 param tags object = {}
 
+var resourceTags = union({
+  application: 'sentinel-optimizer'
+  environment: environmentName
+  component: 'ai'
+  managedBy: 'bicep'
+}, tags)
+
 resource functionApp 'Microsoft.Web/sites@2024-04-01' existing = {
   name: functionAppName
 }
@@ -42,7 +56,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' existing = {
 resource openAiAccount 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
   name: openAiAccountName
   location: location
-  tags: tags
+  tags: resourceTags
   kind: 'OpenAI'
   sku: {
     name: 'S0'

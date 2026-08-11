@@ -1,9 +1,20 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { DefaultAzureCredential, getBearerTokenProvider } from "@azure/identity";
 import OpenAI from "openai";
 import type { AiProvider, ChatRequest, ChatResult } from "../core/contracts.js";
-import { INTERNAL_CONFIG, USER_CONFIG } from "../../../shared/index.js";
+import {
+  INTERNAL_CONFIG,
+  trimTrailingSlashes,
+  USER_CONFIG,
+} from "../../../shared/index.js";
 
 export interface AiEnvironment {
+  AI_API_ENABLED?: string;
   AI_API_KEY?: string;
   AI_BASE_URL?: string;
   AI_MODEL?: string;
@@ -42,10 +53,6 @@ class OpenAiProvider implements AiProvider {
   }
 }
 
-function trimTrailingSlash(value: string): string {
-  return value.trim().replace(/\/+$/, "");
-}
-
 export function createOpenAiProvider(
   environment: AiEnvironment = process.env,
 ): AiProvider | undefined {
@@ -60,7 +67,7 @@ export function createOpenAiProvider(
       );
     return new OpenAiProvider(
       new OpenAI({
-        baseURL: `${trimTrailingSlash(azureEndpoint)}/openai/v1/`,
+        baseURL: `${trimTrailingSlashes(azureEndpoint)}/openai/v1/`,
         apiKey,
         timeout: USER_CONFIG.api.openai.requestTimeoutMs,
         maxRetries: USER_CONFIG.api.openai.maxRetries,
@@ -82,7 +89,7 @@ export function createOpenAiProvider(
   return new OpenAiProvider(
     new OpenAI({
       apiKey,
-      ...(baseURL ? { baseURL: trimTrailingSlash(baseURL) } : {}),
+      ...(baseURL ? { baseURL: trimTrailingSlashes(baseURL) } : {}),
       timeout: USER_CONFIG.api.openai.requestTimeoutMs,
       maxRetries: USER_CONFIG.api.openai.maxRetries,
     }),

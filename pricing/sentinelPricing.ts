@@ -1,4 +1,10 @@
 /**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
+/**
  * Microsoft Sentinel cost model.
  *
  * Converts normalized ingestion volume (GB/day) into an estimated monthly cost

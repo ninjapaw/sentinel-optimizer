@@ -1,0 +1,26 @@
+---
+/*
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
+import Base from "../layouts/Base.astro";
+import SessionsManager from "../components/SessionsManager";
+---
+
+<Base title="My Sessions | Sentinel Optimizer" description="View and manage your saved Sentinel Optimizer sessions.">
+  <main id="main" class="container" style="padding-block: 2rem;">
+    <h1>📁 Your Saved Work</h1>
+    <p>
+      All your saved calculations are here. Click on any to reload it, or delete ones you don't need anymore.
+    </p>
+    <SessionsManager client:load />
+
+    <div style="margin-top: 3rem; padding: 1.5rem; background: var(--color-info-bg, #e7f3ff); border: 1px solid var(--color-info-border, #91d5ff); border-radius: 12px;">
+      <p style="margin: 0; color: var(--color-info, #0050b3);">
+        <strong>💡 Tip:</strong> Sign in to save your work across devices. Your sessions are stored securely and never shared.
+      </p>
+    </div>
+  </main>
+</Base>

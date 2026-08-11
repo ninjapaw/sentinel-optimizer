@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { useEffect, useState } from "react";
 import type { NormalizedResult } from "@engine/schema/normalization.js";
 import type { SentinelCostEstimate, SentinelCostInput } from "@engine/pricing/sentinelPricing.js";

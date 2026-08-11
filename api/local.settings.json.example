@@ -5,6 +5,13 @@
     "FUNCTIONS_WORKER_RUNTIME": "node",
     "AI_API_ENABLED": "false",
     "AZURE_OPENAI_ENDPOINT": "https://YOUR-RESOURCE.openai.azure.com",
-    "AZURE_OPENAI_DEPLOYMENT": "YOUR-DEPLOYMENT-NAME"
+    "AZURE_OPENAI_DEPLOYMENT": "YOUR-DEPLOYMENT-NAME",
+    "COSMOS_CONNECTION_STRING": "DefaultEndpointProtocol=https://host=https://replace-me.documents.azure.com:443/;AccountKey=replace-me==;",
+    "COSMOS_DATABASE": "sentinel-db",
+    "COSMOS_SESSIONS_CONTAINER": "sessions",
+    "ENTRA_EXTERNAL_ID_ISSUER": "https://replace-me.ciamlogin.com",
+    "ENTRA_EXTERNAL_ID_JWKS_URI": "https://replace-me.ciamlogin.com/discover",
+    "ENTRA_EXTERNAL_ID_AUDIENCE": "replace-me",
+    "ENTRA_EXTERNAL_ID_ADMIN_ROLE": "SentinelOptimizer.Admin"
   }
 }

@@ -1,31 +1,26 @@
+# MIT License
+# Copyright (c) 2026 Microsoft Corporation
+# See LICENSE in the repository root.
+
 name: Deploy Azure API
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/deploy-azure-api.yml
-      - api/**
-      - shared/**
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-    branches:
-      - main
-    paths:
-      - .github/workflows/deploy-azure-api.yml
-      - api/**
-      - shared/**
   workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub Environment and Azure naming scope
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
 
 permissions:
   contents: read
 
 concurrency:
-  group: azure-api-${{ github.event.pull_request.number || github.ref }}
+  group: azure-api-${{ inputs.environment || 'manual' }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -35,10 +30,15 @@ jobs:
     defaults:
       run:
         working-directory: api
-    outputs:
-      api-enabled: ${{ steps.infrastructure-config.outputs.api-enabled }}
-      function-app-name: ${{ steps.infrastructure-config.outputs.function-app-name }}
-      resource-group: ${{ steps.infrastructure-config.outputs.resource-group }}
+    environment: azure-${{ inputs.environment }}
+    env:
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_STATIC_WEB_APP_NAME: ${{ vars.AZURE_STATIC_WEB_APP_NAME }}
+      AZURE_FUNCTIONAPP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+      AZURE_PUBLIC_SITE_URL: ${{ vars.AZURE_PUBLIC_SITE_URL }}
+      AZURE_DEPLOY_API: ${{ vars.AZURE_DEPLOY_API }}
+      AZURE_USE_API: ${{ vars.AZURE_USE_API }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -47,23 +47,14 @@ jobs:
         working-directory: .
         run: jq --raw-output --from-file .devcontainer/export-tool-versions.jq .devcontainer/tool-versions.json >> "$GITHUB_ENV"
 
-      - name: Load shared infrastructure configuration
-        id: infrastructure-config
+      - name: Validate GitHub Environment configuration
         working-directory: .
         run: |
-          jq --raw-output --from-file infra/azure/export-config.jq \
-            infra/azure/config.json > /dev/null
-          api_enabled="$(jq --raw-output .deployApi infra/azure/config.json)"
-          function_app_name="$(jq --raw-output .functionAppName infra/azure/config.json)"
-          if [[ "$api_enabled" == true && "$function_app_name" == replace-with-* ]]; then
-            echo "::error title=Placeholder Function App name::Set functionAppName in infra/azure/config.json before enabling API deployment."
+          bash infra/azure/validate-environment.sh
+          if [[ "${AZURE_DEPLOY_API:-false}" != true ]]; then
+            echo "::error title=API deployment disabled::Set AZURE_DEPLOY_API=true in the selected GitHub Environment."
             exit 1
           fi
-          {
-            echo "api-enabled=$api_enabled"
-            echo "function-app-name=$function_app_name"
-            echo "resource-group=$(jq --raw-output .resourceGroup infra/azure/config.json)"
-          } >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -97,7 +88,7 @@ jobs:
         run: zip -r "$RUNNER_TEMP/function-app.zip" dist host.json node_modules package.json package-lock.json
 
       - name: Upload deployment package
-        if: github.event_name != 'pull_request' && steps.infrastructure-config.outputs.api-enabled == 'true'
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: azure-function-app
@@ -106,7 +97,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    if: github.event_name != 'pull_request' && needs.build.outputs.api-enabled == 'true'
+    if: github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -114,8 +105,16 @@ jobs:
       contents: read
       id-token: write
     environment:
-      name: azure-api
-      url: https://${{ needs.build.outputs.function-app-name }}.azurewebsites.net
+      name: azure-${{ inputs.environment }}
+      url: https://${{ vars.AZURE_FUNCTIONAPP_NAME }}.azurewebsites.net
+    env:
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_STATIC_WEB_APP_NAME: ${{ vars.AZURE_STATIC_WEB_APP_NAME }}
+      AZURE_FUNCTIONAPP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+      AZURE_PUBLIC_SITE_URL: ${{ vars.AZURE_PUBLIC_SITE_URL }}
+      AZURE_DEPLOY_API: ${{ vars.AZURE_DEPLOY_API }}
+      AZURE_USE_API: ${{ vars.AZURE_USE_API }}
     steps:
       - name: Download deployment package
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -125,7 +124,7 @@ jobs:
 
       - name: Verify OIDC bootstrap configuration
         env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_API_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
@@ -136,14 +135,14 @@ jobs:
       - name: Sign in to Azure
         uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-id: ${{ secrets.AZURE_API_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Verify Function App infrastructure
         env:
-          FUNCTION_APP_NAME: ${{ needs.build.outputs.function-app-name }}
-          RESOURCE_GROUP: ${{ needs.build.outputs.resource-group }}
+          FUNCTION_APP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
         run: |
           if ! az functionapp show \
             --resource-group "$RESOURCE_GROUP" \
@@ -154,7 +153,7 @@ jobs:
           fi
 
       - name: Deploy Azure Functions API
-        uses: Azure/functions-action@c9cc8ee93d1285e2a17312cc8357dc1775955272 # v1
+        uses: Azure/functions-action@c27ade7ab0db7a7005f1ee0c6aed9fae27ca4249 # v1
         with:
-          app-name: ${{ needs.build.outputs.function-app-name }}
+          app-name: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
           package: function-package/function-app.zip

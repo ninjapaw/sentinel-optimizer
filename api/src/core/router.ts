@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import type { AiProvider, ApiResult } from "./contracts.js";
 import { handleExample } from "./example.js";
 import { result } from "./http.js";

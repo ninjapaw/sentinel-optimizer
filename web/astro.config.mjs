@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { defineConfig } from "astro/config";
 import react from "@astrojs/react";
 import { fileURLToPath } from "node:url";

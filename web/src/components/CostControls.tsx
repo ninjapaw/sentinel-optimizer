@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { useEffect, useRef, useState } from "react";
 import type { NormalizedResult } from "@engine/schema/normalization.js";
 import type { SentinelCostInput } from "@engine/pricing/sentinelPricing.js";
@@ -5,6 +11,7 @@ import type { SentinelCostEstimate } from "@engine/pricing/sentinelPricing.js";
 import type { TableRetention } from "@engine/pricing/sentinelPricing.js";
 import { DEFAULT_SENTINEL_RATES } from "@engine/pricing/index.js";
 import { gbPerDay, gb, money, rate } from "../lib/format.js";
+import { parseOptionalNumber } from "../lib/forms.js";
 
 interface Props {
   result: NormalizedResult;
@@ -43,12 +50,6 @@ interface IngestionLaneRow {
 
 type LanePlanningMode = "guided" | "advanced";
 type LaneProfile = "detectionFirst" | "balanced" | "costFirst";
-
-function num(v: string): number | undefined {
-  if (v.trim() === "") return undefined;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : undefined;
-}
 
 /**
  * KQL helper to size the Defender for Servers Plan 2 free-ingestion benefit.
@@ -763,7 +764,7 @@ export default function CostControls({
             value={input.ingestionOptimizationPct != null ? input.ingestionOptimizationPct * 100 : ""}
             placeholder="0"
             onChange={(e) => {
-              const n = num(e.target.value);
+              const n = parseOptionalNumber(e.target.value);
               onChange({ ingestionOptimizationPct: n != null ? n / 100 : undefined });
             }}
           />
@@ -782,7 +783,7 @@ export default function CostControls({
             min={0}
             value={input.basicAuxGbPerDay ?? ""}
             placeholder="0"
-            onChange={(e) => onChange({ basicAuxGbPerDay: num(e.target.value) })}
+            onChange={(e) => onChange({ basicAuxGbPerDay: parseOptionalNumber(e.target.value) })}
           />
         </div>
         <div className="field">
@@ -793,7 +794,7 @@ export default function CostControls({
             min={0}
             value={input.dataLakeGbPerDay ?? ""}
             placeholder="0"
-            onChange={(e) => onChange({ dataLakeGbPerDay: num(e.target.value) })}
+            onChange={(e) => onChange({ dataLakeGbPerDay: parseOptionalNumber(e.target.value) })}
           />
         </div>
       </div>
@@ -899,7 +900,7 @@ export default function CostControls({
             disabled={perTable}
             value={input.interactiveRetentionMonths ?? ""}
             placeholder="3 (free)"
-            onChange={(e) => onChange({ interactiveRetentionMonths: num(e.target.value) })}
+            onChange={(e) => onChange({ interactiveRetentionMonths: parseOptionalNumber(e.target.value) })}
           />
         </div>
         <div className="field">
@@ -911,7 +912,7 @@ export default function CostControls({
             disabled={perTable}
             value={input.dataStorageMonths ?? ""}
             placeholder="12"
-            onChange={(e) => onChange({ dataStorageMonths: num(e.target.value) })}
+            onChange={(e) => onChange({ dataStorageMonths: parseOptionalNumber(e.target.value) })}
           />
         </div>
       </div>
@@ -928,7 +929,7 @@ export default function CostControls({
             min={0}
             value={input.searchTbPerMonth ?? ""}
             placeholder="0"
-            onChange={(e) => onChange({ searchTbPerMonth: num(e.target.value) })}
+            onChange={(e) => onChange({ searchTbPerMonth: parseOptionalNumber(e.target.value) })}
           />
         </div>
         <div className="field">
@@ -939,7 +940,7 @@ export default function CostControls({
             min={0}
             value={input.soarActionsPerMonth ?? ""}
             placeholder="0"
-            onChange={(e) => onChange({ soarActionsPerMonth: num(e.target.value) })}
+            onChange={(e) => onChange({ soarActionsPerMonth: parseOptionalNumber(e.target.value) })}
           />
         </div>
       </div>
@@ -953,7 +954,7 @@ export default function CostControls({
             min={0}
             value={input.securityCopilotScu ?? ""}
             placeholder="0"
-            onChange={(e) => onChange({ securityCopilotScu: num(e.target.value) })}
+            onChange={(e) => onChange({ securityCopilotScu: parseOptionalNumber(e.target.value) })}
           />
         </div>
         <div className="field">
@@ -964,7 +965,7 @@ export default function CostControls({
             min={0}
             value={input.sapProductionSids ?? ""}
             placeholder="0"
-            onChange={(e) => onChange({ sapProductionSids: num(e.target.value) })}
+            onChange={(e) => onChange({ sapProductionSids: parseOptionalNumber(e.target.value) })}
           />
         </div>
       </div>
@@ -1191,7 +1192,7 @@ export default function CostControls({
               min={0}
               value={b.m365E5FreeGbPerDay ?? ""}
               placeholder="0"
-              onChange={(e) => setBenefit({ m365E5FreeGbPerDay: num(e.target.value) })}
+              onChange={(e) => setBenefit({ m365E5FreeGbPerDay: parseOptionalNumber(e.target.value) })}
             />
           </div>
           <div className="query-head">
@@ -1327,7 +1328,7 @@ export default function CostControls({
               min={0}
               value={b.freeDataSourceGbPerDay ?? ""}
               placeholder="0"
-              onChange={(e) => setBenefit({ freeDataSourceGbPerDay: num(e.target.value) })}
+              onChange={(e) => setBenefit({ freeDataSourceGbPerDay: parseOptionalNumber(e.target.value) })}
             />
             <p className="ai-note">
               Run the query below and paste its <code>FreeGBPerDay</code> total.
@@ -1523,7 +1524,7 @@ export default function CostControls({
               min={0}
               value={b.defenderP2FreeGbPerDay ?? ""}
               placeholder="0"
-              onChange={(e) => setBenefit({ defenderP2FreeGbPerDay: num(e.target.value) })}
+              onChange={(e) => setBenefit({ defenderP2FreeGbPerDay: parseOptionalNumber(e.target.value) })}
             />
             <p className="ai-note">
               Run the query below and paste its <code>FreeGBPerDay</code> value.

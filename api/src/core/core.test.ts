@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { describe, expect, it, vi } from "vitest";
 import type { AiProvider } from "./contracts.js";
 import { handleExample } from "./example.js";

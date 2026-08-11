@@ -1,13 +1,35 @@
+# MIT License
+# Copyright (c) 2026 Microsoft Corporation
+# See LICENSE in the repository root.
+
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
 script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repository_root="$(cd "$script_directory/../.." && pwd)"
-config_file="$script_directory/config.json"
 bootstrap_template="$script_directory/bootstrap/azuredeploy.json"
 location="${AZURE_LOCATION:-eastus2}"
 subscription_id=""
 repository=""
+deployment_environment="${AZURE_ENVIRONMENT:-development}"
+resource_group="${AZURE_RESOURCE_GROUP:-}"
+static_web_app_name="${AZURE_STATIC_WEB_APP_NAME:-}"
+function_app_name="${AZURE_FUNCTIONAPP_NAME:-}"
+public_site_url="${AZURE_PUBLIC_SITE_URL:-}"
+deploy_api="${AZURE_DEPLOY_API:-false}"
+use_api="${AZURE_USE_API:-false}"
+enable_anonymous_ai_routes="${AZURE_ENABLE_ANONYMOUS_AI_ROUTES:-false}"
+openai_account_name="${AZURE_OPENAI_ACCOUNT_NAME:-}"
+openai_model_name="${AZURE_OPENAI_MODEL_NAME:-gpt-4.1-mini}"
+openai_model_deployment="${AZURE_OPENAI_MODEL_DEPLOYMENT:-sentinel-optimizer-model}"
+entra_external_id_issuer="${ENTRA_EXTERNAL_ID_ISSUER:-}"
+entra_external_id_jwks_uri="${ENTRA_EXTERNAL_ID_JWKS_URI:-}"
+entra_external_id_audience="${ENTRA_EXTERNAL_ID_AUDIENCE:-}"
+entra_external_id_admin_role="${ENTRA_EXTERNAL_ID_ADMIN_ROLE:-SentinelOptimizer.Admin}"
+public_entra_external_id_client_id="${PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID:-}"
+public_entra_external_id_authority="${PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY:-}"
+public_entra_external_id_api_scope="${PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE:-}"
+public_admin_api_base="${PUBLIC_ADMIN_API_BASE:-}"
 configure_github=true
 temporary_directory=""
 
@@ -18,9 +40,16 @@ Bootstrap Azure and GitHub OIDC for Sentinel Optimizer.
 Usage: infra/azure/bootstrap.sh [options]
 
 Options:
+  --environment <name>       GitHub Environment scope: development or production
+  --resource-group <name>    Azure resource group (default: AZURE_RESOURCE_GROUP)
+  --site-name <name>         Static Web App name (default: AZURE_STATIC_WEB_APP_NAME)
+  --function-name <name>     Function App name (default: AZURE_FUNCTIONAPP_NAME)
+  --public-site-url <url>    Public site URL (default: AZURE_PUBLIC_SITE_URL)
   --location <region>         Azure region (default: AZURE_LOCATION or eastus2)
   --subscription <id>        Azure subscription (default: current az account)
   --repository <owner/name>  GitHub repository (default: current gh repository)
+  --deploy-api <bool>        Enable API deployment in this environment
+  --use-api <bool>           Configure the site to call the API
   --skip-github              Create Azure identities/RBAC without GitHub environments
   --help                     Show this help
 
@@ -67,6 +96,31 @@ trap cleanup EXIT
 
 while (($# > 0)); do
   case "$1" in
+    --environment)
+      (($# >= 2)) || fail '--environment requires development or production.'
+      deployment_environment="$2"
+      shift 2
+      ;;
+    --resource-group)
+      (($# >= 2)) || fail '--resource-group requires a value.'
+      resource_group="$2"
+      shift 2
+      ;;
+    --site-name)
+      (($# >= 2)) || fail '--site-name requires a value.'
+      static_web_app_name="$2"
+      shift 2
+      ;;
+    --function-name)
+      (($# >= 2)) || fail '--function-name requires a value.'
+      function_app_name="$2"
+      shift 2
+      ;;
+    --public-site-url)
+      (($# >= 2)) || fail '--public-site-url requires a value.'
+      public_site_url="$2"
+      shift 2
+      ;;
     --location)
       (($# >= 2)) || fail '--location requires a value.'
       location="$2"
@@ -80,6 +134,16 @@ while (($# > 0)); do
     --repository)
       (($# >= 2)) || fail '--repository requires owner/name.'
       repository="$2"
+      shift 2
+      ;;
+    --deploy-api)
+      (($# >= 2)) || fail '--deploy-api requires true or false.'
+      deploy_api="$2"
+      shift 2
+      ;;
+    --use-api)
+      (($# >= 2)) || fail '--use-api requires true or false.'
+      use_api="$2"
       shift 2
       ;;
     --skip-github)
@@ -102,9 +166,18 @@ if [[ "$configure_github" == true ]]; then
   require_command gh
 fi
 
-[[ -f "$config_file" ]] || fail "Shared config not found: $config_file"
 [[ -f "$bootstrap_template" ]] || fail "Bootstrap template not found: $bootstrap_template"
-jq --raw-output --from-file "$script_directory/export-config.jq" "$config_file" >/dev/null
+
+[[ "$deployment_environment" == development || "$deployment_environment" == production ]] || \
+  fail '--environment must be development or production.'
+[[ "$deploy_api" == true || "$deploy_api" == false ]] || fail '--deploy-api must be true or false.'
+[[ "$use_api" == true || "$use_api" == false ]] || fail '--use-api must be true or false.'
+[[ "$enable_anonymous_ai_routes" == true || "$enable_anonymous_ai_routes" == false ]] || fail 'AZURE_ENABLE_ANONYMOUS_AI_ROUTES must be true or false.'
+[[ "$deploy_api" == true || "$use_api" == false ]] || fail '--use-api=true requires --deploy-api=true.'
+[[ -n "$resource_group" ]] || fail 'Set --resource-group or AZURE_RESOURCE_GROUP.'
+[[ -n "$static_web_app_name" ]] || fail 'Set --site-name or AZURE_STATIC_WEB_APP_NAME.'
+[[ -n "$function_app_name" ]] || fail 'Set --function-name or AZURE_FUNCTIONAPP_NAME.'
+[[ -n "$public_site_url" ]] || fail 'Set --public-site-url or AZURE_PUBLIC_SITE_URL.'
 
 az account show >/dev/null 2>&1 || fail "Azure CLI is not authenticated. Run 'az login' and retry."
 if [[ -n "$subscription_id" ]]; then
@@ -124,13 +197,10 @@ if [[ "$configure_github" == true ]]; then
   gh repo view "$repository" >/dev/null 2>&1 || fail "GitHub repository '$repository' is unavailable to the current gh account."
 fi
 
-resource_group="$(jq --raw-output .resourceGroup "$config_file")"
-static_web_app_name="$(jq --raw-output .staticWebAppName "$config_file")"
-infrastructure_application_name="$(jq --raw-output .oidc.infrastructureApplicationName "$config_file")"
-api_application_name="$(jq --raw-output .oidc.apiApplicationName "$config_file")"
-infrastructure_environment="azure-infrastructure"
-api_environment="azure-api"
-site_environment="azure-site"
+openai_account_name="${openai_account_name:-sentinel-optimizer-${deployment_environment}-openai}"
+infrastructure_application_name="${AZURE_INFRASTRUCTURE_APPLICATION_NAME:-sentinel-optimizer-${deployment_environment}-infrastructure-github}"
+api_application_name="${AZURE_API_APPLICATION_NAME:-sentinel-optimizer-${deployment_environment}-api-github}"
+github_environment="azure-${deployment_environment}"
 [[ "$infrastructure_application_name" != "$api_application_name" ]] || fail 'Infrastructure and API OIDC application names must be different.'
 resource_group_scope="/subscriptions/$subscription_id/resourceGroups/$resource_group"
 
@@ -303,12 +373,12 @@ read -r api_client_id api_application_object_id api_principal_object_id < <(
 if [[ "$configure_github" == true ]]; then
   ensure_federated_credential \
     "$infrastructure_application_object_id" \
-    "github-$infrastructure_environment" \
-    "repo:$repository:environment:$infrastructure_environment"
+    "github-$github_environment-infrastructure" \
+    "repo:$repository:environment:$github_environment"
   ensure_federated_credential \
     "$api_application_object_id" \
-    "github-$api_environment" \
-    "repo:$repository:environment:$api_environment"
+    "github-$github_environment-api" \
+    "repo:$repository:environment:$github_environment"
 fi
 
 ensure_role_assignment "$infrastructure_principal_object_id" Contributor "$resource_group_scope"
@@ -316,7 +386,7 @@ ensure_role_assignment "$infrastructure_principal_object_id" 'Role Based Access 
 
 if [[ "$configure_github" == true ]]; then
   log "Creating or updating GitHub environments and OIDC secrets."
-  for environment_name in "$infrastructure_environment" "$api_environment" "$site_environment"; do
+  for environment_name in "$github_environment"; do
     gh api \
       --method PUT \
       "repos/$repository/environments/$environment_name" \
@@ -342,21 +412,35 @@ JSON
     fi
   done
 
-  set_environment_secret "$infrastructure_environment" AZURE_CLIENT_ID "$infrastructure_client_id"
-  set_environment_secret "$infrastructure_environment" AZURE_TENANT_ID "$tenant_id"
-  set_environment_secret "$infrastructure_environment" AZURE_SUBSCRIPTION_ID "$subscription_id"
-  set_environment_secret "$infrastructure_environment" AZURE_API_PRINCIPAL_OBJECT_ID "$api_principal_object_id"
+  set_environment_secret "$github_environment" AZURE_CLIENT_ID "$infrastructure_client_id"
+  set_environment_secret "$github_environment" AZURE_TENANT_ID "$tenant_id"
+  set_environment_secret "$github_environment" AZURE_SUBSCRIPTION_ID "$subscription_id"
+  set_environment_secret "$github_environment" AZURE_API_PRINCIPAL_OBJECT_ID "$api_principal_object_id"
+  set_environment_secret "$github_environment" AZURE_API_CLIENT_ID "$api_client_id"
 
-  set_environment_secret "$api_environment" AZURE_CLIENT_ID "$api_client_id"
-  set_environment_secret "$api_environment" AZURE_TENANT_ID "$tenant_id"
-  set_environment_secret "$api_environment" AZURE_SUBSCRIPTION_ID "$subscription_id"
+  gh variable set AZURE_LOCATION --env "$github_environment" --repo "$repository" --body "$location"
+  gh variable set AZURE_ENVIRONMENT --env "$github_environment" --repo "$repository" --body "$deployment_environment"
+  gh variable set AZURE_RESOURCE_GROUP --env "$github_environment" --repo "$repository" --body "$resource_group"
+  gh variable set AZURE_STATIC_WEB_APP_NAME --env "$github_environment" --repo "$repository" --body "$static_web_app_name"
+  gh variable set AZURE_FUNCTIONAPP_NAME --env "$github_environment" --repo "$repository" --body "$function_app_name"
+  gh variable set AZURE_PUBLIC_SITE_URL --env "$github_environment" --repo "$repository" --body "$public_site_url"
+  gh variable set AZURE_DEPLOY_API --env "$github_environment" --repo "$repository" --body "$deploy_api"
+  gh variable set AZURE_USE_API --env "$github_environment" --repo "$repository" --body "$use_api"
+  gh variable set AZURE_ENABLE_ANONYMOUS_AI_ROUTES --env "$github_environment" --repo "$repository" --body "$enable_anonymous_ai_routes"
+  gh variable set AZURE_OPENAI_ACCOUNT_NAME --env "$github_environment" --repo "$repository" --body "$openai_account_name"
+  gh variable set AZURE_OPENAI_MODEL_NAME --env "$github_environment" --repo "$repository" --body "$openai_model_name"
+  gh variable set AZURE_OPENAI_MODEL_DEPLOYMENT --env "$github_environment" --repo "$repository" --body "$openai_model_deployment"
+  gh variable set ENTRA_EXTERNAL_ID_ISSUER --env "$github_environment" --repo "$repository" --body "$entra_external_id_issuer"
+  gh variable set ENTRA_EXTERNAL_ID_JWKS_URI --env "$github_environment" --repo "$repository" --body "$entra_external_id_jwks_uri"
+  gh variable set ENTRA_EXTERNAL_ID_AUDIENCE --env "$github_environment" --repo "$repository" --body "$entra_external_id_audience"
+  gh variable set ENTRA_EXTERNAL_ID_ADMIN_ROLE --env "$github_environment" --repo "$repository" --body "$entra_external_id_admin_role"
+  gh variable set PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID --env "$github_environment" --repo "$repository" --body "$public_entra_external_id_client_id"
+  gh variable set PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY --env "$github_environment" --repo "$repository" --body "$public_entra_external_id_authority"
+  gh variable set PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE --env "$github_environment" --repo "$repository" --body "$public_entra_external_id_api_scope"
+  gh variable set PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE --env "$github_environment" --repo "$repository" --body "$entra_external_id_admin_role"
+  gh variable set PUBLIC_ADMIN_API_BASE --env "$github_environment" --repo "$repository" --body "$public_admin_api_base"
 
-  gh variable set AZURE_LOCATION \
-    --env "$infrastructure_environment" \
-    --repo "$repository" \
-    --body "$location"
-
-  if [[ "$static_web_app_name" != replace-with-* ]] && az staticwebapp show \
+  if az staticwebapp show \
     --resource-group "$resource_group" \
     --name "$static_web_app_name" \
     --output none 2>/dev/null; then
@@ -367,7 +451,7 @@ JSON
       --query properties.apiKey \
       --output tsv \
       | gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN \
-        --env "$site_environment" \
+        --env "$github_environment" \
         --repo "$repository"
   else
     log 'Static Web App not found; rerun bootstrap after site provisioning to synchronize its deployment token.'
@@ -380,8 +464,7 @@ Bootstrap complete.
 Resource group: $resource_group
 
 Next:
-1. Replace any remaining replace-with-* resource names in infra/azure/config.json.
-2. Add required reviewers to the '$infrastructure_environment' and '$site_environment' GitHub environments.
-3. Run the infrastructure workflow with component 'site' and operation 'deploy'.
-4. Rerun bootstrap after the site exists to synchronize AZURE_STATIC_WEB_APPS_API_TOKEN.
+1. Add required reviewers to the '$github_environment' GitHub environment.
+2. Run the infrastructure workflow with environment '$deployment_environment', component 'site', and operation 'deploy'.
+3. Rerun bootstrap after the site exists to synchronize AZURE_STATIC_WEB_APPS_API_TOKEN.
 EOF

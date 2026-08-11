@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { CONFIG } from "./config.js";
 import { withoutHash } from "@shared/utils/config.js";
 

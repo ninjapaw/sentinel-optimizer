@@ -1,4 +1,11 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { USER_CONFIG } from "../config/user.config.js";
+import { isFiniteNumber, isRecord } from "../utils/guards.js";
 
 export type SummaryStyle = "executive" | "technical" | "board";
 
@@ -108,12 +115,4 @@ export function isAiTextResponse(value: unknown): value is AiTextResponse {
 
 export function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
   return isRecord(value) && typeof value.error === "string";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
 }

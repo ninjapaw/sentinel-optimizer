@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { describe, it, expect } from "vitest";
 import { parseGeneric } from "../parsers/generic.js";
 

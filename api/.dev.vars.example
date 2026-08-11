@@ -1,3 +1,17 @@
+# AI Configuration
 AI_API_ENABLED=false
 AI_MODEL=@cf/meta/llama-3.1-8b-instruct
+
+# API Configuration
 ALLOWED_ORIGINS=http://localhost:4321
+
+# Cosmos DB Session Storage (required for session APIs)
+COSMOS_CONNECTION_STRING=DefaultEndpointProtocol=https://host=https://replace-me.documents.azure.com:443/;AccountKey=replace-me==;
+COSMOS_DATABASE=sentinel-db
+COSMOS_SESSIONS_CONTAINER=sessions
+
+# Entra ID External ID Configuration (required for admin APIs)
+ENTRA_EXTERNAL_ID_ISSUER=https://replace-me.ciamlogin.com
+ENTRA_EXTERNAL_ID_JWKS_URI=https://replace-me.ciamlogin.com/discover
+ENTRA_EXTERNAL_ID_AUDIENCE=replace-me
+ENTRA_EXTERNAL_ID_ADMIN_ROLE=SentinelOptimizer.Admin

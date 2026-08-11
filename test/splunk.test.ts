@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { describe, it, expect } from "vitest";
 import { parseSplunk, type SplunkInput } from "../parsers/splunk.js";
 import sample from "../samples/splunk.json" assert { type: "json" };

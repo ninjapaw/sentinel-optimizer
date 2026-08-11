@@ -1,3 +1,7 @@
+# MIT License
+# Copyright (c) 2026 Microsoft Corporation
+# See LICENSE in the repository root.
+
 name: Validate and Deploy Azure Infrastructure
 
 on:
@@ -23,6 +27,14 @@ on:
           - site
           - api
           - ai
+      environment:
+        description: GitHub Environment and Azure naming scope
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
       operation:
         description: Run a safe preview or apply the selected stack
         required: true
@@ -87,7 +99,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: azure-infrastructure-${{ github.event.inputs.component || github.ref }}
+  group: azure-infrastructure-${{ inputs.environment || 'validation' }}-${{ inputs.component || 'all' }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -110,9 +122,6 @@ jobs:
 
       - name: Validate Bicep and generated templates
         run: |
-          jq --raw-output --from-file infra/azure/export-config.jq \
-            infra/azure/config.json > /dev/null
-
           "$RUNNER_TEMP/bicep" build infra/azure/bootstrap/main.bicep \
             --outfile "$RUNNER_TEMP/bootstrap.azuredeploy.json"
           cmp "$RUNNER_TEMP/bootstrap.azuredeploy.json" \
@@ -136,12 +145,27 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: azure-infrastructure
+    environment: azure-${{ inputs.environment }}
     permissions:
       contents: read
       id-token: write
     env:
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_ENVIRONMENT: ${{ inputs.environment }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_STATIC_WEB_APP_NAME: ${{ vars.AZURE_STATIC_WEB_APP_NAME }}
+      AZURE_FUNCTIONAPP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+      AZURE_PUBLIC_SITE_URL: ${{ vars.AZURE_PUBLIC_SITE_URL }}
+      AZURE_DEPLOY_API: ${{ vars.AZURE_DEPLOY_API }}
+      AZURE_USE_API: ${{ vars.AZURE_USE_API }}
+      AZURE_ENABLE_ANONYMOUS_AI_ROUTES: ${{ vars.AZURE_ENABLE_ANONYMOUS_AI_ROUTES }}
+      ENTRA_EXTERNAL_ID_ISSUER: ${{ vars.ENTRA_EXTERNAL_ID_ISSUER }}
+      ENTRA_EXTERNAL_ID_JWKS_URI: ${{ vars.ENTRA_EXTERNAL_ID_JWKS_URI }}
+      ENTRA_EXTERNAL_ID_AUDIENCE: ${{ vars.ENTRA_EXTERNAL_ID_AUDIENCE }}
+      ENTRA_EXTERNAL_ID_ADMIN_ROLE: ${{ vars.ENTRA_EXTERNAL_ID_ADMIN_ROLE }}
+      AZURE_OPENAI_ACCOUNT_NAME: ${{ vars.AZURE_OPENAI_ACCOUNT_NAME }}
+      AZURE_OPENAI_MODEL_NAME: ${{ vars.AZURE_OPENAI_MODEL_NAME }}
+      AZURE_OPENAI_MODEL_DEPLOYMENT: ${{ vars.AZURE_OPENAI_MODEL_DEPLOYMENT }}
       AZURE_SITE_SKU: ${{ inputs.site-sku }}
       AZURE_FUNCTION_INSTANCE_MEMORY_MB: ${{ inputs.function-memory-mb }}
       AZURE_FUNCTION_MAXIMUM_INSTANCE_COUNT: ${{ inputs.function-maximum-instances }}
@@ -153,38 +177,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Load shared infrastructure configuration
+      - name: Validate GitHub Environment configuration
         env:
           COMPONENT: ${{ inputs.component }}
         run: |
-          config_file="infra/azure/config.json"
-          jq --raw-output --from-file infra/azure/export-config.jq \
-            "$config_file" >> "$GITHUB_ENV"
-
+          bash infra/azure/validate-environment.sh
           case "$COMPONENT" in
-            site)
-              configured_names=("$(jq --raw-output .staticWebAppName "$config_file")")
-              ;;
-            api)
-              configured_names=(
-                "$(jq --raw-output .staticWebAppName "$config_file")"
-                "$(jq --raw-output .functionAppName "$config_file")"
-              )
-              ;;
+            site|api) ;;
             ai)
-              configured_names=(
-                "$(jq --raw-output .functionAppName "$config_file")"
-                "$(jq --raw-output .openAi.accountName "$config_file")"
-              )
+              : "${AZURE_OPENAI_ACCOUNT_NAME:?Set AZURE_OPENAI_ACCOUNT_NAME as an Environment variable}"
+              : "${AZURE_OPENAI_MODEL_NAME:?Set AZURE_OPENAI_MODEL_NAME as an Environment variable}"
+              : "${AZURE_OPENAI_MODEL_DEPLOYMENT:?Set AZURE_OPENAI_MODEL_DEPLOYMENT as an Environment variable}"
               ;;
           esac
-
-          for configured_name in "${configured_names[@]}"; do
-            if [[ "$configured_name" == replace-with-* ]]; then
-              echo "::error title=Placeholder Azure resource name::Replace the $COMPONENT resource names in $config_file before deployment."
-              exit 1
-            fi
-          done
 
       - name: Verify OIDC bootstrap configuration
         env:
@@ -246,8 +251,8 @@ jobs:
           COMPONENT: ${{ inputs.component }}
           OPERATION: ${{ inputs.operation }}
         run: |
-          : "${AZURE_LOCATION:?Set AZURE_LOCATION in the azure-infrastructure environment}"
-          : "${AZURE_RESOURCE_GROUP:?Set resourceGroup in infra/azure/config.json}"
+          : "${AZURE_LOCATION:?Set AZURE_LOCATION in the selected GitHub Environment}"
+          : "${AZURE_RESOURCE_GROUP:?Set AZURE_RESOURCE_GROUP in the selected GitHub Environment}"
 
           command_name="$OPERATION"
           if [[ "$OPERATION" == "deploy" ]]; then
@@ -257,14 +262,15 @@ jobs:
           parameters=(location="$AZURE_LOCATION")
           case "$COMPONENT" in
             site)
-              : "${AZURE_STATIC_WEB_APP_NAME:?Set staticWebAppName in infra/azure/config.json}"
+              : "${AZURE_STATIC_WEB_APP_NAME:?Set AZURE_STATIC_WEB_APP_NAME as an Environment variable}"
               parameters+=(
                 siteName="$AZURE_STATIC_WEB_APP_NAME"
                 siteSkuName="$AZURE_SITE_SKU"
+                environmentName="$AZURE_ENVIRONMENT"
               )
               ;;
             api)
-              : "${AZURE_FUNCTIONAPP_NAME:?Set functionAppName in infra/azure/config.json}"
+              : "${AZURE_FUNCTIONAPP_NAME:?Set AZURE_FUNCTIONAPP_NAME as an Environment variable}"
               static_web_app_hostname="$(az staticwebapp show \
                 --resource-group "$AZURE_RESOURCE_GROUP" \
                 --name "$AZURE_STATIC_WEB_APP_NAME" \
@@ -279,11 +285,17 @@ jobs:
                 storageSkuName="$AZURE_FUNCTION_STORAGE_SKU"
                 apiDeploymentPrincipalId="$AZURE_API_PRINCIPAL_OBJECT_ID"
                 allowedOrigins="[\"https://$static_web_app_hostname\"]"
+                enableAnonymousAiRoutes="$AZURE_ENABLE_ANONYMOUS_AI_ROUTES"
+                entraExternalIdIssuer="$ENTRA_EXTERNAL_ID_ISSUER"
+                entraExternalIdJwksUri="$ENTRA_EXTERNAL_ID_JWKS_URI"
+                entraExternalIdAudience="$ENTRA_EXTERNAL_ID_AUDIENCE"
+                entraExternalIdAdminRole="${ENTRA_EXTERNAL_ID_ADMIN_ROLE:-SentinelOptimizer.Admin}"
+                environmentName="$AZURE_ENVIRONMENT"
               )
               ;;
             ai)
-              : "${AZURE_FUNCTIONAPP_NAME:?Set functionAppName in infra/azure/config.json}"
-              : "${AZURE_OPENAI_ACCOUNT_NAME:?Set openAi.accountName in infra/azure/config.json}"
+              : "${AZURE_FUNCTIONAPP_NAME:?Set AZURE_FUNCTIONAPP_NAME as an Environment variable}"
+              : "${AZURE_OPENAI_ACCOUNT_NAME:?Set AZURE_OPENAI_ACCOUNT_NAME as an Environment variable}"
               parameters+=(
                 functionAppName="$AZURE_FUNCTIONAPP_NAME"
                 openAiAccountName="$AZURE_OPENAI_ACCOUNT_NAME"
@@ -291,6 +303,7 @@ jobs:
                 modelDeploymentName="$AZURE_OPENAI_MODEL_DEPLOYMENT"
                 modelDeploymentSkuName="$AZURE_OPENAI_DEPLOYMENT_SKU"
                 modelCapacity="$AZURE_OPENAI_MODEL_CAPACITY"
+                environmentName="$AZURE_ENVIRONMENT"
               )
               ;;
           esac

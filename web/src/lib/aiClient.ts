@@ -1,10 +1,17 @@
 /**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
+/**
  * Sends only aggregated analysis or app-owned templates to the configured API.
  * Raw logs and exported JSON never cross this boundary.
  */
 
 import type { Recommendation } from "./recommendations.js";
 import {
+  ensureTrailingSlash,
   INTERNAL_CONFIG,
   isAiTextResponse,
   isApiErrorResponse,
@@ -167,10 +174,6 @@ function readConfiguredAiApiBase(): string | null {
 function readBaseUrl(): string {
   const raw = (import.meta.env.BASE_URL ?? "/").trim();
   return ensureTrailingSlash(raw || "/");
-}
-
-function ensureTrailingSlash(value: string): string {
-  return value.endsWith("/") ? value : `${value}/`;
 }
 
 async function fetchWithFallback(

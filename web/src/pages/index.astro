@@ -1,7 +1,12 @@
 ---
+/*
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
 import Base from "../layouts/Base.astro";
 import ThemeToggle from "../components/ThemeToggle.tsx";
-import Optimizer from "../components/Optimizer.tsx";
+import CalculatorTabs from "../components/CalculatorTabs.tsx";
 import Footer from "../components/Footer.astro";
 import { BRAND } from "../lib/brand.js";
 
@@ -28,24 +33,85 @@ const repositoryUrl = `https://github.com/${BRAND.repo}`;
   <main id="main">
     <section class="hero">
       <div class="container">
-        <h1>Migrate to Sentinel with <span class="grad">cost-optimal, private analysis</span></h1>
+        <h1>Plan Your Cloud Security & Costs <span class="grad">with Ease</span></h1>
         <p>
-          Analyze your current SIEM data to model Microsoft Sentinel spend, identify noisy or
-          high-cost sources, and get prioritized migration and cost-optimization actions. All
-          processing runs locally in your browser — no uploads, no credentials, no data exfiltration.
+          Whether you're moving to Microsoft Sentinel, protecting your cloud with Defender, or managing your team's
+          resource usage — we help you understand costs and plan better. No complicated data uploads, no credentials
+          needed.
         </p>
         <div class="badges">
-          <span class="badge"><span class="ic">●</span> 100% client-side parsing</span>
-          <span class="badge"><span class="ic">●</span> Migration planning + onboarding</span>
-          <span class="badge"><span class="ic">●</span> Cost model + provider comparisons</span>
-          <span class="badge"><span class="ic">●</span> Optional AI summary</span>
+          <span class="badge"><span class="ic">✓</span> Simple to use</span>
+          <span class="badge"><span class="ic">✓</span> Your data stays private</span>
+          <span class="badge"><span class="ic">✓</span> Multiple calculators in one place</span>
+          <span class="badge"><span class="ic">✓</span> Free to use</span>
         </div>
       </div>
     </section>
 
-    <div class="container">
-      <Optimizer client:load />
-    </div>
+    <section class="features" style="margin: 3rem 0;">
+      <div class="container">
+        <h2 style="text-align: center; margin-bottom: 2rem; font-size: 1.8rem;">
+          Pick a Calculator Below
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+          <div style="padding: 1.5rem; background: var(--color-bg-card, white); border: 1px solid var(--color-border, #e0e0e0); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
+            <h3 style="margin: 0.75rem 0; font-size: 1.1rem;">Sentinel Migration</h3>
+            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--color-text-secondary, #666);">
+              Moving from another security tool? See what Microsoft Sentinel will cost and get tips to save money.
+            </p>
+          </div>
+
+          <div style="padding: 1.5rem; background: var(--color-bg-card, white); border: 1px solid var(--color-border, #e0e0e0); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🛡️</div>
+            <h3 style="margin: 0.75rem 0; font-size: 1.1rem;">Defender for Cloud</h3>
+            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--color-text-secondary, #666);">
+              Explore the cost of protecting different parts of your Azure environment with Defender for Cloud.
+            </p>
+          </div>
+
+          <div style="padding: 1.5rem; background: var(--color-bg-card, white); border: 1px solid var(--color-border, #e0e0e0); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📈</div>
+            <h3 style="margin: 0.75rem 0; font-size: 1.1rem;">Usage & Quotas</h3>
+            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--color-text-secondary, #666);">
+              Track how much of your allowed resources you're using and get alerts before you hit limits.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section style="background: var(--color-bg-secondary, #f5f5f5); padding: 2rem 0; margin: 2rem 0;">
+      <div class="container">
+        <CalculatorTabs client:load />
+      </div>
+    </section>
+
+    <section class="help-section" style="background: var(--color-info-bg, #e7f3ff); padding: 2rem; border-radius: 12px; margin: 3rem 0;">
+      <div class="container">
+        <h2 style="margin-top: 0;">Questions? We've Got Answers</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+          <div>
+            <h3 style="color: var(--color-primary, #0078D4); font-size: 1rem;">🔒 Is my data safe?</h3>
+            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
+              Yes! Everything happens in your browser. We never send your data to any servers.
+            </p>
+          </div>
+          <div>
+            <h3 style="color: var(--color-primary, #0078D4); font-size: 1rem;">💰 How accurate are the costs?</h3>
+            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
+              Our calculators use current Microsoft pricing. For exact quotes, check the Azure pricing page.
+            </p>
+          </div>
+          <div>
+            <h3 style="color: var(--color-primary, #0078D4); font-size: 1rem;">❓ Do I need an Azure account?</h3>
+            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
+              No! You can explore all calculators without logging in. Sign in to save your work.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <Footer />

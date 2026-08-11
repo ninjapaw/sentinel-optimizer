@@ -1,4 +1,10 @@
 /**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
+/**
  * Built-in per-vendor metadata: the query a user runs in their SIEM to produce
  * an ingestion-by-source export, plus an example payload to paste back.
  *

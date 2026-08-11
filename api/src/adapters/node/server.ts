@@ -1,9 +1,16 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { loadEnvFile } from "node:process";
 import { routeApiRequest } from "../../core/router.js";
 import { RECOMMEND_MAX_BODY_BYTES } from "../../core/recommend.js";
-import { createOpenAiProvider } from "../../providers/openai.js";
+import { createConfiguredAiProvider } from "../../runtime/provider.js";
 import {
+  apiResponseHeaders,
   INTERNAL_CONFIG,
   parseCommaSeparated,
   parsePort,
@@ -12,11 +19,11 @@ import {
 
 try {
   loadEnvFile();
-} catch {}
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+}
 
-const provider = process.env.AI_API_ENABLED === "true"
-  ? createOpenAiProvider()
-  : undefined;
+const provider = createConfiguredAiProvider();
 const port = parsePort(process.env.PORT || process.env.API_PORT, USER_CONFIG.api.port);
 const host = process.env.HOST || USER_CONFIG.api.host;
 
@@ -49,32 +56,17 @@ function writeJson(
   body: Record<string, unknown>,
   origin?: string,
 ): void {
-  response.writeHead(status, {
-    "cache-control": INTERNAL_CONFIG.api.headers.cacheControl,
-    "content-type": INTERNAL_CONFIG.api.headers.contentType,
-    "referrer-policy": INTERNAL_CONFIG.api.headers.referrerPolicy,
-    "x-content-type-options": INTERNAL_CONFIG.api.headers.contentTypeOptions,
-    ...(origin
-      ? {
-          "access-control-allow-origin": origin,
-          "access-control-allow-headers": "content-type",
-          "access-control-allow-methods": "GET, POST, OPTIONS",
-          vary: "Origin",
-        }
-      : {}),
-  });
+  response.writeHead(status, apiResponseHeaders(origin));
   response.end(JSON.stringify(body));
 }
 
-const server = createServer(async (request, response) => {
+async function handleRequest(
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> {
   const origin = allowedOrigin(request);
   if (request.method === "OPTIONS") {
-    response.writeHead(204, origin ? {
-      "access-control-allow-origin": origin,
-      "access-control-allow-headers": "content-type",
-      "access-control-allow-methods": "GET, POST, OPTIONS",
-      vary: "Origin",
-    } : {});
+    response.writeHead(204, apiResponseHeaders(origin));
     response.end();
     return;
   }
@@ -88,6 +80,28 @@ const server = createServer(async (request, response) => {
   const pathname = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`).pathname;
   const result = await routeApiRequest(request.method || "GET", pathname, body, provider);
   writeJson(response, result.status, result.body, origin);
+}
+
+const server = createServer((request, response) => {
+  void handleRequest(request, response).catch((error: unknown) => {
+    console.error("Unhandled API request error.", error);
+    if (response.headersSent) {
+      response.destroy();
+      return;
+    }
+    writeJson(response, 500, { error: "Internal server error." });
+  });
+});
+
+server.headersTimeout = INTERNAL_CONFIG.api.nodeServer.headersTimeoutMs;
+server.keepAliveTimeout = INTERNAL_CONFIG.api.nodeServer.keepAliveTimeoutMs;
+server.maxRequestsPerSocket = INTERNAL_CONFIG.api.nodeServer.maxRequestsPerSocket;
+server.requestTimeout = INTERNAL_CONFIG.api.nodeServer.requestTimeoutMs;
+
+server.on("clientError", (_error, socket) => {
+  if (socket.writable) {
+    socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+  }
 });
 
 server.listen(port, host, () => {
@@ -95,6 +109,12 @@ server.listen(port, host, () => {
 });
 
 function shutdown(): void {
+  const forceExit = setTimeout(
+    () => process.exit(1),
+    INTERNAL_CONFIG.api.nodeServer.shutdownTimeoutMs,
+  );
+  forceExit.unref();
+  server.closeIdleConnections();
   server.close(() => process.exit(0));
 }
 

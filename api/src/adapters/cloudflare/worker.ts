@@ -1,10 +1,16 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import { routeApiRequest } from "../../core/router.js";
 import {
   createWorkersAiProvider,
   type WorkersAiBinding,
 } from "../../providers/cloudflare.js";
 import {
-  INTERNAL_CONFIG,
+  apiResponseHeaders,
   parseCommaSeparated,
   USER_CONFIG,
 } from "../../../../shared/index.js";
@@ -17,12 +23,6 @@ interface Env {
 }
 
 function corsHeaders(request: Request, environment: Env): Headers {
-  const headers = new Headers({
-    "cache-control": INTERNAL_CONFIG.api.headers.cacheControl,
-    "content-type": INTERNAL_CONFIG.api.headers.contentType,
-    "referrer-policy": INTERNAL_CONFIG.api.headers.referrerPolicy,
-    "x-content-type-options": INTERNAL_CONFIG.api.headers.contentTypeOptions,
-  });
   const origin = request.headers.get("origin");
   const allowedOrigins = new Set(
     environment.ALLOWED_ORIGINS
@@ -30,12 +30,9 @@ function corsHeaders(request: Request, environment: Env): Headers {
       : USER_CONFIG.api.cloudflare.allowedOrigins,
   );
   if (origin && allowedOrigins.has(origin)) {
-    headers.set("access-control-allow-origin", origin);
-    headers.set("access-control-allow-headers", "content-type");
-    headers.set("access-control-allow-methods", "GET, POST, OPTIONS");
-    headers.set("vary", "Origin");
+    return new Headers(apiResponseHeaders(origin));
   }
-  return headers;
+  return new Headers(apiResponseHeaders());
 }
 
 export default {

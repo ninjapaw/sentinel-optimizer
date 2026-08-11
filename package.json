@@ -26,6 +26,7 @@
     "typecheck:web": "npm --prefix web run typecheck"
   },
   "devDependencies": {
+    "@types/node": "^26.2.0",
     "concurrently": "^9.2.1",
     "typescript": "^5.4.0",
     "vitest": "^4.1.10"

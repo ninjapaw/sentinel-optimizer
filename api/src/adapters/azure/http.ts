@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 import type {
   HttpHandler,
   HttpRequest,
@@ -7,12 +13,10 @@ import type {
 import type { ApiResult } from "../../core/contracts.js";
 import { result } from "../../core/http.js";
 import { routeApiRequest } from "../../core/router.js";
-import { createOpenAiProvider } from "../../providers/openai.js";
-import { INTERNAL_CONFIG } from "../../../../shared/index.js";
+import { createConfiguredAiProvider } from "../../runtime/provider.js";
+import { apiResponseHeaders } from "../../../../shared/index.js";
 
-const provider = process.env.AI_API_ENABLED === "true"
-  ? createOpenAiProvider()
-  : undefined;
+const provider = createConfiguredAiProvider();
 
 export function declaredBodyTooLarge(
   request: HttpRequest,
@@ -60,11 +64,6 @@ export function toAzureResponse(
   return {
     status: result.status,
     jsonBody: result.body,
-    headers: {
-      "cache-control": INTERNAL_CONFIG.api.headers.cacheControl,
-      "content-type": INTERNAL_CONFIG.api.headers.contentType,
-      "referrer-policy": INTERNAL_CONFIG.api.headers.referrerPolicy,
-      "x-content-type-options": INTERNAL_CONFIG.api.headers.contentTypeOptions,
-    },
+    headers: apiResponseHeaders(),
   };
 }

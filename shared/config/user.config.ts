@@ -1,4 +1,10 @@
 /**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
+/**
  * Supported project configuration.
  *
  * Edit values in this file to customize branding, public URLs, local ports,
@@ -65,6 +71,15 @@ export const USER_CONFIG = Object.freeze({
       maxTemplateCharacters: 4000,
       maxTokens: 1200,
       temperature: 0.5,
+    }),
+    session: Object.freeze({
+      maxBodyBytes: 256 * 1024,
+      maxSessions: 100,
+    }),
+    auth: Object.freeze({
+      externalIdAuthority: "https://sentineloptimizer.ciamlogin.com",
+      // Set via environment: EXTERNAL_ID_TENANT_ID, EXTERNAL_ID_APP_ID, EXTERNAL_ID_APP_SECRET
+      // Scopes: "api://{app-id}/user-api" (for users), "api://{app-id}/admin-api" (for admins)
     }),
   }),
 });

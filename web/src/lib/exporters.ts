@@ -1,4 +1,10 @@
 /**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
+/**
  * Client-side report exporters (PDF + PowerPoint).
  *
  * Zero-trust friendly: everything runs in the browser. The PowerPoint deck is
@@ -18,6 +24,7 @@ import type {
   SentinelCostBreakdown,
 } from "@engine/pricing/sentinelPricing.js";
 import type { Vendor } from "./examples.js";
+import { gbPerDay as gbDay } from "./format.js";
 import type { Recommendation } from "./recommendations.js";
 import { buildProviderComparison, type ProviderComparisonModel } from "./providerComparison.js";
 import { BRAND } from "./brand.js";
@@ -73,13 +80,6 @@ const usd0 = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD"
 
 function money(n: number): string {
   return usd0.format(n);
-}
-
-function gbDay(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(2)} TB/day`;
-  if (n >= 100) return `${n.toFixed(0)} GB/day`;
-  if (n >= 1) return `${n.toFixed(1)} GB/day`;
-  return `${n.toFixed(3)} GB/day`;
 }
 
 export function captureChart(containerId: string): string | undefined {

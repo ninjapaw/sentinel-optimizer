@@ -1,3 +1,9 @@
+/**
+ * MIT License
+ * Copyright (c) 2026 Microsoft Corporation
+ * See LICENSE in the repository root.
+ */
+
 // Build version + date. CI sets PUBLIC_APP_VERSION/PUBLIC_BUILD_DATE;
 // local builds fall back to "<pkg>-dev".
 
