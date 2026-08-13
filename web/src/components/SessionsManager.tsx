@@ -13,6 +13,8 @@ import {
   type SessionListItem,
 } from "../lib/session-client.js";
 
+const basePath = import.meta.env.BASE_URL;
+
 export default function SessionsManager() {
   const [authenticated, setAuthenticated] = useState(false);
   const [displayName, setDisplayName] = useState("");
@@ -49,7 +51,7 @@ export default function SessionsManager() {
     if (session) {
       // Store in sessionStorage so the Optimizer can pick it up
       sessionStorage.setItem("loadSession", JSON.stringify(session));
-      window.location.href = "/";
+      window.location.href = basePath;
     } else {
       setMessage("Failed to load session");
     }
@@ -70,7 +72,7 @@ export default function SessionsManager() {
     return (
       <div style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
         <p>Please log in to view and manage your sessions.</p>
-        <a href="/" style={{ color: "var(--color-blue, #0078D4)", textDecoration: "none" }}>
+        <a href={basePath} style={{ color: "var(--color-blue, #0078D4)", textDecoration: "none" }}>
           Return to Optimizer
         </a>
       </div>
@@ -118,7 +120,7 @@ export default function SessionsManager() {
           }}
         >
           <p>No saved sessions yet.</p>
-          <a href="/" style={{ color: "var(--color-blue, #0078D4)", textDecoration: "none" }}>
+          <a href={basePath} style={{ color: "var(--color-blue, #0078D4)", textDecoration: "none" }}>
             Go to Optimizer to save your first session
           </a>
         </div>

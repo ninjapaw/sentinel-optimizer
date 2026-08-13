@@ -7,6 +7,8 @@
 import { useEffect, useState } from "react";
 import { login, logout, isAuthenticated, getUserDisplayName, hasAdminRole } from "../lib/auth.js";
 
+const basePath = import.meta.env.BASE_URL;
+
 export function LoginButton() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [displayName, setDisplayName] = useState("");
@@ -84,7 +86,7 @@ export function LoginButton() {
           </div>
           {isAdmin && (
             <a
-              href="/admin"
+              href={`${basePath}admin`}
               style={{
                 display: "block",
                 padding: "0.5rem 1rem",
@@ -99,7 +101,7 @@ export function LoginButton() {
             </a>
           )}
           <a
-            href="/sessions"
+            href={`${basePath}sessions`}
             style={{
               display: "block",
               padding: "0.5rem 1rem",
