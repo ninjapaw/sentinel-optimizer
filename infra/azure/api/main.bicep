@@ -63,8 +63,18 @@ param entraExternalIdAdminRole string = 'SentinelOptimizer.Admin'
 @description('Object ID of the GitHub OIDC service principal used for API code deployment. Leave blank only when deployment access is configured separately.')
 param apiDeploymentPrincipalId string = ''
 
-@description('Cosmos DB connection string for user session storage. Leave blank to disable session persistence.')
+@description('Cosmos DB connection string for user session storage. Prefer keyVaultName with cosmosConnectionStringSecretName. Leave blank to disable session persistence.')
+@secure()
 param cosmosConnectionString string = ''
+
+@description('Key Vault name that stores API runtime secrets. Leave blank to keep plaintext app settings.')
+param keyVaultName string = ''
+
+@description('Key Vault secret name holding the Cosmos DB connection string. Requires keyVaultName and a secret that already exists.')
+param cosmosConnectionStringSecretName string = ''
+
+@description('Key Vault secret name holding the third-party AI API key. Requires keyVaultName and a secret that already exists.')
+param aiApiKeySecretName string = ''
 
 @description('Cosmos DB database name for sessions.')
 param cosmosDatabaseName string = 'sentinel-optimizer'
@@ -84,6 +94,17 @@ var resourceTags = union({
 
 var storageAccountName = take('st${uniqueString(resourceGroup().id, functionAppName)}', 24)
 var deploymentContainerName = 'function-releases'
+
+// Key Vault references omit the secret version so rotation is picked up without redeploying.
+var cosmosConnectionSetting = (!empty(keyVaultName) && !empty(cosmosConnectionStringSecretName))
+  ? '@Microsoft.KeyVault(VaultName=${keyVaultName};SecretName=${cosmosConnectionStringSecretName})'
+  : cosmosConnectionString
+var aiApiKeySettings = (!empty(keyVaultName) && !empty(aiApiKeySecretName)) ? [
+  {
+    name: 'AI_API_KEY'
+    value: '@Microsoft.KeyVault(VaultName=${keyVaultName};SecretName=${aiApiKeySecretName})'
+  }
+] : []
 
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: storageAccountName
@@ -169,7 +190,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
       }
     }
     siteConfig: {
-      appSettings: [
+      appSettings: concat([
         {
           name: 'AzureWebJobsStorage__accountName'
           value: storageAccount.name
@@ -208,7 +229,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
         }
         {
           name: 'COSMOS_CONNECTION_STRING'
-          value: cosmosConnectionString
+          value: cosmosConnectionSetting
         }
         {
           name: 'COSMOS_DATABASE'
@@ -218,7 +239,7 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
           name: 'COSMOS_SESSIONS_CONTAINER'
           value: cosmosSessionsContainerName
         }
-      ]
+      ], aiApiKeySettings)
       cors: {
         allowedOrigins: allowedOrigins
         supportCredentials: false

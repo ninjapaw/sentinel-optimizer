@@ -26,6 +26,7 @@ on:
         options:
           - site
           - api
+          - keyvault
           - ai
       environment:
         description: GitHub Environment and Azure naming scope
@@ -130,7 +131,7 @@ jobs:
             infra/azure/bootstrap/main.bicepparam \
             --outfile "$RUNNER_TEMP/bootstrap.parameters.json"
 
-          for component in site api ai; do
+          for component in site api keyvault ai; do
             "$RUNNER_TEMP/bicep" build "infra/azure/$component/main.bicep" \
               --outfile "$RUNNER_TEMP/$component.azuredeploy.json"
             cmp "$RUNNER_TEMP/$component.azuredeploy.json" \
@@ -166,6 +167,7 @@ jobs:
       AZURE_OPENAI_ACCOUNT_NAME: ${{ vars.AZURE_OPENAI_ACCOUNT_NAME }}
       AZURE_OPENAI_MODEL_NAME: ${{ vars.AZURE_OPENAI_MODEL_NAME }}
       AZURE_OPENAI_MODEL_DEPLOYMENT: ${{ vars.AZURE_OPENAI_MODEL_DEPLOYMENT }}
+      AZURE_KEY_VAULT_NAME: ${{ vars.AZURE_KEY_VAULT_NAME }}
       AZURE_SITE_SKU: ${{ inputs.site-sku }}
       AZURE_FUNCTION_INSTANCE_MEMORY_MB: ${{ inputs.function-memory-mb }}
       AZURE_FUNCTION_MAXIMUM_INSTANCE_COUNT: ${{ inputs.function-maximum-instances }}
@@ -184,6 +186,9 @@ jobs:
           bash infra/azure/validate-environment.sh
           case "$COMPONENT" in
             site|api) ;;
+            keyvault)
+              : "${AZURE_KEY_VAULT_NAME:?Set AZURE_KEY_VAULT_NAME as an Environment variable}"
+              ;;
             ai)
               : "${AZURE_OPENAI_ACCOUNT_NAME:?Set AZURE_OPENAI_ACCOUNT_NAME as an Environment variable}"
               : "${AZURE_OPENAI_MODEL_NAME:?Set AZURE_OPENAI_MODEL_NAME as an Environment variable}"
@@ -205,7 +210,6 @@ jobs:
           if [[ "$COMPONENT" == api ]]; then
             : "${AZURE_API_PRINCIPAL_OBJECT_ID:?Run infra/azure/bootstrap.sh to configure API deployment identity}"
           fi
-
       - name: Sign in to Azure
         uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
         with:
@@ -248,6 +252,7 @@ jobs:
       - name: Evaluate or deploy selected stack
         env:
           AZURE_API_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_API_PRINCIPAL_OBJECT_ID }}
+          AZURE_INFRA_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_INFRA_PRINCIPAL_OBJECT_ID }}
           COMPONENT: ${{ inputs.component }}
           OPERATION: ${{ inputs.operation }}
         run: |
@@ -290,6 +295,22 @@ jobs:
                 entraExternalIdJwksUri="$ENTRA_EXTERNAL_ID_JWKS_URI"
                 entraExternalIdAudience="$ENTRA_EXTERNAL_ID_AUDIENCE"
                 entraExternalIdAdminRole="${ENTRA_EXTERNAL_ID_ADMIN_ROLE:-SentinelOptimizer.Admin}"
+                environmentName="$AZURE_ENVIRONMENT"
+              )
+              ;;
+            keyvault)
+              : "${AZURE_KEY_VAULT_NAME:?Set AZURE_KEY_VAULT_NAME as an Environment variable}"
+              key_vault_function_app=""
+              if [[ -n "${AZURE_FUNCTIONAPP_NAME:-}" ]] && az functionapp show \
+                --resource-group "$AZURE_RESOURCE_GROUP" \
+                --name "$AZURE_FUNCTIONAPP_NAME" \
+                --output none 2>/dev/null; then
+                key_vault_function_app="$AZURE_FUNCTIONAPP_NAME"
+              fi
+              parameters+=(
+                keyVaultName="$AZURE_KEY_VAULT_NAME"
+                functionAppName="$key_vault_function_app"
+                deploymentPrincipalId="${AZURE_INFRA_PRINCIPAL_OBJECT_ID:-}"
                 environmentName="$AZURE_ENVIRONMENT"
               )
               ;;

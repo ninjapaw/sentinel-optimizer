@@ -1,0 +1,187 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "5250990804077351524"
+    }
+  },
+  "parameters": {
+    "keyVaultName": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 24,
+      "metadata": {
+        "description": "Globally unique Key Vault name."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region for the Key Vault."
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "development",
+      "metadata": {
+        "description": "Deployment environment used for resource tags."
+      }
+    },
+    "functionAppName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of the existing Function App whose managed identity reads secrets. Leave blank to skip the read role assignment."
+      }
+    },
+    "deploymentPrincipalId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Object ID of the deployment principal that rotates secrets. Leave blank when secrets are managed outside the pipeline."
+      }
+    },
+    "skuName": {
+      "type": "string",
+      "defaultValue": "standard",
+      "allowedValues": [
+        "standard",
+        "premium"
+      ],
+      "metadata": {
+        "description": "Key Vault SKU. Use premium only when HSM-backed keys are required."
+      }
+    },
+    "softDeleteRetentionInDays": {
+      "type": "int",
+      "defaultValue": 90,
+      "minValue": 7,
+      "maxValue": 90,
+      "metadata": {
+        "description": "Days that soft-deleted secrets remain recoverable before permanent deletion."
+      }
+    },
+    "allowPublicNetworkAccess": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Allow public network access. Disable only after private endpoints and VNet-integrated callers are in place."
+      }
+    },
+    "logAnalyticsWorkspaceId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Optional Log Analytics workspace resource ID that receives Key Vault audit logs."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {},
+      "metadata": {
+        "description": "Resource tags applied to the Key Vault."
+      }
+    }
+  },
+  "variables": {
+    "resourceTags": "[union(createObject('application', 'sentinel-optimizer', 'environment', parameters('environmentName'), 'component', 'keyvault', 'managedBy', 'bicep'), parameters('tags'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2024-11-01",
+      "name": "[parameters('keyVaultName')]",
+      "location": "[parameters('location')]",
+      "tags": "[variables('resourceTags')]",
+      "properties": {
+        "tenantId": "[subscription().tenantId]",
+        "sku": {
+          "family": "A",
+          "name": "[parameters('skuName')]"
+        },
+        "enableRbacAuthorization": true,
+        "enableSoftDelete": true,
+        "softDeleteRetentionInDays": "[parameters('softDeleteRetentionInDays')]",
+        "enablePurgeProtection": true,
+        "enabledForDeployment": false,
+        "enabledForDiskEncryption": false,
+        "enabledForTemplateDeployment": false,
+        "publicNetworkAccess": "[if(parameters('allowPublicNetworkAccess'), 'Enabled', 'Disabled')]",
+        "networkAcls": {
+          "bypass": "AzureServices",
+          "defaultAction": "[if(parameters('allowPublicNetworkAccess'), 'Allow', 'Deny')]",
+          "ipRules": [],
+          "virtualNetworkRules": []
+        }
+      }
+    },
+    {
+      "condition": "[not(empty(parameters('functionAppName')))]",
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('functionAppName'), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6'))]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2024-04-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+      ]
+    },
+    {
+      "condition": "[not(empty(parameters('deploymentPrincipalId')))]",
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+      "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), parameters('deploymentPrincipalId'), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7'))]",
+      "properties": {
+        "principalId": "[parameters('deploymentPrincipalId')]",
+        "principalType": "ServicePrincipal",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b86a8fe4-44ce-4948-aee5-eccb2c155cd7')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+      ]
+    },
+    {
+      "condition": "[not(empty(parameters('logAnalyticsWorkspaceId')))]",
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+      "name": "sentinel-optimizer-keyvault-audit",
+      "properties": {
+        "workspaceId": "[parameters('logAnalyticsWorkspaceId')]",
+        "logs": [
+          {
+            "category": "AuditEvent",
+            "enabled": true
+          }
+        ],
+        "metrics": []
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "resourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName'))]"
+    },
+    "keyVaultName": {
+      "type": "string",
+      "value": "[parameters('keyVaultName')]"
+    },
+    "keyVaultUri": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.KeyVault/vaults', parameters('keyVaultName')), '2024-11-01').vaultUri]"
+    }
+  }
+}

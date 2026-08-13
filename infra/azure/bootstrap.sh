@@ -22,6 +22,7 @@ enable_anonymous_ai_routes="${AZURE_ENABLE_ANONYMOUS_AI_ROUTES:-false}"
 openai_account_name="${AZURE_OPENAI_ACCOUNT_NAME:-}"
 openai_model_name="${AZURE_OPENAI_MODEL_NAME:-gpt-4.1-mini}"
 openai_model_deployment="${AZURE_OPENAI_MODEL_DEPLOYMENT:-sentinel-optimizer-model}"
+key_vault_name="${AZURE_KEY_VAULT_NAME:-}"
 entra_external_id_issuer="${ENTRA_EXTERNAL_ID_ISSUER:-}"
 entra_external_id_jwks_uri="${ENTRA_EXTERNAL_ID_JWKS_URI:-}"
 entra_external_id_audience="${ENTRA_EXTERNAL_ID_AUDIENCE:-}"
@@ -45,6 +46,7 @@ Options:
   --site-name <name>         Static Web App name (default: AZURE_STATIC_WEB_APP_NAME)
   --function-name <name>     Function App name (default: AZURE_FUNCTIONAPP_NAME)
   --public-site-url <url>    Public site URL (default: AZURE_PUBLIC_SITE_URL)
+  --key-vault-name <name>    Key Vault name, 3-24 characters (default: AZURE_KEY_VAULT_NAME)
   --location <region>         Azure region (default: AZURE_LOCATION or eastus2)
   --subscription <id>        Azure subscription (default: current az account)
   --repository <owner/name>  GitHub repository (default: current gh repository)
@@ -121,6 +123,11 @@ while (($# > 0)); do
       public_site_url="$2"
       shift 2
       ;;
+    --key-vault-name)
+      (($# >= 2)) || fail '--key-vault-name requires a value.'
+      key_vault_name="$2"
+      shift 2
+      ;;
     --location)
       (($# >= 2)) || fail '--location requires a value.'
       location="$2"
@@ -178,6 +185,8 @@ fi
 [[ -n "$static_web_app_name" ]] || fail 'Set --site-name or AZURE_STATIC_WEB_APP_NAME.'
 [[ -n "$function_app_name" ]] || fail 'Set --function-name or AZURE_FUNCTIONAPP_NAME.'
 [[ -n "$public_site_url" ]] || fail 'Set --public-site-url or AZURE_PUBLIC_SITE_URL.'
+[[ -z "$key_vault_name" || "$key_vault_name" =~ ^[A-Za-z][A-Za-z0-9-]{1,22}[A-Za-z0-9]$ ]] || \
+  fail 'Key Vault names must be 3-24 characters, start with a letter, and contain only letters, numbers, and hyphens.'
 
 az account show >/dev/null 2>&1 || fail "Azure CLI is not authenticated. Run 'az login' and retry."
 if [[ -n "$subscription_id" ]]; then
@@ -416,6 +425,7 @@ JSON
   set_environment_secret "$github_environment" AZURE_TENANT_ID "$tenant_id"
   set_environment_secret "$github_environment" AZURE_SUBSCRIPTION_ID "$subscription_id"
   set_environment_secret "$github_environment" AZURE_API_PRINCIPAL_OBJECT_ID "$api_principal_object_id"
+  set_environment_secret "$github_environment" AZURE_INFRA_PRINCIPAL_OBJECT_ID "$infrastructure_principal_object_id"
   set_environment_secret "$github_environment" AZURE_API_CLIENT_ID "$api_client_id"
 
   gh variable set AZURE_LOCATION --env "$github_environment" --repo "$repository" --body "$location"
@@ -440,6 +450,12 @@ JSON
   gh variable set PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE --env "$github_environment" --repo "$repository" --body "$public_entra_external_id_api_scope"
   gh variable set PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE --env "$github_environment" --repo "$repository" --body "$entra_external_id_admin_role"
   gh variable set PUBLIC_ADMIN_API_BASE --env "$github_environment" --repo "$repository" --body "$public_admin_api_base"
+
+  if [[ -n "$key_vault_name" ]]; then
+    gh variable set AZURE_KEY_VAULT_NAME --env "$github_environment" --repo "$repository" --body "$key_vault_name"
+  else
+    log 'Key Vault name not supplied; set AZURE_KEY_VAULT_NAME before deploying the keyvault component.'
+  fi
 
   if az staticwebapp show \
     --resource-group "$resource_group" \
@@ -468,4 +484,5 @@ Next:
 1. Add required reviewers to the '$github_environment' GitHub environment.
 2. Run the infrastructure workflow with environment '$deployment_environment', component 'site', and operation 'deploy'.
 3. Rerun bootstrap after the site exists to synchronize AZURE_STATIC_WEB_APPS_API_TOKEN.
+4. Deploy components 'api' then 'keyvault', run the Manage Key Vault Secrets workflow, then redeploy 'api' with the Key Vault secret names set.
 EOF

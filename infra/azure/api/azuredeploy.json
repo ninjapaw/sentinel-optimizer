@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "943698312290900583"
+      "templateHash": "3178856200529013860"
     }
   },
   "parameters": {
@@ -88,11 +88,81 @@
         "description": "Expose anonymous paid AI routes. Keep false unless an external gateway enforces authentication, rate limits, quotas, and spending controls."
       }
     },
+    "entraExternalIdIssuer": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Microsoft Entra External ID issuer used to validate admin API tokens."
+      }
+    },
+    "entraExternalIdJwksUri": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Microsoft Entra External ID JWKS URI used to validate admin API tokens."
+      }
+    },
+    "entraExternalIdAudience": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Expected audience for admin API access tokens."
+      }
+    },
+    "entraExternalIdAdminRole": {
+      "type": "string",
+      "defaultValue": "SentinelOptimizer.Admin",
+      "metadata": {
+        "description": "Required app role claim for admin API access."
+      }
+    },
     "apiDeploymentPrincipalId": {
       "type": "string",
       "defaultValue": "",
       "metadata": {
         "description": "Object ID of the GitHub OIDC service principal used for API code deployment. Leave blank only when deployment access is configured separately."
+      }
+    },
+    "cosmosConnectionString": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Cosmos DB connection string for user session storage. Prefer keyVaultName with cosmosConnectionStringSecretName. Leave blank to disable session persistence."
+      }
+    },
+    "keyVaultName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Key Vault name that stores API runtime secrets. Leave blank to keep plaintext app settings."
+      }
+    },
+    "cosmosConnectionStringSecretName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Key Vault secret name holding the Cosmos DB connection string. Requires keyVaultName and a secret that already exists."
+      }
+    },
+    "aiApiKeySecretName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Key Vault secret name holding the third-party AI API key. Requires keyVaultName and a secret that already exists."
+      }
+    },
+    "cosmosDatabaseName": {
+      "type": "string",
+      "defaultValue": "sentinel-optimizer",
+      "metadata": {
+        "description": "Cosmos DB database name for sessions."
+      }
+    },
+    "cosmosSessionsContainerName": {
+      "type": "string",
+      "defaultValue": "sessions",
+      "metadata": {
+        "description": "Cosmos DB container name for sessions."
       }
     },
     "tags": {
@@ -106,7 +176,9 @@
   "variables": {
     "resourceTags": "[union(createObject('application', 'sentinel-optimizer', 'environment', parameters('environmentName'), 'component', 'api', 'managedBy', 'bicep'), parameters('tags'))]",
     "storageAccountName": "[take(format('st{0}', uniqueString(resourceGroup().id, parameters('functionAppName'))), 24)]",
-    "deploymentContainerName": "function-releases"
+    "deploymentContainerName": "function-releases",
+    "cosmosConnectionSetting": "[if(and(not(empty(parameters('keyVaultName'))), not(empty(parameters('cosmosConnectionStringSecretName')))), format('@Microsoft.KeyVault(VaultName={0};SecretName={1})', parameters('keyVaultName'), parameters('cosmosConnectionStringSecretName')), parameters('cosmosConnectionString'))]",
+    "aiApiKeySettings": "[if(and(not(empty(parameters('keyVaultName'))), not(empty(parameters('aiApiKeySecretName')))), createArray(createObject('name', 'AI_API_KEY', 'value', format('@Microsoft.KeyVault(VaultName={0};SecretName={1})', parameters('keyVaultName'), parameters('aiApiKeySecretName')))), createArray())]"
   },
   "resources": [
     {
@@ -198,28 +270,7 @@
           }
         },
         "siteConfig": {
-          "appSettings": [
-            {
-              "name": "AzureWebJobsStorage__accountName",
-              "value": "[variables('storageAccountName')]"
-            },
-            {
-              "name": "FUNCTIONS_EXTENSION_VERSION",
-              "value": "~4"
-            },
-            {
-              "name": "FUNCTIONS_NODE_BLOCK_ON_ENTRY_POINT_ERROR",
-              "value": "true"
-            },
-            {
-              "name": "FUNCTIONS_WORKER_RUNTIME",
-              "value": "node"
-            },
-            {
-              "name": "AI_API_ENABLED",
-              "value": "[string(parameters('enableAnonymousAiRoutes'))]"
-            }
-          ],
+          "appSettings": "[concat(createArray(createObject('name', 'AzureWebJobsStorage__accountName', 'value', variables('storageAccountName')), createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_NODE_BLOCK_ON_ENTRY_POINT_ERROR', 'value', 'true'), createObject('name', 'FUNCTIONS_WORKER_RUNTIME', 'value', 'node'), createObject('name', 'AI_API_ENABLED', 'value', string(parameters('enableAnonymousAiRoutes'))), createObject('name', 'ENTRA_EXTERNAL_ID_ISSUER', 'value', parameters('entraExternalIdIssuer')), createObject('name', 'ENTRA_EXTERNAL_ID_JWKS_URI', 'value', parameters('entraExternalIdJwksUri')), createObject('name', 'ENTRA_EXTERNAL_ID_AUDIENCE', 'value', parameters('entraExternalIdAudience')), createObject('name', 'ENTRA_EXTERNAL_ID_ADMIN_ROLE', 'value', parameters('entraExternalIdAdminRole')), createObject('name', 'COSMOS_CONNECTION_STRING', 'value', variables('cosmosConnectionSetting')), createObject('name', 'COSMOS_DATABASE', 'value', parameters('cosmosDatabaseName')), createObject('name', 'COSMOS_SESSIONS_CONTAINER', 'value', parameters('cosmosSessionsContainerName'))), variables('aiApiKeySettings'))]",
           "cors": {
             "allowedOrigins": "[parameters('allowedOrigins')]",
             "supportCredentials": false
