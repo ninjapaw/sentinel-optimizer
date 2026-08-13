@@ -7,7 +7,7 @@
 import { defineConfig } from "astro/config";
 import react from "@astrojs/react";
 import { fileURLToPath } from "node:url";
-import { USER_CONFIG } from "../shared/config/user.config.ts";
+import { INTERNAL_CONFIG, USER_CONFIG } from "../shared/index.ts";
 
 // The engine library lives one level up from `web/`. We alias `@engine` to it
 // so the React island can import the parsers / estimators / pricing directly —
@@ -36,7 +36,7 @@ export default defineConfig({
         "/api": {
           target:
             process.env.LOCAL_API_URL ??
-            `http://localhost:${USER_CONFIG.api.port}`,
+            `http://localhost:${INTERNAL_CONFIG.api.port}`,
           changeOrigin: true,
         },
       },

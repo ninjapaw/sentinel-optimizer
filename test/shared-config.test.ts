@@ -18,7 +18,7 @@ describe("shared project configuration", () => {
   it("keeps the public repository identity and API routes consistent", () => {
     expect(USER_CONFIG.site.repository).toBe("ninjapaw/sentinel-optimizer");
     expect(INTERNAL_CONFIG.api.routes.recommend).toBe("/api/recommend");
-    expect(Object.isFrozen(USER_CONFIG.api)).toBe(true);
+    expect(Object.isFrozen(INTERNAL_CONFIG.api)).toBe(true);
     expect(Object.isFrozen(INTERNAL_CONFIG.api.routes)).toBe(true);
   });
 

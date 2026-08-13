@@ -4,10 +4,10 @@
  * See LICENSE in the repository root.
  */
 
-import { USER_CONFIG } from "@shared/config/user.config.js";
+import { PUBLIC_CONFIG } from "./publicConfig.js";
 
 export const CONFIG = Object.freeze({
-  ...USER_CONFIG.site,
-  repo: USER_CONFIG.site.repository,
-  colors: USER_CONFIG.brand.colors,
+  ...PUBLIC_CONFIG.site,
+  repo: PUBLIC_CONFIG.site.repository,
+  colors: PUBLIC_CONFIG.brand.colors,
 });

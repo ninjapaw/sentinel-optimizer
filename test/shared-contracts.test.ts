@@ -15,7 +15,7 @@ import {
   isRecord,
   roundTo,
   utf8ByteLength,
-  USER_CONFIG,
+  INTERNAL_CONFIG,
 } from "../shared/index.js";
 
 const validSummary = {
@@ -51,7 +51,7 @@ describe("shared AI contracts", () => {
       vendor: "generic",
       label: "Generic",
       schemaHint: "sources array",
-      template: "x".repeat(USER_CONFIG.api.example.maxTemplateCharacters),
+      template: "x".repeat(INTERNAL_CONFIG.api.example.maxTemplateCharacters),
     };
     expect(isExampleRequest(request)).toBe(true);
     expect(isExampleRequest({ ...request, template: `${request.template}x` })).toBe(false);

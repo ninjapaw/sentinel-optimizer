@@ -6,12 +6,12 @@
 
 import { readJson } from "./http.js";
 import {
-  USER_CONFIG,
+  INTERNAL_CONFIG,
   isSessionSaveRequest,
 } from "../../../shared/index.js";
 import type { SessionStorage } from "../../../shared/utils/session-storage.js";
 
-export const SESSION_MAX_BODY_BYTES = USER_CONFIG.api.session?.maxBodyBytes ?? 256 * 1024;
+export const SESSION_MAX_BODY_BYTES = INTERNAL_CONFIG.api.session.maxBodyBytes;
 
 export async function handleSessionSave(
   rawBody: string,

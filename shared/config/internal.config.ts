@@ -11,6 +11,9 @@
  * customization points; change them only alongside migrations and tests.
  */
 export const INTERNAL_CONFIG = Object.freeze({
+  input: Object.freeze({
+    maxBytes: 5 * 1024 * 1024,
+  }),
   api: Object.freeze({
     routes: Object.freeze({
       health: "/api/health",
@@ -31,5 +34,36 @@ export const INTERNAL_CONFIG = Object.freeze({
       shutdownTimeoutMs: 10_000,
     }),
     azureTokenScope: "https://ai.azure.com/.default",
+    host: "0.0.0.0",
+    port: 7071,
+    localWebOrigins: Object.freeze([
+      "http://localhost:4321",
+      "http://127.0.0.1:4321",
+    ]),
+    openai: Object.freeze({
+      requestTimeoutMs: 30_000,
+      maxRetries: 1,
+    }),
+    cloudflare: Object.freeze({
+      model: "@cf/meta/llama-3.1-8b-instruct",
+      allowedOrigins: Object.freeze([
+        "https://sentineloptimizer.com",
+        "https://ninjapaw.github.io",
+      ]),
+    }),
+    recommend: Object.freeze({
+      maxBodyBytes: 16 * 1024,
+      maxTokens: 700,
+      temperature: 0.2,
+    }),
+    example: Object.freeze({
+      maxBodyBytes: 8 * 1024,
+      maxTemplateCharacters: 4000,
+      maxTokens: 1200,
+      temperature: 0.5,
+    }),
+    session: Object.freeze({
+      maxBodyBytes: 256 * 1024,
+    }),
   }),
 });

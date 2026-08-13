@@ -24,8 +24,8 @@ try {
 }
 
 const provider = createConfiguredAiProvider();
-const port = parsePort(process.env.PORT || process.env.API_PORT, USER_CONFIG.api.port);
-const host = process.env.HOST || USER_CONFIG.api.host;
+const port = parsePort(process.env.PORT || process.env.API_PORT, INTERNAL_CONFIG.api.port);
+const host = process.env.HOST || INTERNAL_CONFIG.api.host;
 
 async function readBody(request: IncomingMessage): Promise<string | null> {
   const chunks: Buffer[] = [];
@@ -44,7 +44,7 @@ function allowedOrigin(request: IncomingMessage): string | undefined {
   if (!origin) return undefined;
   const configured = process.env.API_ALLOWED_ORIGINS
     ? parseCommaSeparated(process.env.API_ALLOWED_ORIGINS)
-    : USER_CONFIG.api.localWebOrigins;
+    : INTERNAL_CONFIG.api.localWebOrigins;
   return configured.includes(origin)
     ? origin
     : undefined;

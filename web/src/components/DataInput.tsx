@@ -15,7 +15,7 @@ import {
 import type { ExportProvenance } from "../lib/exporters.js";
 import { VENDORS, type Vendor, type VendorMeta } from "../lib/examples.js";
 import { requestAiExample } from "../lib/aiClient.js";
-import { USER_CONFIG, utf8ByteLength } from "@shared/index.js";
+import { INTERNAL_CONFIG, utf8ByteLength } from "@shared/index.js";
 
 interface Props {
   vendor: Vendor;
@@ -47,7 +47,7 @@ function parseFor(meta: VendorMeta, raw: string): NormalizedResult {
 }
 
 function exceedsInputLimit(raw: string): boolean {
-  return utf8ByteLength(raw) > USER_CONFIG.input.maxBytes;
+  return utf8ByteLength(raw) > INTERNAL_CONFIG.input.maxBytes;
 }
 
 export default function DataInput({ vendor, onVendorChange, onParsed }: Props) {
@@ -124,7 +124,7 @@ export default function DataInput({ vendor, onVendorChange, onParsed }: Props) {
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > USER_CONFIG.input.maxBytes) {
+    if (file.size > INTERNAL_CONFIG.input.maxBytes) {
       setError("That file is larger than the supported 5 MB limit.");
       e.target.value = "";
       return;

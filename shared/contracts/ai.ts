@@ -4,7 +4,7 @@
  * See LICENSE in the repository root.
  */
 
-import { USER_CONFIG } from "../config/user.config.js";
+import { INTERNAL_CONFIG } from "../config/internal.config.js";
 import { isFiniteNumber, isRecord } from "../utils/guards.js";
 
 export type SummaryStyle = "executive" | "technical" | "board";
@@ -100,7 +100,7 @@ export function isExampleRequest(value: unknown): value is ExampleRequest {
     typeof value.schemaHint === "string" &&
     value.schemaHint.length <= 1000 &&
     typeof value.template === "string" &&
-    value.template.length <= USER_CONFIG.api.example.maxTemplateCharacters
+    value.template.length <= INTERNAL_CONFIG.api.example.maxTemplateCharacters
   );
 }
 

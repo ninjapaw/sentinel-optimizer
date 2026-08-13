@@ -8,11 +8,11 @@ import type { AiProvider, ApiResult } from "./contracts.js";
 import { readJson, result } from "./http.js";
 import {
   isExampleRequest,
-  USER_CONFIG,
+  INTERNAL_CONFIG,
   type ExampleRequest,
 } from "../../../shared/index.js";
 
-export const EXAMPLE_MAX_BODY_BYTES = USER_CONFIG.api.example.maxBodyBytes;
+export const EXAMPLE_MAX_BODY_BYTES = INTERNAL_CONFIG.api.example.maxBodyBytes;
 
 function extractJson(raw: string): string | null {
   let candidate = raw.trim();
@@ -64,8 +64,8 @@ export async function handleExample(
         },
         { role: "user", content: buildPrompt(parsed.value) },
       ],
-      maxTokens: USER_CONFIG.api.example.maxTokens,
-      temperature: USER_CONFIG.api.example.temperature,
+      maxTokens: INTERNAL_CONFIG.api.example.maxTokens,
+      temperature: INTERNAL_CONFIG.api.example.temperature,
     });
     const candidate = extractJson(completion.text);
     if (!candidate) {

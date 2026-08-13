@@ -11,11 +11,11 @@ interface Props {
 
 import Disclaimer from "../components/Disclaimer.astro";
 import { BRAND } from "../lib/brand";
-import { USER_CONFIG } from "@shared/index.js";
+import { PUBLIC_CONFIG } from "../lib/publicConfig.js";
 
 const {
-  title = `${USER_CONFIG.site.name}${USER_CONFIG.site.titleSeparator}${USER_CONFIG.site.tagline}`,
-  description = USER_CONFIG.site.defaultDescription,
+  title = `${PUBLIC_CONFIG.site.name}${PUBLIC_CONFIG.site.titleSeparator}${PUBLIC_CONFIG.site.tagline}`,
+  description = PUBLIC_CONFIG.site.defaultDescription,
 } = Astro.props;
 
 const base = import.meta.env.BASE_URL;
@@ -24,8 +24,8 @@ const siteUrl = new URL(base, Astro.site ?? Astro.url.origin).toString();
 
 <!doctype html>
 <html
-  lang={USER_CONFIG.site.language}
-  dir={USER_CONFIG.site.direction}
+  lang={PUBLIC_CONFIG.site.language}
+  dir={PUBLIC_CONFIG.site.direction}
   data-theme="dark"
 >
   <head>

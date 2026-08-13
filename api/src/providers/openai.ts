@@ -10,7 +10,6 @@ import type { AiProvider, ChatRequest, ChatResult } from "../core/contracts.js";
 import {
   INTERNAL_CONFIG,
   trimTrailingSlashes,
-  USER_CONFIG,
 } from "../../../shared/index.js";
 
 export interface AiEnvironment {
@@ -69,8 +68,8 @@ export function createOpenAiProvider(
       new OpenAI({
         baseURL: `${trimTrailingSlashes(azureEndpoint)}/openai/v1/`,
         apiKey,
-        timeout: USER_CONFIG.api.openai.requestTimeoutMs,
-        maxRetries: USER_CONFIG.api.openai.maxRetries,
+        timeout: INTERNAL_CONFIG.api.openai.requestTimeoutMs,
+        maxRetries: INTERNAL_CONFIG.api.openai.maxRetries,
       }),
       azureDeployment,
       "max_completion_tokens",
@@ -90,8 +89,8 @@ export function createOpenAiProvider(
     new OpenAI({
       apiKey,
       ...(baseURL ? { baseURL: trimTrailingSlashes(baseURL) } : {}),
-      timeout: USER_CONFIG.api.openai.requestTimeoutMs,
-      maxRetries: USER_CONFIG.api.openai.maxRetries,
+      timeout: INTERNAL_CONFIG.api.openai.requestTimeoutMs,
+      maxRetries: INTERNAL_CONFIG.api.openai.maxRetries,
     }),
     model,
     tokenParameter,

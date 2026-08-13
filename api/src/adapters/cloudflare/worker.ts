@@ -11,8 +11,8 @@ import {
 } from "../../providers/cloudflare.js";
 import {
   apiResponseHeaders,
+  INTERNAL_CONFIG,
   parseCommaSeparated,
-  USER_CONFIG,
 } from "../../../../shared/index.js";
 
 interface Env {
@@ -27,7 +27,7 @@ function corsHeaders(request: Request, environment: Env): Headers {
   const allowedOrigins = new Set(
     environment.ALLOWED_ORIGINS
       ? parseCommaSeparated(environment.ALLOWED_ORIGINS)
-      : USER_CONFIG.api.cloudflare.allowedOrigins,
+      : INTERNAL_CONFIG.api.cloudflare.allowedOrigins,
   );
   if (origin && allowedOrigins.has(origin)) {
     return new Headers(apiResponseHeaders(origin));

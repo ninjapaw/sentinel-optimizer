@@ -13,6 +13,9 @@ Optional AI features are disabled by default. When enabled, only the bounded API
   - [Features](#features)
   - [Repository layout](#repository-layout)
   - [Development](#development)
+  - [Configuration management](#configuration-management)
+    - [GitHub Pages environment variables](#github-pages-environment-variables)
+    - [GitHub environment secrets](#github-environment-secrets)
   - [Azure deployment](#azure-deployment)
     - [Environment variables](#environment-variables)
     - [Environment secrets](#environment-secrets)
@@ -341,7 +344,7 @@ Example result:
 | `parsers/`, `schema/` | Pure vendor parsing and normalized contracts |
 | `estimators/` | Data-volume estimation |
 | `pricing/` | Sentinel pricing model |
-| `shared/` | Browser-safe shared configuration, contracts, and utilities |
+| `shared/` | Shared configuration, contracts, and utilities; `config/internal.config.ts` contains source-controlled safety limits and protocol invariants |
 | `api/` | Provider-neutral Node/Azure Functions API |
 | `web/` | Astro and React static frontend |
 | `infra/azure/` | Bicep stacks and zip-deployment support |
@@ -369,10 +372,74 @@ npm run dev
 The web app runs on `http://localhost:4321`; the portable API runs on
 `http://localhost:7071`. The app works without model credentials.
 
-Public defaults belong in `shared/config/user.config.ts`. Never place API keys,
-tokens, connection strings, customer exports, tenant secrets, or deployment
+Copy `web/.env.example` to `web/.env` for local public settings. Never place API
+keys, tokens, connection strings, customer exports, tenant secrets, or deployment
 credentials in source code, browser-exposed `PUBLIC_*` values, or committed
 configuration files.
+
+## Configuration management
+
+The repository has one shared configuration boundary:
+
+| Location | Ownership | What belongs there |
+| --- | --- | --- |
+| `shared/config/user.config.ts` | Source-controlled fallback | Browser-safe identity and branding defaults used locally or when an Environment variable is deliberately unset. |
+| `shared/config/internal.config.ts` | Source-controlled invariant | API route contracts, payload limits, timeout/retry limits, CORS fallback, and UI input size limits. Change these only with tests and a security/performance review. |
+| GitHub Environment variables | Deployment operator | Non-secret public build values and deployment names. `PUBLIC_*` values are embedded in the static browser bundle and must be treated as public. |
+| GitHub Environment secrets | Deployment operator | Credentials, OIDC identifiers, deployment tokens, and API keys. They are never included in browser builds. |
+
+The Pages and Azure workflows consume these values from their selected GitHub
+Environment. Do not use repository-wide variables for production settings:
+environment scope prevents development and production values from being mixed.
+
+### GitHub Pages environment variables
+
+Create or edit these in **Settings > Environments > github-pages > Variables**.
+The Pages build job is attached to this Environment. Empty optional values fall
+back to the safe defaults in `shared/config/user.config.ts`.
+
+| Variable | Required | Recommended value | Purpose and guidance |
+| --- | --- | --- | --- |
+| `PUBLIC_SITE_URL` | Yes | `https://sentineloptimizer.com` | Canonical public URL. Use an HTTPS URL matching the configured custom domain. |
+| `PUBLIC_SITE_BASE` | Yes | `/` | Astro base path. Use `/` for the custom apex domain; use `/repository-name/` only for a GitHub project site. |
+| `PUBLIC_SITE_NAME` | Optional | `Sentinel Optimizer` | Browser-visible product name and document-export branding. |
+| `PUBLIC_SITE_TAGLINE` | Optional | `SIEM cost & migration estimator` | Browser-visible short description. |
+| `PUBLIC_SITE_OWNER` | Optional | `Sentinel Optimizer contributors` | Browser-visible metadata and document-export owner. |
+| `PUBLIC_SITE_REPOSITORY` | Optional | `ninjapaw/sentinel-optimizer` | GitHub repository slug used for repository links. |
+| `PUBLIC_SITE_DESCRIPTION` | Optional | The default in `shared/config/user.config.ts` | SEO and social-card description. Keep it concise and accurate. |
+| `PUBLIC_AI_API_BASE` | Optional | Empty for same-origin API | HTTPS origin for the optional aggregated-AI API. Never point it at an endpoint that accepts raw customer exports. |
+| `PUBLIC_ADMIN_API_BASE` | Optional | Empty until admin APIs are enabled | HTTPS origin for the authenticated admin API. Set this only with the External ID variables below. |
+| `PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID` | Optional | SPA application/client ID | Public SPA identifier for External ID. It is not a secret. |
+| `PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY` | Optional | External ID authority URL | MSAL authority for the SPA. Must match the tenant and application registration. |
+| `PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE` | Optional | `api://.../access_as_user` | Scope requested for admin API calls. |
+| `PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE` | Optional | `SentinelOptimizer.Admin` | UI role hint only; the API must enforce authorization independently. |
+
+The same public identity variables are also supported by the `azure-development`
+and `azure-production` Environments. `AZURE_PUBLIC_SITE_URL` remains the
+required Azure-specific canonical URL because it is validated before the Azure
+build begins.
+
+### GitHub environment secrets
+
+Do not create a Pages secret unless a future server-side deployment step needs
+one. The static browser site must not receive a secret. Use the following
+Environment secrets only in the workflows that consume them:
+
+| Environment | Secret | Required | Purpose and recommendation |
+| --- | --- | --- | --- |
+| `cloudflare-api` | `CLOUDFLARE_API_TOKEN` | When Cloudflare API deploy is enabled | Scoped Cloudflare deployment token. Pair it with the non-secret `CLOUDFLARE_ACCOUNT_ID` variable and rotate on exposure. |
+| `azure-development`, `azure-production` | `AZURE_CLIENT_ID` | Infrastructure workflow | OIDC application client ID with least-privilege Azure roles. |
+| `azure-development`, `azure-production` | `AZURE_API_CLIENT_ID` | API workflow | Separate OIDC identity for Functions code deployment. |
+| `azure-development`, `azure-production` | `AZURE_TENANT_ID` | Azure workflows | Tenant containing the OIDC applications. Keep it environment-scoped for consistency. |
+| `azure-development`, `azure-production` | `AZURE_SUBSCRIPTION_ID` | Azure workflows | Subscription that owns the Environment resource group. |
+| `azure-development`, `azure-production` | `AZURE_API_PRINCIPAL_OBJECT_ID` | API infrastructure | Object ID used for the scoped Function App deployment role. |
+| `azure-development`, `azure-production` | `AZURE_STATIC_WEB_APPS_API_TOKEN` | Azure site deployment | Long-lived Static Web Apps deployment token. Rotate it immediately if exposed. |
+
+Runtime API secrets such as `AI_API_KEY`, `AZURE_OPENAI_API_KEY`, and
+`COSMOS_CONNECTION_STRING` belong in the deployed provider's secret store or
+Function App settings, not in GitHub build variables. Use `api/.env.example`
+and `api/.dev.vars.example` only as local templates; their real counterparts
+are ignored by Git.
 
 ## Azure deployment
 

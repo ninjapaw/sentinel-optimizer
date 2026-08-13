@@ -5,7 +5,7 @@
  */
 
 import type { AiProvider, ChatRequest, ChatResult } from "../core/contracts.js";
-import { USER_CONFIG } from "../../../shared/index.js";
+import { INTERNAL_CONFIG } from "../../../shared/index.js";
 
 export interface WorkersAiBinding {
   run(model: string, input: unknown): Promise<{ response?: string }>;
@@ -33,7 +33,7 @@ class WorkersAiProvider implements AiProvider {
 
 export function createWorkersAiProvider(
   ai: WorkersAiBinding | undefined,
-  model: string = USER_CONFIG.api.cloudflare.model,
+  model: string = INTERNAL_CONFIG.api.cloudflare.model,
 ): AiProvider | undefined {
   return ai ? new WorkersAiProvider(ai, model) : undefined;
 }

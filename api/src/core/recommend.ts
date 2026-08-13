@@ -8,11 +8,11 @@ import type { AiProvider, ApiResult } from "./contracts.js";
 import { readJson, result } from "./http.js";
 import {
   isAggregatedSummary,
-  USER_CONFIG,
+  INTERNAL_CONFIG,
   type AggregatedSummary,
 } from "../../../shared/index.js";
 
-export const RECOMMEND_MAX_BODY_BYTES = USER_CONFIG.api.recommend.maxBodyBytes;
+export const RECOMMEND_MAX_BODY_BYTES = INTERNAL_CONFIG.api.recommend.maxBodyBytes;
 
 function buildPrompt(summary: AggregatedSummary): string {
   const style = summary.summaryStyle ?? "executive";
@@ -79,8 +79,8 @@ export async function handleRecommend(
         },
         { role: "user", content: buildPrompt(parsed.value) },
       ],
-      maxTokens: USER_CONFIG.api.recommend.maxTokens,
-      temperature: USER_CONFIG.api.recommend.temperature,
+      maxTokens: INTERNAL_CONFIG.api.recommend.maxTokens,
+      temperature: INTERNAL_CONFIG.api.recommend.temperature,
     });
     return result({ text: completion.text, model: completion.model });
   } catch {
