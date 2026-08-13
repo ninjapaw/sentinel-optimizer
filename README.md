@@ -31,6 +31,309 @@ Optional AI features are disabled by default. When enabled, only the bounded API
 - Optionally deploy a static site and a separate Azure Functions API.
 - All processing runs client-side in the browser—no data sent externally unless AI features are enabled.
 
+## Query and export examples
+
+The calculator accepts ingestion-by-source exports for the vendors below. Run the
+recommended query over the last 30 days, export the results as JSON, and paste
+the result into the calculator. Keep `windowDays` set to the number of days in
+the query window. Byte values are totals for the full window, not daily values.
+
+The examples use the same fields recognized by the parsers. Source names can be
+represented by fields such as `name`, `source`, `idx`, `log_source_name`, or
+`log_source`. Volume can be supplied as `bytes`, `gb`, `mb`, or `gbPerDay`.
+
+### Microsoft Sentinel
+
+Run in Microsoft Sentinel Logs (Log Analytics), then select **Export > JSON**:
+
+```kusto
+Usage
+| where TimeGenerated > ago(30d) and IsBillable == true
+| summarize QuantityMB = sum(Quantity) by DataType
+| order by QuantityMB desc
+```
+
+Example result:
+
+```json
+{
+  "windowDays": 30,
+  "usage": [
+    { "DataType": "SecurityEvent", "QuantityMB": 1228800 },
+    { "DataType": "SigninLogs", "QuantityMB": 307200 },
+    { "DataType": "CommonSecurityLog", "QuantityMB": 921600 }
+  ],
+  "connectors": [
+    { "name": "AzureActiveDirectory", "kind": "AzureActiveDirectory", "enabled": true },
+    { "name": "MicrosoftThreatProtection", "kind": "MicrosoftThreatProtection", "enabled": false }
+  ]
+}
+```
+
+### Splunk
+
+Run in Splunk Search:
+
+```spl
+index=_internal source=*license_usage.log type=Usage earliest=-30d@d
+| stats sum(b) AS bytes count AS events BY idx
+| sort - bytes
+```
+
+Example result:
+
+```json
+{
+  "windowDays": 30,
+  "results": [
+    { "idx": "main", "bytes": 32212254720, "events": 48000000 },
+    { "idx": "firewall", "bytes": 16106127360, "events": 21000000 },
+    { "idx": "windows", "bytes": 8053063680 }
+  ]
+}
+```
+
+### Elastic
+
+Run against Elasticsearch:
+
+```http
+GET _cat/indices?bytes=b&format=json&h=index,docs.count,store.size&s=store.size:desc
+```
+
+Example result:
+
+```json
+[
+  { "index": "logs-2026.05", "docs.count": "12500000", "store.size": "21474836480" },
+  { "index": "metrics-2026.05", "docs.count": "8000000", "store.size": "5368709120" },
+  { "index": "audit-2026.05", "docs.count": "450000" }
+]
+```
+
+### Rapid7 InsightIDR
+
+Run in InsightIDR Log Search (LEQL) over the last 30 days. If the log source
+does not expose `size_bytes`, export event counts and use the InsightIDR
+**Settings > Data Collection > Data Usage (GB)** report for the volume total.
+
+```text
+where(/.*/)
+groupby(log_source_name)
+calculate(sum:size_bytes)
+```
+
+Example result:
+
+```json
+{
+  "windowDays": 30,
+  "sources": [
+    { "name": "AWS CloudTrail", "bytes": 18253611008 },
+    { "name": "Windows Event Log", "bytes": 9663676416 },
+    { "name": "Palo Alto Firewall", "bytes": 5368709120 }
+  ]
+}
+```
+
+### IBM QRadar
+
+Run in Log Activity > Advanced Search (AQL):
+
+```sql
+SELECT LOGSOURCENAME(logsourceid) AS name, SUM(eventcount) AS events
+FROM events
+GROUP BY logsourceid
+ORDER BY events DESC
+LAST 30 DAYS
+```
+
+Example result:
+
+```json
+{
+  "windowDays": 30,
+  "results": [
+    { "name": "Cisco ASA", "events": 240000000 },
+    { "name": "Windows Security", "events": 180000000 },
+    { "name": "Linux Auth", "events": 36000000 }
+  ]
+}
+```
+
+QRadar reports event counts rather than raw bytes in this example. The
+calculator estimates volume using its configured average bytes per event.
+
+### Sumo Logic
+
+Run against the Sumo Logic volume index:
+
+```text
+_index=sumologic_volume
+| sum(sizeInBytes) as bytes by _sourceCategory
+| sort by bytes
+```
+
+Example result:
+
+```json
+{
+  "windowDays": 30,
+  "results": [
+    { "_sourceCategory": "prod/aws/cloudtrail", "bytes": 21474836480 },
+    { "_sourceCategory": "prod/firewall/palo", "bytes": 12884901888 },
+    { "_sourceCategory": "prod/os/linux", "bytes": 6442450944 }
+  ]
+}
+```
+
+### CrowdStrike Falcon LogScale
+
+Run over the last 30 days and all repositories:
+
+```text
+#repo=*
+| groupBy([#repo], function=sum(@rawstring.length, as=bytes))
+| sort(bytes, order=desc)
+```
+
+Example result:
+
+```json
+{
+  "windowDays": 30,
+  "rows": [
+    { "#repo": "edr", "bytes": 32212254720 },
+    { "#repo": "firewall", "bytes": 10737418240 },
+    { "#repo": "identity", "bytes": 4294967296 }
+  ]
+}
+```
+
+### Google SecOps Chronicle
+
+Run against the BigQuery ingestion metrics export:
+
+```sql
+SELECT log_type AS name, SUM(size_bytes) AS bytes
+FROM `datalake.ingestion_metrics`
+WHERE _PARTITIONDATE >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+GROUP BY log_type
+ORDER BY bytes DESC
+```
+
+Example result:
+
+```json
+{
+  "windowDays": 30,
+  "sources": [
+    { "name": "WINEVTLOG", "bytes": 16106127360 },
+    { "name": "GCP_CLOUDAUDIT", "bytes": 9663676416 },
+    { "name": "PAN_FIREWALL", "bytes": 6442450944 }
+  ]
+}
+```
+
+### Datadog
+
+Use Logs > Usage or the Usage Metering API for the last 30 days. Export rows
+with the log source and ingested GB:
+
+```text
+{ "source": "<log source>", "gb": "<ingested GB>" }
+```
+
+API endpoint:
+
+```text
+GET https://api.datadoghq.com/api/v2/usage/logs_by_retention
+```
+
+Example result:
+
+```json
+{
+  "windowDays": 30,
+  "rows": [
+    { "source": "cloudtrail", "gb": 540 },
+    { "source": "nginx", "gb": 320 },
+    { "source": "kubernetes", "gb": 210 }
+  ]
+}
+```
+
+### Exabeam
+
+Run in Exabeam Search over the last 30 days:
+
+```text
+groupBy(log_source)
+| stats sum(message_size) as bytes, count() as events by log_source
+| sort bytes desc
+```
+
+Example result:
+
+```json
+{
+  "windowDays": 30,
+  "results": [
+    { "log_source": "Windows Security", "bytes": 19327352832 },
+    { "log_source": "Okta", "bytes": 6442450944 },
+    { "log_source": "Zscaler", "bytes": 4294967296 }
+  ]
+}
+```
+
+### LogRhythm
+
+Run in the Web Console, LogRhythm DX, or SIEM export for the last 30 days:
+
+```sql
+SELECT LogSourceName AS name, COUNT(*) AS events
+FROM LogMart
+WHERE NormalDate >= DATEADD(day, -30, GETDATE())
+GROUP BY LogSourceName
+ORDER BY events DESC
+```
+
+Example result:
+
+```json
+{
+  "windowDays": 30,
+  "results": [
+    { "name": "Windows Security", "events": 210000000 },
+    { "name": "Cisco ASA", "events": 150000000 },
+    { "name": "Linux Syslog", "events": 42000000 }
+  ]
+}
+```
+
+LogRhythm is message-rate based in this example, so the calculator estimates
+volume at approximately 0.5 KB per message.
+
+### Arctic Wolf
+
+Arctic Wolf does not provide a customer query language for this report. Request
+an ingestion report from your Concierge Security Team, or export from the
+Arctic Wolf portal under **Reports > Log Search / Data Ingestion > by log
+source** for the last 30 days.
+
+Example result:
+
+```json
+{
+  "windowDays": 30,
+  "sources": [
+    { "name": "Firewall (Fortinet)", "bytes": 15032385536 },
+    { "name": "Microsoft 365", "bytes": 8589934592 },
+    { "name": "Windows Event Log", "bytes": 5368709120 }
+  ]
+}
+```
+
 ## Repository layout
 
 | Path | Purpose |
