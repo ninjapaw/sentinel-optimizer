@@ -71,10 +71,16 @@ jobs:
 
       - name: Build web
         working-directory: web
+        # GitHub Pages serves this repo at the apex custom domain
+        # (sentineloptimizer.com), not at https://<owner>.github.io/<repo>/, so
+        # assets must be built with base "/". Forks without a custom domain
+        # configured should set the PUBLIC_SITE_URL / PUBLIC_SITE_BASE
+        # repository variables to their own https://<owner>.github.io/<repo>/
+        # values.
         run: npm run build
         env:
-          PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL || format('https://{0}.github.io', github.repository_owner) }}
-          PUBLIC_SITE_BASE: ${{ vars.PUBLIC_SITE_BASE || format('/{0}/', github.event.repository.name) }}
+          PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL || 'https://sentineloptimizer.com' }}
+          PUBLIC_SITE_BASE: ${{ vars.PUBLIC_SITE_BASE || '/' }}
           PUBLIC_AI_API_BASE: ${{ vars.PUBLIC_AI_API_BASE || '' }}
 
       - name: Configure GitHub Pages
