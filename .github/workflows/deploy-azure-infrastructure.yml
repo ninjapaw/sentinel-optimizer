@@ -145,7 +145,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: azure-${{ inputs.environment }}
+    environment: deployment-${{ inputs.environment }}
     permissions:
       contents: read
       id-token: write

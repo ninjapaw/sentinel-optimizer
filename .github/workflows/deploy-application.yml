@@ -1,0 +1,349 @@
+# MIT License
+# Copyright (c) 2026 Microsoft Corporation
+# See LICENSE in the repository root.
+
+name: Deploy Application
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        default: development
+        type: choice
+        options:
+          - development
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: application-${{ inputs.environment }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: deployment-${{ inputs.environment }}
+    outputs:
+      target: ${{ steps.configuration.outputs.target }}
+      deploy_api: ${{ steps.configuration.outputs.deploy_api }}
+      site-url: ${{ steps.configuration.outputs.site-url }}
+      site-base: ${{ steps.configuration.outputs.site-base }}
+      ai-api-base: ${{ steps.configuration.outputs.ai-api-base }}
+    env:
+      DEPLOYMENT_TARGET: ${{ vars.DEPLOYMENT_TARGET }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      AZURE_STATIC_WEB_APP_NAME: ${{ vars.AZURE_STATIC_WEB_APP_NAME }}
+      AZURE_FUNCTIONAPP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+      AZURE_PUBLIC_SITE_URL: ${{ vars.AZURE_PUBLIC_SITE_URL }}
+      AZURE_DEPLOY_API: ${{ vars.AZURE_DEPLOY_API }}
+      AZURE_USE_API: ${{ vars.AZURE_USE_API }}
+      AZURE_ENABLE_ANONYMOUS_AI_ROUTES: ${{ vars.AZURE_ENABLE_ANONYMOUS_AI_ROUTES }}
+      PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
+      PUBLIC_SITE_BASE: ${{ vars.PUBLIC_SITE_BASE }}
+      PUBLIC_AI_API_BASE: ${{ vars.PUBLIC_AI_API_BASE }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Validate selected deployment target
+        id: configuration
+        run: |
+          case "$DEPLOYMENT_TARGET" in
+            azure-static-web-app)
+              bash infra/azure/validate-environment.sh
+              site_url="$AZURE_PUBLIC_SITE_URL"
+              site_base="/"
+              ai_api_base=""
+              if [[ "$AZURE_USE_API" == "true" ]]; then
+                ai_api_base="https://$AZURE_FUNCTIONAPP_NAME.azurewebsites.net"
+              fi
+              ;;
+            github-pages)
+              : "${PUBLIC_SITE_URL:?Set PUBLIC_SITE_URL for the selected deployment Environment}"
+              : "${PUBLIC_SITE_BASE:?Set PUBLIC_SITE_BASE for the selected deployment Environment}"
+              site_url="$PUBLIC_SITE_URL"
+              site_base="$PUBLIC_SITE_BASE"
+              ai_api_base="$PUBLIC_AI_API_BASE"
+              ;;
+            cloudflare-worker-api)
+              site_url=""
+              site_base=""
+              ai_api_base=""
+              ;;
+            *)
+              echo "::error title=Unsupported deployment target::Set DEPLOYMENT_TARGET to azure-static-web-app, github-pages, or cloudflare-worker-api."
+              exit 1
+              ;;
+          esac
+
+          echo "target=$DEPLOYMENT_TARGET" >> "$GITHUB_OUTPUT"
+          echo "deploy_api=${AZURE_DEPLOY_API:-false}" >> "$GITHUB_OUTPUT"
+          echo "site-url=$site_url" >> "$GITHUB_OUTPUT"
+          echo "site-base=$site_base" >> "$GITHUB_OUTPUT"
+          echo "ai-api-base=$ai_api_base" >> "$GITHUB_OUTPUT"
+
+  build-web:
+    if: needs.preflight.outputs.target == 'azure-static-web-app' || needs.preflight.outputs.target == 'github-pages'
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: deployment-${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Load tool versions
+        run: jq --raw-output --from-file .devcontainer/export-tool-versions.jq .devcontainer/tool-versions.json >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Set up npm
+        run: npm install --global "npm@${NPM_VERSION}"
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Type-check web
+        working-directory: web
+        run: npm run typecheck
+
+      - name: Build web
+        working-directory: web
+        run: npm run build
+        env:
+          PUBLIC_SITE_URL: ${{ needs.preflight.outputs.site-url }}
+          PUBLIC_SITE_BASE: ${{ needs.preflight.outputs.site-base }}
+          PUBLIC_SITE_NAME: ${{ vars.PUBLIC_SITE_NAME || '' }}
+          PUBLIC_SITE_TAGLINE: ${{ vars.PUBLIC_SITE_TAGLINE || '' }}
+          PUBLIC_SITE_OWNER: ${{ vars.PUBLIC_SITE_OWNER || '' }}
+          PUBLIC_SITE_REPOSITORY: ${{ vars.PUBLIC_SITE_REPOSITORY || '' }}
+          PUBLIC_SITE_DESCRIPTION: ${{ vars.PUBLIC_SITE_DESCRIPTION || '' }}
+          PUBLIC_AI_API_BASE: ${{ needs.preflight.outputs.ai-api-base }}
+          PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID || '' }}
+          PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY || '' }}
+          PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE || '' }}
+          PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE || '' }}
+          PUBLIC_ADMIN_API_BASE: ${{ vars.PUBLIC_ADMIN_API_BASE || '' }}
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: application-web
+          path: web/dist
+          if-no-files-found: error
+          retention-days: 1
+
+  build-api:
+    if: needs.preflight.outputs.target == 'cloudflare-worker-api' || (needs.preflight.outputs.target == 'azure-static-web-app' && needs.preflight.outputs.deploy_api == 'true')
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Load tool versions
+        working-directory: .
+        run: jq --raw-output --from-file .devcontainer/export-tool-versions.jq .devcontainer/tool-versions.json >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - name: Set up npm
+        run: npm install --global "npm@${NPM_VERSION}"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check API
+        run: npm run typecheck
+
+      - name: Test API
+        run: npm test
+
+      - name: Build API
+        run: npm run build
+
+      - name: Create Azure Functions package
+        if: needs.preflight.outputs.target == 'azure-static-web-app'
+        run: |
+          npm prune --omit=dev
+          npm run smoke:azure
+          zip -r "$RUNNER_TEMP/function-app.zip" dist host.json node_modules package.json package-lock.json
+
+      - name: Upload API artifact
+        if: needs.preflight.outputs.target == 'azure-static-web-app'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: application-api
+          path: ${{ runner.temp }}/function-app.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy-azure-site:
+    if: needs.preflight.outputs.target == 'azure-static-web-app'
+    needs: [preflight, build-web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: deployment-${{ inputs.environment }}
+    steps:
+      - name: Download web artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: application-web
+          path: site-package
+
+      - name: Verify Static Web Apps deployment token
+        env:
+          AZURE_STATIC_WEB_APPS_API_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+        run: ': "${AZURE_STATIC_WEB_APPS_API_TOKEN:?Set AZURE_STATIC_WEB_APPS_API_TOKEN in the selected deployment Environment}"'
+
+      - name: Deploy Azure Static Web Apps site
+        uses: Azure/static-web-apps-deploy@1a947af9992250f3bc2e68ad0754c0b0c11566c9 # v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: site-package
+          api_location: ""
+          output_location: ""
+          skip_app_build: true
+
+  deploy-azure-api:
+    if: needs.preflight.outputs.target == 'azure-static-web-app' && needs.preflight.outputs.deploy_api == 'true'
+    needs: [preflight, build-api]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: deployment-${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download API artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: application-api
+          path: function-package
+
+      - name: Verify Azure deployment configuration
+        env:
+          AZURE_FUNCTIONAPP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_API_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          : "${AZURE_FUNCTIONAPP_NAME:?Set AZURE_FUNCTIONAPP_NAME in the selected deployment Environment}"
+          : "${AZURE_CLIENT_ID:?Set AZURE_API_CLIENT_ID in the selected deployment Environment}"
+          : "${AZURE_TENANT_ID:?Set AZURE_TENANT_ID in the selected deployment Environment}"
+          : "${AZURE_SUBSCRIPTION_ID:?Set AZURE_SUBSCRIPTION_ID in the selected deployment Environment}"
+
+      - name: Sign in to Azure
+        uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
+        with:
+          client-id: ${{ secrets.AZURE_API_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify Function App infrastructure
+        env:
+          FUNCTION_APP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: |
+          az functionapp show --resource-group "$RESOURCE_GROUP" --name "$FUNCTION_APP_NAME" --output none
+
+      - name: Deploy Azure Functions API
+        uses: Azure/functions-action@c27ade7ab0db7a7005f1ee0c6aed9fae27ca4249 # v1
+        with:
+          app-name: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+          package: function-package/function-app.zip
+
+  deploy-github-pages:
+    if: needs.preflight.outputs.target == 'github-pages'
+    needs: [preflight, build-web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: deployment-${{ inputs.environment }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Download web artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: application-web
+          path: site-package
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: site-package
+
+      - name: Deploy GitHub Pages site
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
+
+  deploy-cloudflare-api:
+    if: needs.preflight.outputs.target == 'cloudflare-worker-api'
+    needs: [preflight, build-api]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: deployment-${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Load tool versions
+        run: jq --raw-output --from-file .devcontainer/export-tool-versions.jq .devcontainer/tool-versions.json >> "$GITHUB_ENV"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - name: Set up npm
+        run: npm install --global "npm@${NPM_VERSION}"
+
+      - name: Install dependencies
+        working-directory: api
+        run: npm ci
+
+      - name: Verify Cloudflare deployment configuration
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          : "${CLOUDFLARE_ACCOUNT_ID:?Set CLOUDFLARE_ACCOUNT_ID in the selected deployment Environment}"
+          : "${CLOUDFLARE_API_TOKEN:?Set CLOUDFLARE_API_TOKEN in the selected deployment Environment}"
+
+      - name: Deploy Cloudflare Worker API
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: api
+          command: deploy

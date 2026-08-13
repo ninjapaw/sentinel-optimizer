@@ -200,7 +200,7 @@ fi
 openai_account_name="${openai_account_name:-sentinel-optimizer-${deployment_environment}-openai}"
 infrastructure_application_name="${AZURE_INFRASTRUCTURE_APPLICATION_NAME:-sentinel-optimizer-${deployment_environment}-infrastructure-github}"
 api_application_name="${AZURE_API_APPLICATION_NAME:-sentinel-optimizer-${deployment_environment}-api-github}"
-github_environment="azure-${deployment_environment}"
+github_environment="deployment-${deployment_environment}"
 [[ "$infrastructure_application_name" != "$api_application_name" ]] || fail 'Infrastructure and API OIDC application names must be different.'
 resource_group_scope="/subscriptions/$subscription_id/resourceGroups/$resource_group"
 
@@ -419,6 +419,7 @@ JSON
   set_environment_secret "$github_environment" AZURE_API_CLIENT_ID "$api_client_id"
 
   gh variable set AZURE_LOCATION --env "$github_environment" --repo "$repository" --body "$location"
+  gh variable set DEPLOYMENT_TARGET --env "$github_environment" --repo "$repository" --body 'azure-static-web-app'
   gh variable set AZURE_ENVIRONMENT --env "$github_environment" --repo "$repository" --body "$deployment_environment"
   gh variable set AZURE_RESOURCE_GROUP --env "$github_environment" --repo "$repository" --body "$resource_group"
   gh variable set AZURE_STATIC_WEB_APP_NAME --env "$github_environment" --repo "$repository" --body "$static_web_app_name"
