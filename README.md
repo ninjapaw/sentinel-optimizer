@@ -548,8 +548,16 @@ separate names and URLs for development and production.
 
 ### Environment secrets
 
-Create these as **GitHub Environment secrets**. Do not commit them, place them
-in `PUBLIC_*` variables, or print them in workflow logs.
+Create these as **GitHub Environment secrets** in *both* `deployment-development`
+and `deployment-production`. Do not commit them, place them in `PUBLIC_*`
+variables, or print them in workflow logs.
+
+Every job that reads a secret runs with `environment: deployment-<environment>`,
+so each environment resolves its own copy. `AZURE_STATIC_WEB_APPS_API_TOKEN`
+**must differ** per environment because it is bound to a single Static Web App.
+The Entra and subscription identifiers are usually the same value in both
+environments; store them in each environment anyway so neither one depends on
+repository-level fallbacks.
 
 | Secret                            | Required by                   | Recommended value/source                                  | Purpose and guidance                                                                                                        |
 | --------------------------------- | ----------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |

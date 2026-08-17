@@ -107,6 +107,37 @@ jobs:
           echo "site-base=$site_base" >> "$GITHUB_OUTPUT"
           echo "ai-api-base=$ai_api_base" >> "$GITHUB_OUTPUT"
 
+      - name: Verify environment secrets
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          DEPLOY_API: ${{ steps.configuration.outputs.deploy_api }}
+          AZURE_STATIC_WEB_APPS_API_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          AZURE_API_CLIENT_ID: ${{ secrets.AZURE_API_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          missing=()
+
+          case "$DEPLOYMENT_TARGET" in
+            azure-static-web-app)
+              [[ -n "$AZURE_STATIC_WEB_APPS_API_TOKEN" ]] || missing+=(AZURE_STATIC_WEB_APPS_API_TOKEN)
+              if [[ "$DEPLOY_API" == "true" ]]; then
+                [[ -n "$AZURE_API_CLIENT_ID" ]] || missing+=(AZURE_API_CLIENT_ID)
+                [[ -n "$AZURE_TENANT_ID" ]] || missing+=(AZURE_TENANT_ID)
+                [[ -n "$AZURE_SUBSCRIPTION_ID" ]] || missing+=(AZURE_SUBSCRIPTION_ID)
+              fi
+              ;;
+            cloudflare-worker-api)
+              [[ -n "$CLOUDFLARE_API_TOKEN" ]] || missing+=(CLOUDFLARE_API_TOKEN)
+              ;;
+          esac
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error title=Missing environment secrets::Add ${missing[*]} to the deployment-$TARGET_ENVIRONMENT Environment."
+            exit 1
+          fi
+
   build-web:
     if: needs.preflight.outputs.target == 'azure-static-web-app' || needs.preflight.outputs.target == 'github-pages'
     needs: preflight
