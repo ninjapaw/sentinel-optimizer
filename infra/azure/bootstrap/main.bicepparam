@@ -4,5 +4,5 @@
 
 using './main.bicep'
 
-param resourceGroupName = 'NP-SentinelOptimizer-Prod-CentralUS'
-param location = 'eastus2'
+param resourceGroupName = 'NP-StaticSite-SentinelOptimizer-CentralUS'
+param location = 'centralus'

@@ -5,13 +5,13 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "17741632392163821323"
+      "templateHash": "16890803878158955788"
     }
   },
   "parameters": {
     "resourceGroupName": {
       "type": "string",
-      "defaultValue": "NP-SentinelOptimizer-Prod-CentralUS",
+      "defaultValue": "NP-StaticSite-SentinelOptimizer-CentralUS",
       "minLength": 1,
       "maxLength": 90,
       "metadata": {
@@ -20,7 +20,7 @@
     },
     "location": {
       "type": "string",
-      "defaultValue": "eastus2",
+      "defaultValue": "centralus",
       "metadata": {
         "description": "Azure region for the resource group metadata and deployment location."
       }
