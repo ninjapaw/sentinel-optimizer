@@ -7,7 +7,7 @@ targetScope = 'subscription'
 @description('Resource group used by Sentinel Optimizer Azure deployments.')
 @minLength(1)
 @maxLength(90)
-param resourceGroupName string = 'rg-sentinel-optimizer-prod'
+param resourceGroupName string = 'NP-SentinelOptimizer-Prod-CentralUS'
 
 @description('Azure region for the resource group metadata and deployment location.')
 param location string = 'eastus2'
