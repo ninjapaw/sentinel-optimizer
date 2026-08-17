@@ -427,6 +427,7 @@ JSON
   set_environment_secret "$github_environment" AZURE_API_PRINCIPAL_OBJECT_ID "$api_principal_object_id"
   set_environment_secret "$github_environment" AZURE_INFRA_PRINCIPAL_OBJECT_ID "$infrastructure_principal_object_id"
   set_environment_secret "$github_environment" AZURE_API_CLIENT_ID "$api_client_id"
+  set_environment_secret "$github_environment" AZURE_PUBLIC_SITE_URL "$public_site_url"
 
   gh variable set AZURE_LOCATION --env "$github_environment" --repo "$repository" --body "$location"
   gh variable set DEPLOYMENT_TARGET --env "$github_environment" --repo "$repository" --body 'azure-static-web-app'
@@ -434,7 +435,6 @@ JSON
   gh variable set AZURE_RESOURCE_GROUP --env "$github_environment" --repo "$repository" --body "$resource_group"
   gh variable set AZURE_STATIC_WEB_APP_NAME --env "$github_environment" --repo "$repository" --body "$static_web_app_name"
   gh variable set AZURE_FUNCTIONAPP_NAME --env "$github_environment" --repo "$repository" --body "$function_app_name"
-  gh variable set AZURE_PUBLIC_SITE_URL --env "$github_environment" --repo "$repository" --body "$public_site_url"
   gh variable set AZURE_DEPLOY_API --env "$github_environment" --repo "$repository" --body "$deploy_api"
   gh variable set AZURE_USE_API --env "$github_environment" --repo "$repository" --body "$use_api"
   gh variable set AZURE_ENABLE_ANONYMOUS_AI_ROUTES --env "$github_environment" --repo "$repository" --body "$enable_anonymous_ai_routes"

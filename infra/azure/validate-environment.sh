@@ -52,7 +52,6 @@ if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
     printf 'resource-group=%s\n' "$AZURE_RESOURCE_GROUP"
     printf 'static-web-app-name=%s\n' "$AZURE_STATIC_WEB_APP_NAME"
     printf 'function-app-name=%s\n' "$AZURE_FUNCTIONAPP_NAME"
-    printf 'public-site-url=%s\n' "$AZURE_PUBLIC_SITE_URL"
     printf 'deploy-api=%s\n' "$AZURE_DEPLOY_API"
     printf 'use-api=%s\n' "$AZURE_USE_API"
   } >> "$GITHUB_OUTPUT"

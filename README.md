@@ -525,7 +525,6 @@ separate names and URLs for development and production.
 | `AZURE_RESOURCE_GROUP`                | Yes               | `NP-SentinelOptimizer-CentralUS`            | `NP-SentinelOptimizer-CentralUS`            | Resource group owned by this environment. Both environments share one group today.                                    |
 | `AZURE_STATIC_WEB_APP_NAME`           | Yes               | `NP-SentinelOptimizer-Dev-CentralUS`        | `NP-SentinelOptimizer-Prod-CentralUS`       | Globally unique Static Web Apps resource name.                                                                        |
 | `AZURE_FUNCTIONAPP_NAME`              | Yes               | `sentinel-optimizer-development-api`        | `sentinel-optimizer-production-api`         | Globally unique Azure Functions app name.                                                                             |
-| `AZURE_PUBLIC_SITE_URL`               | Yes               | Generated dev URL or dev custom domain      | Production custom domain or generated URL   | Canonical site URL embedded into the static build. Must use `https://`.                                               |
 | `AZURE_DEPLOY_API`                    | Yes               | `false` initially; `true` when API is ready | `true` only when approved                   | Enables API code deployment. Keep `false` for a static-only deployment.                                               |
 | `AZURE_USE_API`                       | Yes               | `false` until health check passes           | `true` after API validation                 | Makes the frontend call the separate Functions API. Requires `AZURE_DEPLOY_API=true`.                                 |
 | `AZURE_ENABLE_ANONYMOUS_AI_ROUTES`    | Yes               | `false`                                     | `false`                                     | Controls paid anonymous AI routes. Keep `false` unless authentication, rate limits, quotas, and budgets are in place. |
@@ -553,8 +552,9 @@ and `deployment-production`. Do not commit them, place them in `PUBLIC_*`
 variables, or print them in workflow logs.
 
 Every job that reads a secret runs with `environment: deployment-<environment>`,
-so each environment resolves its own copy. `AZURE_STATIC_WEB_APPS_API_TOKEN`
-**must differ** per environment because it is bound to a single Static Web App.
+so each environment resolves its own copy. `AZURE_STATIC_WEB_APPS_API_TOKEN` and
+`AZURE_PUBLIC_SITE_URL` **must differ** per environment: the token is bound to a
+single Static Web App, and each environment publishes its own URL.
 The Entra and subscription identifiers are usually the same value in both
 environments; store them in each environment anyway so neither one depends on
 repository-level fallbacks.
@@ -569,6 +569,7 @@ repository-level fallbacks.
 | `AZURE_INFRA_PRINCIPAL_OBJECT_ID` | Key Vault infrastructure      | Object ID of the infrastructure service principal         | Used by Bicep to grant Key Vault Secrets Officer so the pipeline can rotate secrets.                                        |
 | `AI_API_KEY`                      | Key Vault secret sync         | Third-party AI provider key                               | Read only by the secrets workflow and written into Key Vault. Omit it when the API uses Azure OpenAI with managed identity. |
 | `AZURE_STATIC_WEB_APPS_API_TOKEN` | Static site deployment        | Retrieve from the Static Web App deployment-token command | Long-lived site deployment token. Store only in the selected GitHub Environment and rotate if exposed.                      |
+| `AZURE_PUBLIC_SITE_URL`           | Static site build             | Environment-specific canonical site URL                   | Canonical site URL embedded into the static build. Differs per environment and must use `https://`.                         |
 
 ### Built-in GitHub token
 
