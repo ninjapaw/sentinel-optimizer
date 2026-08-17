@@ -51,6 +51,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      - name: Verify branch matches environment
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          SOURCE_REF: ${{ github.ref_name }}
+        run: |
+          case "$TARGET_ENVIRONMENT" in
+            development) expected_ref=dev ;;
+            production) expected_ref=main ;;
+            *)
+              echo "::error title=Unsupported environment::Expected development or production."
+              exit 1
+              ;;
+          esac
+
+          if [[ "$SOURCE_REF" != "$expected_ref" ]]; then
+            echo "::error title=Branch and environment mismatch::Run the $TARGET_ENVIRONMENT deployment from '$expected_ref', not '$SOURCE_REF'."
+            exit 1
+          fi
+
       - name: Validate selected deployment target
         id: configuration
         run: |

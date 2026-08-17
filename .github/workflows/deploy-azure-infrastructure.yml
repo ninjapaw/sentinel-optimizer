@@ -8,12 +8,14 @@ on:
   push:
     branches:
       - main
+      - dev
     paths:
       - .github/workflows/deploy-azure-infrastructure.yml
       - infra/azure/**
   pull_request:
     branches:
       - main
+      - dev
     paths:
       - .github/workflows/deploy-azure-infrastructure.yml
       - infra/azure/**

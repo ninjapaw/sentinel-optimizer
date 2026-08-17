@@ -492,6 +492,26 @@ Azure deployment values belong in protected GitHub Environments, not this public
 
 Use `infra/azure/bootstrap.sh --environment development` to seed one environment, then repeat for production. The bootstrap creates short-lived GitHub OIDC federation and scoped role assignments; it does not create a client secret.
 
+### Branching and promotion
+
+| Branch | GitHub Environment       | Static Web App                        |
+| ------ | ------------------------ | ------------------------------------- |
+| `dev`  | `deployment-development` | `NP-SentinelOptimizer-Dev-CentralUS`  |
+| `main` | `deployment-production`  | `NP-SentinelOptimizer-Prod-CentralUS` |
+
+Both sites live in the `NP-SentinelOptimizer-CentralUS` resource group, so development and production stay in one billing and access boundary while remaining separate resources.
+
+The **Deploy Application** workflow refuses to deploy an environment from the wrong branch: `development` must run from `dev`, and `production` must run from `main`.
+
+To ship a change:
+
+1. Merge work into `dev` and run **Deploy Application** from `dev` with the `development` environment.
+2. Verify the development site.
+3. Run **Promote Dev to Main**, which opens a `dev` → `main` pull request after confirming Continuous Integration passed on the `dev` head commit.
+4. Merge the pull request, then run **Deploy Application** from `main` with the `production` environment.
+
+**Promote Dev to Main** needs *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests* enabled.
+
 ### Environment variables
 
 Create these as **GitHub Environment variables** in both environments. Use
@@ -502,8 +522,8 @@ separate names and URLs for development and production.
 | `DEPLOYMENT_TARGET`                   | Yes               | `azure-static-web-app`                      | `azure-static-web-app`                      | Selects the validated application deployment provider.                                                                |
 | `AZURE_ENVIRONMENT`                   | Yes               | `development`                               | `production`                                | Environment tag applied by Bicep.                                                                                     |
 | `AZURE_LOCATION`                      | Yes               | `centralus`                                 | `centralus`                                 | Azure deployment region. Confirm service availability and quota first.                                                |
-| `AZURE_RESOURCE_GROUP`                | Yes               | `sentinel-optimizer-development`            | `NP-StaticSite-SentinelOptimizer-CentralUS` | Resource group owned by this environment.                                                                             |
-| `AZURE_STATIC_WEB_APP_NAME`           | Yes               | `sentinel-optimizer-development-site`       | `sentinel-optimizer-production-site`        | Globally unique Static Web Apps resource name.                                                                        |
+| `AZURE_RESOURCE_GROUP`                | Yes               | `NP-SentinelOptimizer-CentralUS`            | `NP-SentinelOptimizer-CentralUS`            | Resource group owned by this environment. Both environments share one group today.                                    |
+| `AZURE_STATIC_WEB_APP_NAME`           | Yes               | `NP-SentinelOptimizer-Dev-CentralUS`        | `NP-SentinelOptimizer-Prod-CentralUS`       | Globally unique Static Web Apps resource name.                                                                        |
 | `AZURE_FUNCTIONAPP_NAME`              | Yes               | `sentinel-optimizer-development-api`        | `sentinel-optimizer-production-api`         | Globally unique Azure Functions app name.                                                                             |
 | `AZURE_PUBLIC_SITE_URL`               | Yes               | Generated dev URL or dev custom domain      | Production custom domain or generated URL   | Canonical site URL embedded into the static build. Must use `https://`.                                               |
 | `AZURE_DEPLOY_API`                    | Yes               | `false` initially; `true` when API is ready | `true` only when approved                   | Enables API code deployment. Keep `false` for a static-only deployment.                                               |
