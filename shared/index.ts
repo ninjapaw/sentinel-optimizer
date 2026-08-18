@@ -26,7 +26,7 @@ export {
 } from "./utils/config.js";
 export { isFiniteNumber, isRecord } from "./utils/guards.js";
 export { apiResponseHeaders } from "./utils/http.js";
-export { roundTo } from "./utils/number.js";
+export { parseOptionalNumber, roundTo } from "./utils/number.js";
 export {
   rankSourcesWithoutNames,
   redactSourceNames,

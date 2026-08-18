@@ -11,7 +11,7 @@ import type { SentinelCostEstimate } from "@engine/pricing/sentinelPricing.js";
 import type { TableRetention } from "@engine/pricing/sentinelPricing.js";
 import { DEFAULT_SENTINEL_RATES } from "@engine/pricing/index.js";
 import { gbPerDay, gb, money, rate } from "../lib/format.js";
-import { parseOptionalNumber } from "../lib/forms.js";
+import { parseOptionalNumber } from "@shared/index.js";
 
 interface Props {
   result: NormalizedResult;

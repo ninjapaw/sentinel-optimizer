@@ -11,7 +11,7 @@ import type {
   TableRetention,
 } from "@engine/pricing/sentinelPricing.js";
 import { gbPerDay } from "../lib/format.js";
-import { parseOptionalNumber } from "../lib/forms.js";
+import { parseOptionalNumber } from "@shared/index.js";
 
 interface Props {
   result: NormalizedResult;
