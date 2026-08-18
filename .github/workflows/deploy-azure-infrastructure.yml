@@ -37,8 +37,8 @@ on:
         type: choice
         options:
           - auto-detect
-          - development
-          - production
+          - dev
+          - prod
       operation:
         description: Run a safe preview or apply the selected stack
         required: true
@@ -102,9 +102,9 @@ on:
 permissions:
   contents: read
 
-# dev maps to development, main maps to production.
+# Branch dev uses the dev environment, branch main uses the prod environment.
 concurrency:
-  group: azure-infrastructure-${{ github.event_name == 'workflow_dispatch' && ((inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'production' || 'development')) || 'validation' }}-${{ inputs.component || 'all' }}-${{ github.ref }}
+  group: azure-infrastructure-${{ github.event_name == 'workflow_dispatch' && ((inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev')) || 'validation' }}-${{ inputs.component || 'all' }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -150,13 +150,13 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: deployment-${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'production' || 'development') }}
+    environment: ${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev') }}
     permissions:
       contents: read
       id-token: write
     env:
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-      AZURE_ENVIRONMENT: ${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'production' || 'development') }}
+      AZURE_ENVIRONMENT: ${{ vars.AZURE_ENVIRONMENT || (github.ref_name == 'main' && 'production' || 'development') }}
       AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
       AZURE_STATIC_WEB_APP_NAME: ${{ vars.AZURE_STATIC_WEB_APP_NAME }}
       AZURE_FUNCTIONAPP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
