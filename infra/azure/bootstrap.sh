@@ -41,7 +41,7 @@ Bootstrap Azure and GitHub OIDC for Sentinel Optimizer.
 Usage: infra/azure/bootstrap.sh [options]
 
 Options:
-  --environment <name>       GitHub Environment scope: development or production
+  --environment <name>       GitHub Environment scope: development (dev) or production (prod)
   --resource-group <name>    Azure resource group (default: AZURE_RESOURCE_GROUP)
   --site-name <name>         Static Web App name (default: AZURE_STATIC_WEB_APP_NAME)
   --function-name <name>     Function App name (default: AZURE_FUNCTIONAPP_NAME)
@@ -209,7 +209,8 @@ fi
 openai_account_name="${openai_account_name:-sentinel-optimizer-${deployment_environment}-openai}"
 infrastructure_application_name="${AZURE_INFRASTRUCTURE_APPLICATION_NAME:-sentinel-optimizer-${deployment_environment}-infrastructure-github}"
 api_application_name="${AZURE_API_APPLICATION_NAME:-sentinel-optimizer-${deployment_environment}-api-github}"
-github_environment="deployment-${deployment_environment}"
+github_environment="$([[ "$deployment_environment" == production ]] && echo prod || echo dev)"
+deployment_branch="$([[ "$deployment_environment" == production ]] && echo main || echo dev)"
 [[ "$infrastructure_application_name" != "$api_application_name" ]] || fail 'Infrastructure and API OIDC application names must be different.'
 resource_group_scope="/subscriptions/$subscription_id/resourceGroups/$resource_group"
 
@@ -411,12 +412,12 @@ JSON
 
     branch_policy_count="$(gh api \
       "repos/$repository/environments/$environment_name/deployment-branch-policies" \
-      --jq '[.branch_policies[] | select(.name == "main")] | length')"
+      --jq "[.branch_policies[] | select(.name == \"$deployment_branch\")] | length")"
     if [[ "$branch_policy_count" == 0 ]]; then
       gh api \
         --method POST \
         "repos/$repository/environments/$environment_name/deployment-branch-policies" \
-        --field name=main \
+        --field name="$deployment_branch" \
         --silent
     fi
   done
