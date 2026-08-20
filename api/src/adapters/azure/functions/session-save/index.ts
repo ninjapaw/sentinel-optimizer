@@ -5,35 +5,9 @@
  */
 
 import type { HttpHandler, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import { authorizeUser } from "../../../../auth/entra.js";
 import { handleSessionSave } from "../../../../core/session.js";
 import { apiResponseHeaders, getSessionStorage } from "../../../../../../shared/index.js";
-
-function extractUserIdentity(request: HttpRequest): {
-  userId: string | undefined;
-  userEmail: string | undefined;
-  displayName: string | undefined;
-} {
-  const token = request.headers.get("authorization")?.replace("Bearer ", "") || "";
-  if (!token) {
-    return { userId: undefined, userEmail: undefined, displayName: undefined };
-  }
-
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3 || !parts[1]) {
-      return { userId: undefined, userEmail: undefined, displayName: undefined };
-    }
-    const encoded = parts[1];
-    const decoded = JSON.parse(atob(encoded));
-    return {
-      userId: (decoded.sub as string | undefined) || (decoded.oid as string | undefined),
-      userEmail: (decoded.preferred_username as string | undefined) || (decoded.email as string | undefined),
-      displayName: decoded.name as string | undefined,
-    };
-  } catch {
-    return { userId: undefined, userEmail: undefined, displayName: undefined };
-  }
-}
 
 export const sessionSave: HttpHandler = async (
   request: HttpRequest,
@@ -48,15 +22,18 @@ export const sessionSave: HttpHandler = async (
       };
     }
 
-    const { userId, userEmail, displayName } = extractUserIdentity(request);
-
-    if (!userId) {
+    const authorization = await authorizeUser(request);
+    if (!authorization.ok) {
       return {
-        status: 401,
-        body: JSON.stringify({ error: "Unauthorized. User identity required." }),
+        status: authorization.status,
+        body: JSON.stringify({ error: authorization.error }),
         headers: apiResponseHeaders(),
       };
     }
+
+    const claims = authorization.claims;
+    const userId = claims.sub || claims.oid;
+    const userEmail = claims.preferred_username || claims.email;
 
     const rawBody = await request.text();
     const storage = getSessionStorage(process.env);
@@ -64,7 +41,7 @@ export const sessionSave: HttpHandler = async (
       rawBody,
       userId,
       userEmail,
-      displayName,
+      claims.name,
       storage,
     );
 

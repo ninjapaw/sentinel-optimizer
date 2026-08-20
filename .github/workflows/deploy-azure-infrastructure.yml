@@ -11,6 +11,8 @@ on:
       - dev
     paths:
       - .github/workflows/deploy-azure-infrastructure.yml
+      - config/deploy.config.json
+      - scripts/deploy-config.mjs
       - infra/azure/**
   pull_request:
     branches:
@@ -18,6 +20,8 @@ on:
       - dev
     paths:
       - .github/workflows/deploy-azure-infrastructure.yml
+      - config/deploy.config.json
+      - scripts/deploy-config.mjs
       - infra/azure/**
   workflow_dispatch:
     inputs:
@@ -47,57 +51,6 @@ on:
         options:
           - what-if
           - deploy
-      site-sku:
-        description: Static Web Apps plan (site only)
-        required: true
-        default: Free
-        type: choice
-        options:
-          - Free
-          - Standard
-      function-memory-mb:
-        description: Flex Consumption memory per instance (API only)
-        required: true
-        default: "512"
-        type: choice
-        options:
-          - "512"
-          - "2048"
-          - "4096"
-      storage-sku:
-        description: Functions storage redundancy (API only)
-        required: true
-        default: Standard_LRS
-        type: choice
-        options:
-          - Standard_LRS
-          - Standard_ZRS
-          - Standard_GRS
-          - Standard_GZRS
-      always-ready-instances:
-        description: Warm HTTP instances; zero scales to zero (API only)
-        required: true
-        default: 0
-        type: number
-      function-maximum-instances:
-        description: Maximum burst instances, from 40 through 1000 (API only)
-        required: true
-        default: 40
-        type: number
-      openai-deployment-sku:
-        description: Azure OpenAI processing geography (AI only)
-        required: true
-        default: GlobalStandard
-        type: choice
-        options:
-          - GlobalStandard
-          - DataZoneStandard
-          - Standard
-      openai-model-capacity:
-        description: Model capacity in thousands of tokens per minute (AI only)
-        required: true
-        default: 1
-        type: number
 
 permissions:
   contents: read
@@ -155,33 +108,19 @@ jobs:
       contents: read
       id-token: write
     env:
-      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-      AZURE_ENVIRONMENT: ${{ vars.AZURE_ENVIRONMENT || (github.ref_name == 'main' && 'production' || 'development') }}
-      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-      AZURE_STATIC_WEB_APP_NAME: ${{ vars.AZURE_STATIC_WEB_APP_NAME }}
-      AZURE_FUNCTIONAPP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
-      AZURE_PUBLIC_SITE_URL: ${{ secrets.AZURE_PUBLIC_SITE_URL }}
-      AZURE_DEPLOY_API: ${{ vars.AZURE_DEPLOY_API }}
-      AZURE_USE_API: ${{ vars.AZURE_USE_API }}
-      AZURE_ENABLE_ANONYMOUS_AI_ROUTES: ${{ vars.AZURE_ENABLE_ANONYMOUS_AI_ROUTES }}
       ENTRA_EXTERNAL_ID_ISSUER: ${{ vars.ENTRA_EXTERNAL_ID_ISSUER }}
       ENTRA_EXTERNAL_ID_JWKS_URI: ${{ vars.ENTRA_EXTERNAL_ID_JWKS_URI }}
       ENTRA_EXTERNAL_ID_AUDIENCE: ${{ vars.ENTRA_EXTERNAL_ID_AUDIENCE }}
       ENTRA_EXTERNAL_ID_ADMIN_ROLE: ${{ vars.ENTRA_EXTERNAL_ID_ADMIN_ROLE }}
-      AZURE_OPENAI_ACCOUNT_NAME: ${{ vars.AZURE_OPENAI_ACCOUNT_NAME }}
-      AZURE_OPENAI_MODEL_NAME: ${{ vars.AZURE_OPENAI_MODEL_NAME }}
-      AZURE_OPENAI_MODEL_DEPLOYMENT: ${{ vars.AZURE_OPENAI_MODEL_DEPLOYMENT }}
-      AZURE_KEY_VAULT_NAME: ${{ vars.AZURE_KEY_VAULT_NAME }}
-      AZURE_SITE_SKU: ${{ inputs.site-sku }}
-      AZURE_FUNCTION_INSTANCE_MEMORY_MB: ${{ inputs.function-memory-mb }}
-      AZURE_FUNCTION_MAXIMUM_INSTANCE_COUNT: ${{ inputs.function-maximum-instances }}
-      AZURE_FUNCTION_ALWAYS_READY_INSTANCES: ${{ inputs.always-ready-instances }}
-      AZURE_FUNCTION_STORAGE_SKU: ${{ inputs.storage-sku }}
-      AZURE_OPENAI_DEPLOYMENT_SKU: ${{ inputs.openai-deployment-sku }}
-      AZURE_OPENAI_MODEL_CAPACITY: ${{ inputs.openai-model-capacity }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Load deployment configuration
+        id: deployment_config
+        env:
+          TARGET_ENVIRONMENT: ${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev') }}
+        run: node scripts/deploy-config.mjs --environment "$TARGET_ENVIRONMENT" --github-env --github-output --require-subscription
 
       - name: Verify branch matches environment
         env:
@@ -222,10 +161,9 @@ jobs:
 
       - name: Verify OIDC bootstrap configuration
         env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          AZURE_API_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_API_PRINCIPAL_OBJECT_ID }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_API_PRINCIPAL_OBJECT_ID: ${{ vars.AZURE_API_PRINCIPAL_OBJECT_ID }}
           COMPONENT: ${{ inputs.component }}
         run: |
           : "${AZURE_CLIENT_ID:?Run infra/azure/bootstrap.sh to configure AZURE_CLIENT_ID}"
@@ -237,9 +175,9 @@ jobs:
       - name: Sign in to Azure
         uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ steps.deployment_config.outputs.AZURE_SUBSCRIPTION_ID }}
 
       - name: Verify Azure resource prerequisites
         env:
@@ -275,8 +213,8 @@ jobs:
 
       - name: Evaluate or deploy selected stack
         env:
-          AZURE_API_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_API_PRINCIPAL_OBJECT_ID }}
-          AZURE_INFRA_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_INFRA_PRINCIPAL_OBJECT_ID }}
+          AZURE_API_PRINCIPAL_OBJECT_ID: ${{ vars.AZURE_API_PRINCIPAL_OBJECT_ID }}
+          AZURE_INFRA_PRINCIPAL_OBJECT_ID: ${{ vars.AZURE_INFRA_PRINCIPAL_OBJECT_ID }}
           COMPONENT: ${{ inputs.component }}
           OPERATION: ${{ inputs.operation }}
         run: |

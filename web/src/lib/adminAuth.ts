@@ -10,22 +10,20 @@ import {
   type AuthenticationResult,
   type Configuration,
 } from "@azure/msal-browser";
+import { IDENTITY_CONFIG } from "./identityConfig.js";
 
-const clientId = import.meta.env.PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID?.trim();
-const authority = import.meta.env.PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY?.trim();
-const apiScope = import.meta.env.PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE?.trim();
+const { clientId, authority, apiScope } = IDENTITY_CONFIG;
 
-export const adminAuthConfigured = Boolean(clientId && authority && apiScope);
-export const adminRole =
-  import.meta.env.PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE?.trim() || "SentinelOptimizer.Admin";
+export const adminAuthConfigured = IDENTITY_CONFIG.configured;
+export const adminRole = IDENTITY_CONFIG.adminRole;
 
 function getConfiguration(): Configuration | undefined {
   if (!adminAuthConfigured) return undefined;
 
   return {
     auth: {
-      clientId: clientId!,
-      authority: authority!,
+      clientId,
+      authority,
       redirectUri: typeof window !== "undefined" ? window.location.origin + "/admin" : "",
       postLogoutRedirectUri: typeof window !== "undefined" ? window.location.origin + "/admin" : "",
     },

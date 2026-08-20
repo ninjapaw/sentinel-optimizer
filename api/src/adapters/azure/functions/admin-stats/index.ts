@@ -5,35 +5,9 @@
  */
 
 import type { HttpHandler, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import { authorizeAdmin } from "../../../../auth/entra.js";
 import { handleAdminStats } from "../../../../core/session.js";
 import { apiResponseHeaders, getSessionStorage } from "../../../../../../shared/index.js";
-
-function extractUserIdentity(request: HttpRequest): {
-  userId: string | undefined;
-  role: string | undefined;
-} {
-  const token = request.headers.get("authorization")?.replace("Bearer ", "") || "";
-  if (!token) {
-    return { userId: undefined, role: undefined };
-  }
-
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3 || !parts[1]) {
-      return { userId: undefined, role: undefined };
-    }
-    const encoded = parts[1];
-    const decoded = JSON.parse(atob(encoded));
-    const roles = decoded.roles as string[] | undefined;
-    const role = roles?.[0];
-    return {
-      userId: (decoded.sub as string | undefined) || (decoded.oid as string | undefined),
-      role: role as string | undefined,
-    };
-  } catch {
-    return { userId: undefined, role: undefined };
-  }
-}
 
 export const adminStats: HttpHandler = async (
   request: HttpRequest,
@@ -48,7 +22,16 @@ export const adminStats: HttpHandler = async (
       };
     }
 
-    const { userId, role } = extractUserIdentity(request);
+    const authorization = await authorizeAdmin(request);
+    if (!authorization.ok) {
+      return {
+        status: authorization.status,
+        body: JSON.stringify({ error: authorization.error }),
+        headers: apiResponseHeaders(),
+      };
+    }
+    const userId = authorization.claims.sub || authorization.claims.oid;
+    const role = "admin";
     const storage = getSessionStorage(process.env);
     const { status, body } = await handleAdminStats(userId, role, storage);
 

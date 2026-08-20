@@ -5,13 +5,14 @@
  */
 
 import * as msal from "@azure/msal-browser";
+import { IDENTITY_CONFIG } from "./identityConfig.js";
 
 function getMsalConfig(): msal.Configuration {
   return {
     auth: {
-      clientId: import.meta.env.PUBLIC_ENTRA_CLIENT_ID || "",
-      authority: import.meta.env.PUBLIC_ENTRA_AUTHORITY || "https://sentineloptimizer.ciamlogin.com",
-      redirectUri: import.meta.env.PUBLIC_ENTRA_REDIRECT_URI || (typeof window !== "undefined" ? window.location.origin : ""),
+      clientId: IDENTITY_CONFIG.clientId,
+      authority: IDENTITY_CONFIG.authority,
+      redirectUri: typeof window !== "undefined" ? window.location.origin : "",
       postLogoutRedirectUri: typeof window !== "undefined" ? window.location.origin : "",
     },
     cache: {
@@ -22,7 +23,8 @@ function getMsalConfig(): msal.Configuration {
 
 let msalInstance: msal.IPublicClientApplication | null = null;
 
-export function initializeMsal(): msal.IPublicClientApplication {
+function initializeMsal(): msal.IPublicClientApplication | null {
+  if (!IDENTITY_CONFIG.configured) return null;
   if (!msalInstance) {
     msalInstance = new msal.PublicClientApplication(getMsalConfig());
   }
@@ -32,9 +34,10 @@ export function initializeMsal(): msal.IPublicClientApplication {
 export async function login(): Promise<msal.AuthenticationResult | null> {
   try {
     const instance = initializeMsal();
+    if (!instance) return null;
     const result = await instance.loginPopup({
       scopes: [
-        `api://${import.meta.env.PUBLIC_ENTRA_CLIENT_ID}/user-api`,
+        IDENTITY_CONFIG.apiScope,
         "profile",
         "email",
         "openid",
@@ -50,6 +53,7 @@ export async function login(): Promise<msal.AuthenticationResult | null> {
 export async function logout(): Promise<void> {
   try {
     const instance = initializeMsal();
+    if (!instance) return;
     await instance.logoutPopup();
   } catch (error) {
     console.error("Logout failed:", error);
@@ -58,6 +62,7 @@ export async function logout(): Promise<void> {
 
 export function getAccount(): msal.AccountInfo | null {
   const instance = initializeMsal();
+  if (!instance) return null;
   const accounts = instance.getAllAccounts();
   return accounts.length > 0 ? accounts[0] : null;
 }
@@ -65,6 +70,7 @@ export function getAccount(): msal.AccountInfo | null {
 export async function getAccessToken(scopes: string[]): Promise<string | null> {
   try {
     const instance = initializeMsal();
+    if (!instance) return null;
     const account = getAccount();
     if (!account) return null;
 
@@ -99,16 +105,14 @@ export function getUserId(): string {
 }
 
 export async function hasAdminRole(): Promise<boolean> {
-  const token = await getAccessToken([
-    `api://${import.meta.env.PUBLIC_ENTRA_CLIENT_ID}/admin-api`,
-  ]);
+  const token = await getAccessToken([IDENTITY_CONFIG.apiScope]);
   if (!token) return false;
 
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return false;
     const decoded = JSON.parse(atob(parts[1]));
-    return decoded.roles?.includes("admin") ?? false;
+    return decoded.roles?.includes(IDENTITY_CONFIG.adminRole) ?? false;
   } catch {
     return false;
   }

@@ -401,10 +401,11 @@ The repository has one shared configuration boundary:
 
 | Location                           | Ownership                   | What belongs there                                                                                                                                                  |
 | ---------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config/deploy.config.json`        | Source-controlled deploy config | Non-secret dev/prod subscriptions, branches, domains, resource names, SKUs, feature flags, and cost limits.                                                       |
 | `shared/config/user.config.ts`     | Source-controlled fallback  | Browser-safe identity and branding defaults used locally or when an Environment variable is deliberately unset.                                                     |
 | `shared/config/internal.config.ts` | Source-controlled invariant | API route contracts, payload limits, timeout/retry limits, CORS fallback, and UI input size limits. Change these only with tests and a security/performance review. |
-| GitHub Environment variables       | Deployment operator         | Non-secret public build values and deployment names. `PUBLIC_*` values are embedded in the static browser bundle and must be treated as public.                     |
-| GitHub Environment secrets         | Deployment operator         | Credentials, OIDC identifiers, deployment tokens, and API keys. They are never included in browser builds.                                                          |
+| GitHub Environment variables       | Deployment operator         | Tenant/client/principal identifiers and External ID settings that cannot be inferred from the repository. `PUBLIC_*` values are browser-visible.                    |
+| GitHub Environment secrets         | Deployment operator         | Deployment tokens and third-party API keys only.                                                                                                                    |
 
 The **Deploy Application** workflow consumes these values from its selected
 GitHub Environment. Do not use repository-wide variables for production
@@ -413,9 +414,9 @@ being mixed.
 
 ### Deployment targets
 
-Create `deployment-development` and `deployment-production` in **Settings >
-Environments**. The manual **Deploy Application** workflow selects one and
-validates `DEPLOYMENT_TARGET` before it reads provider credentials.
+Create `dev` and `prod` in **Settings > Environments**. The workflows map `dev`
+to the `dev` environment and `main` to `prod`; a mismatched manual selection is
+rejected.
 
 | `DEPLOYMENT_TARGET`     | Deploys                                                                           | Required configuration                                                                |
 | ----------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -460,13 +461,8 @@ provider jobs:
 
 | Environment                                       | Secret                            | Required by target         | Purpose and recommendation                                                                                  |
 | ------------------------------------------------- | --------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `deployment-development`, `deployment-production` | `CLOUDFLARE_API_TOKEN`            | `cloudflare-worker-api`    | Scoped Cloudflare deployment token. Pair it with non-secret `CLOUDFLARE_ACCOUNT_ID` and rotate on exposure. |
-| `deployment-development`, `deployment-production` | `AZURE_CLIENT_ID`                 | Azure infrastructure       | OIDC application client ID with least-privilege Azure roles.                                                |
-| `deployment-development`, `deployment-production` | `AZURE_API_CLIENT_ID`             | Azure Functions API        | Separate OIDC identity for Functions code deployment.                                                       |
-| `deployment-development`, `deployment-production` | `AZURE_TENANT_ID`                 | Azure target               | Tenant containing the OIDC applications.                                                                    |
-| `deployment-development`, `deployment-production` | `AZURE_SUBSCRIPTION_ID`           | Azure target               | Subscription that owns the Environment resource group.                                                      |
-| `deployment-development`, `deployment-production` | `AZURE_API_PRINCIPAL_OBJECT_ID`   | Azure infrastructure       | Object ID used for the scoped Function App deployment role.                                                 |
-| `deployment-development`, `deployment-production` | `AZURE_STATIC_WEB_APPS_API_TOKEN` | Azure Static Web Apps site | Long-lived Static Web Apps deployment token. Rotate it immediately if exposed.                              |
+| `dev`, `prod` | `CLOUDFLARE_API_TOKEN`            | `cloudflare-worker-api`    | Scoped Cloudflare deployment token. Pair it with non-secret `CLOUDFLARE_ACCOUNT_ID` and rotate on exposure. |
+| `dev`, `prod` | `AZURE_STATIC_WEB_APPS_API_TOKEN` | Azure Static Web Apps site | Long-lived Static Web Apps deployment token. Rotate it immediately if exposed.                              |
 
 Runtime API secrets such as `AI_API_KEY`, `AZURE_OPENAI_API_KEY`, and
 `COSMOS_CONNECTION_STRING` belong in Azure Key Vault or the Function App's own
@@ -485,91 +481,79 @@ The lowest-cost topology is:
 
 The repository uses Bicep. It does not require Docker for the Azure Functions deployment. The API Dockerfile remains available for local/container scenarios.
 
-Azure deployment values belong in protected GitHub Environments, not this public repository. Create:
+Set `environments.dev.subscriptionId` and `environments.prod.subscriptionId` in
+`config/deploy.config.json`; they must identify different subscriptions. Then run:
 
-- `deployment-development`
-- `deployment-production`
+```bash
+bash infra/azure/bootstrap.sh --environment dev
+bash infra/azure/bootstrap.sh --environment prod
+```
 
-Use `infra/azure/bootstrap.sh --environment development` to seed one environment, then repeat for production. The bootstrap creates short-lived GitHub OIDC federation and scoped role assignments; it does not create a client secret.
+Bootstrap reads names, domains, SKUs, and feature flags from that file. It
+creates GitHub OIDC federation and scoped role assignments without a client
+secret. Command-line options remain available for exceptional one-off overrides.
 
 ### Branching and promotion
 
-| Branch | GitHub Environment       | Static Web App                        |
-| ------ | ------------------------ | ------------------------------------- |
-| `dev`  | `deployment-development` | `NP-SentinelOptimizer-Dev-CentralUS`  |
-| `main` | `deployment-production`  | `NP-SentinelOptimizer-Prod-CentralUS` |
+| Branch | GitHub Environment | Domain                          | Resource group                              |
+| ------ | ------------------ | ------------------------------- | ------------------------------------------- |
+| `dev`  | `dev`              | `dev.sentineloptimizer.com`     | `NP-SentinelOptimizer-Dev-CentralUS`        |
+| `main` | `prod`             | `sentineloptimizer.com`         | `NP-SentinelOptimizer-CentralUS`            |
 
-Both sites live in the `NP-SentinelOptimizer-CentralUS` resource group, so development and production stay in one billing and access boundary while remaining separate resources.
+Each row targets the subscription configured for that environment. Do not use
+the same subscription ID for both environments.
 
-The **Deploy Application** workflow refuses to deploy an environment from the wrong branch: `development` must run from `dev`, and `production` must run from `main`.
+The **Deploy Application** workflow refuses to deploy an environment from the wrong branch: `dev` must run from `dev`, and `prod` must run from `main`.
 
 To ship a change:
 
-1. Merge work into `dev` and run **Deploy Application** from `dev` with the `development` environment.
+1. Merge work into `dev` and run **Deploy Application** from `dev` with the `dev` environment.
 2. Verify the development site.
 3. Run **Promote Dev to Main**, which opens a `dev` → `main` pull request after confirming Continuous Integration passed on the `dev` head commit.
-4. Merge the pull request, then run **Deploy Application** from `main` with the `production` environment.
+4. Merge the pull request, then run **Deploy Application** from `main` with the `prod` environment.
 
 **Promote Dev to Main** needs *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests* enabled.
 
 ### Environment variables
 
-Create these as **GitHub Environment variables** in both environments. Use
-separate names and URLs for development and production.
+`scripts/deploy-config.mjs` supplies deployment names, subscription, region,
+domains, SKUs, feature flags, and secret-expiration policy from
+`config/deploy.config.json`. Bootstrap supplies these remaining non-secret
+GitHub Environment variables:
 
-| Variable                              | Required          | Development example                         | Production example                          | Purpose and guidance                                                                                                  |
-| ------------------------------------- | ----------------- | ------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `DEPLOYMENT_TARGET`                   | Yes               | `azure-static-web-app`                      | `azure-static-web-app`                      | Selects the validated application deployment provider.                                                                |
-| `AZURE_ENVIRONMENT`                   | Yes               | `development`                               | `production`                                | Environment tag applied by Bicep.                                                                                     |
-| `AZURE_LOCATION`                      | Yes               | `centralus`                                 | `centralus`                                 | Azure deployment region. Confirm service availability and quota first.                                                |
-| `AZURE_RESOURCE_GROUP`                | Yes               | `NP-SentinelOptimizer-CentralUS`            | `NP-SentinelOptimizer-CentralUS`            | Resource group owned by this environment. Both environments share one group today.                                    |
-| `AZURE_STATIC_WEB_APP_NAME`           | Yes               | `NP-SentinelOptimizer-Dev-CentralUS`        | `NP-SentinelOptimizer-Prod-CentralUS`       | Globally unique Static Web Apps resource name.                                                                        |
-| `AZURE_FUNCTIONAPP_NAME`              | Yes               | `sentinel-optimizer-development-api`        | `sentinel-optimizer-production-api`         | Globally unique Azure Functions app name.                                                                             |
-| `AZURE_DEPLOY_API`                    | Yes               | `false` initially; `true` when API is ready | `true` only when approved                   | Enables API code deployment. Keep `false` for a static-only deployment.                                               |
-| `AZURE_USE_API`                       | Yes               | `false` until health check passes           | `true` after API validation                 | Makes the frontend call the separate Functions API. Requires `AZURE_DEPLOY_API=true`.                                 |
-| `AZURE_ENABLE_ANONYMOUS_AI_ROUTES`    | Yes               | `false`                                     | `false`                                     | Controls paid anonymous AI routes. Keep `false` unless authentication, rate limits, quotas, and budgets are in place. |
-| `AZURE_OPENAI_ACCOUNT_NAME`           | Yes for AI IaC    | `sentinel-optimizer-development-openai`     | `sentinel-optimizer-production-openai`      | Azure OpenAI account name. Do not deploy the AI stack unless needed.                                                  |
-| `AZURE_OPENAI_MODEL_NAME`             | Yes for AI IaC    | `gpt-4.1-mini`                              | Approved supported model                    | Model identifier used by the optional AI stack. Check regional quota.                                                 |
-| `AZURE_OPENAI_MODEL_DEPLOYMENT`       | Yes for AI IaC    | `sentinel-optimizer-model`                  | `sentinel-optimizer-model`                  | Deployment name written to the Function App settings.                                                                 |
-| `AZURE_KEY_VAULT_NAME`                | Yes for Key Vault | `sentinel-opt-dev-kv`                       | `sentinel-opt-prod-kv`                      | Globally unique Key Vault name, 3-24 characters. Required by the `keyvault` component and the secrets workflow.       |
-| `AZURE_COSMOS_ACCOUNT_NAME`           | Optional          | Cosmos DB account name                      | Cosmos DB account name                      | Lets the secrets workflow read the Cosmos connection string directly from Azure so it never passes through GitHub.    |
-| `AZURE_SECRET_EXPIRES_IN_DAYS`        | Optional          | `365`                                       | `365`                                       | Expiration stamped on secrets written by the sync script.                                                             |
-| `AZURE_SECRET_WARN_DAYS`              | Optional          | `30`                                        | `30`                                        | Days ahead that the audit reports a secret as expiring.                                                               |
-| `ENTRA_EXTERNAL_ID_ISSUER`            | Admin API         | External ID issuer URL                      | External ID issuer URL                      | Exact JWT issuer accepted by the admin API.                                                                           |
-| `ENTRA_EXTERNAL_ID_JWKS_URI`          | Admin API         | External ID JWKS URL                        | External ID JWKS URL                        | Signing-key endpoint used for token validation.                                                                       |
-| `ENTRA_EXTERNAL_ID_AUDIENCE`          | Admin API         | API application/client ID                   | API application/client ID                   | Expected access-token audience.                                                                                       |
-| `ENTRA_EXTERNAL_ID_ADMIN_ROLE`        | Admin API         | `SentinelOptimizer.Admin`                   | `SentinelOptimizer.Admin`                   | Required app-role claim.                                                                                              |
-| `PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID`  | Admin site        | SPA application/client ID                   | SPA application/client ID                   | Public SPA identifier; never a client secret.                                                                         |
-| `PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY`  | Admin site        | External ID authority URL                   | External ID authority URL                   | MSAL authority used for login.                                                                                        |
-| `PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE`  | Admin site        | `api://.../access_as_user`                  | `api://.../access_as_user`                  | Scope requested for the admin API access token.                                                                       |
-| `PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE` | Admin site        | `SentinelOptimizer.Admin`                   | `SentinelOptimizer.Admin`                   | UI hint only; the API remains the authorization boundary.                                                             |
-| `PUBLIC_ADMIN_API_BASE`               | Admin site        | `https://...azurewebsites.net`              | `https://...azurewebsites.net`              | Admin API origin used by the management console.                                                                      |
+| Variable                              | Purpose |
+| ------------------------------------- | ------- |
+| `AZURE_CLIENT_ID`                     | Infrastructure OIDC application client ID. |
+| `AZURE_API_CLIENT_ID`                 | Separate Functions deployment OIDC client ID. |
+| `AZURE_TENANT_ID`                     | Tenant containing the OIDC applications. |
+| `AZURE_API_PRINCIPAL_OBJECT_ID`       | Principal receiving scoped Function App deployment access. |
+| `AZURE_INFRA_PRINCIPAL_OBJECT_ID`     | Principal receiving scoped infrastructure and secret-management access. |
+| `ENTRA_EXTERNAL_ID_ISSUER`            | Exact JWT issuer accepted by the API. |
+| `ENTRA_EXTERNAL_ID_JWKS_URI`          | Signing-key endpoint used for token validation. |
+| `ENTRA_EXTERNAL_ID_AUDIENCE`          | Expected API access-token audience. |
+| `ENTRA_EXTERNAL_ID_ADMIN_ROLE`        | Required administrator app-role claim. |
+| `PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID`  | Public SPA application identifier. |
+| `PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY`  | MSAL authority for the SPA. |
+| `PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE`  | Delegated API scope requested by the SPA. |
+| `PUBLIC_ADMIN_API_BASE`               | Authenticated administration API origin. |
+
+`AZURE_COSMOS_ACCOUNT_NAME` is temporarily supported for legacy Cosmos key
+synchronization. The approved target architecture replaces it with
+`COSMOS_ENDPOINT` plus the Function App managed identity.
 
 ### Environment secrets
 
-Create these as **GitHub Environment secrets** in *both* `deployment-development`
-and `deployment-production`. Do not commit them, place them in `PUBLIC_*`
-variables, or print them in workflow logs.
+Create only true credentials as secrets in `dev` and `prod`:
 
-Every job that reads a secret runs with `environment: deployment-<environment>`,
-so each environment resolves its own copy. `AZURE_STATIC_WEB_APPS_API_TOKEN` and
-`AZURE_PUBLIC_SITE_URL` **must differ** per environment: the token is bound to a
-single Static Web App, and each environment publishes its own URL.
-The Entra and subscription identifiers are usually the same value in both
-environments; store them in each environment anyway so neither one depends on
-repository-level fallbacks.
+| Secret                            | Purpose |
+| --------------------------------- | ------- |
+| `AZURE_STATIC_WEB_APPS_API_TOKEN` | Static Web Apps deployment credential, scoped to one site. |
+| `AI_API_KEY`                      | Optional third-party model credential synchronized to Key Vault. |
+| `CLOUDFLARE_API_TOKEN`            | Optional Cloudflare Worker deployment credential. |
 
-| Secret                            | Required by                   | Recommended value/source                                  | Purpose and guidance                                                                                                        |
-| --------------------------------- | ----------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `AZURE_CLIENT_ID`                 | Infrastructure workflow       | Infrastructure OIDC application client ID                 | Short-lived GitHub OIDC sign-in for Bicep deployment. No client secret is required.                                         |
-| `AZURE_API_CLIENT_ID`             | API workflow                  | API deployment OIDC application client ID                 | Separate least-privilege identity for publishing the Functions zip package.                                                 |
-| `AZURE_TENANT_ID`                 | Azure workflows               | Microsoft Entra tenant ID                                 | Tenant containing the OIDC applications. This identifier is not a password, but keep environment configuration consistent.  |
-| `AZURE_SUBSCRIPTION_ID`           | Azure workflows               | Target Azure subscription ID                              | Select the subscription that owns the environment resource group.                                                           |
-| `AZURE_API_PRINCIPAL_OBJECT_ID`   | Infrastructure API deployment | Object ID of the API deployment service principal         | Used by Bicep to grant Website Contributor only on the Function App.                                                        |
-| `AZURE_INFRA_PRINCIPAL_OBJECT_ID` | Key Vault infrastructure      | Object ID of the infrastructure service principal         | Used by Bicep to grant Key Vault Secrets Officer so the pipeline can rotate secrets.                                        |
-| `AI_API_KEY`                      | Key Vault secret sync         | Third-party AI provider key                               | Read only by the secrets workflow and written into Key Vault. Omit it when the API uses Azure OpenAI with managed identity. |
-| `AZURE_STATIC_WEB_APPS_API_TOKEN` | Static site deployment        | Retrieve from the Static Web App deployment-token command | Long-lived site deployment token. Store only in the selected GitHub Environment and rotate if exposed.                      |
-| `AZURE_PUBLIC_SITE_URL`           | Static site build             | Environment-specific canonical site URL                   | Canonical site URL embedded into the static build. Differs per environment and must use `https://`.                         |
+Azure client, tenant, subscription, and principal IDs are identifiers, not
+credentials. The subscription IDs and public site URLs live in the versioned
+deployment config; OIDC identifiers live in Environment variables.
 
 ### Built-in GitHub token
 
@@ -583,18 +567,16 @@ inputs. These are not stored as Environment variables or secrets:
 
 | Input                        | Recommended default | Applies to | Guidance                                                           |
 | ---------------------------- | ------------------- | ---------- | ------------------------------------------------------------------ |
-| `environment`                | `development`       | All stacks | Select `production` only with environment approvals.               |
+| `environment`                | Auto-detect         | All stacks | Branch `dev` selects `dev`; branch `main` selects `prod`.           |
 | `component`                  | `site`              | All stacks | Deploy in order: `site`, `api`, `keyvault`, then optional `ai`.    |
 | `operation`                  | `what-if`           | All stacks | Review the preview before selecting `deploy`.                      |
-| `site-sku`                   | `Free`              | Site       | Use `Standard` only when its features or SLA are required.         |
-| `function-memory-mb`         | `512`               | API        | Increase only after measured memory or latency pressure.           |
-| `storage-sku`                | `Standard_LRS`      | API        | Choose ZRS/GRS variants only for a defined resilience requirement. |
-| `always-ready-instances`     | `0`                 | API        | Keeps scale-to-zero and avoids baseline instance cost.             |
-| `function-maximum-instances` | `40`                | API        | Increase only after load testing and cost review.                  |
-| `openai-deployment-sku`      | `GlobalStandard`    | AI         | Azure OpenAI is separately billed and has quota requirements.      |
-| `openai-model-capacity`      | `1`                 | AI         | Increase only when measured throughput requires it.                |
 
-Use `what-if` before applying infrastructure changes and require reviewers for `deployment-production`. Do not deploy from pull requests. Keep runtime secrets in Azure Key Vault or managed identity-backed services. The public frontend must never contain a client secret.
+SKUs and capacity settings come from `config/deploy.config.json`, so reviews see
+cost changes in source control. Use `what-if` before applying infrastructure
+changes and require reviewers for `prod`. The consolidated monitoring and
+managed-identity Cosmos design is recorded in `.azure/infrastructure-plan.json`;
+the plan remains `draft` until explicitly approved, and no deployment was run
+during this review.
 
 ## Key Vault secret management
 
@@ -607,7 +589,7 @@ Bicep templates, or in the browser bundle.
 | Control             | Choice                                              | Why                                                                                                                         |
 | ------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | Authorization       | Azure RBAC, not access policies                     | Roles are auditable, scoped, and managed the same way as the rest of the subscription.                                      |
-| Function App access | `Key Vault Secrets User` on the vault               | Read-only data-plane access for the system-assigned managed identity. No key or connection string is deployed with the app. |
+| Function App access | `Key Vault Secrets User` on the vault               | Read-only data-plane access for unavoidable third-party secrets during the transition to keyless Azure service access.      |
 | Pipeline access     | `Key Vault Secrets Officer` on the vault            | Lets the deployment identity rotate secrets without granting read access to other resources.                                |
 | Deletion protection | Soft delete plus purge protection                   | Prevents irreversible secret loss. Purge protection cannot be turned off once enabled.                                      |
 | App settings        | `@Microsoft.KeyVault(VaultName=...;SecretName=...)` | Versionless references pick up a rotated secret without redeploying the API.                                                |
@@ -618,7 +600,7 @@ Bicep templates, or in the browser bundle.
 | Secret name                | Consumed as                | Required when                                                                                      |
 | -------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------- |
 | `ai-api-key`               | `AI_API_KEY`               | The API calls a third-party AI provider. Not needed for Azure OpenAI, which uses managed identity. |
-| `cosmos-connection-string` | `COSMOS_CONNECTION_STRING` | Session persistence is enabled.                                                                    |
+| `cosmos-connection-string` | `COSMOS_CONNECTION_STRING` | Temporary compatibility path until the approved Cosmos RBAC IaC is generated.                      |
 
 Non-secret settings such as `AI_BASE_URL`, `AI_MODEL`, `COSMOS_DATABASE`, and
 the `ENTRA_EXTERNAL_ID_*` values stay as plain Function App settings.
@@ -668,10 +650,13 @@ bash infra/azure/keyvault/audit-secrets.sh --vault <vault-name>
 
 ### Further hardening
 
-Cosmos DB still uses a connection string because the session storage client
-requires one. Moving that client to managed identity with Cosmos RBAC would
-remove the last stored secret. Set `allowPublicNetworkAccess` to `false` and add
-a private endpoint when the API runs with VNet integration.
+The session storage client accepts `COSMOS_ENDPOINT` and uses
+`DefaultAzureCredential`; existing component Bicep still supplies a connection
+string. After `.azure/infrastructure-plan.json` is explicitly approved,
+generate the Cosmos data-plane role assignment, set `COSMOS_ENDPOINT`, disable
+local Cosmos authentication, and remove the compatibility secret. Private
+endpoints require a non-consumption networking design and are intentionally
+deferred until the recovery and traffic requirements justify that cost.
 
 ## Security
 

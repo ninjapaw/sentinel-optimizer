@@ -13,14 +13,16 @@ export interface EntraEnvironment {
   ENTRA_EXTERNAL_ID_ADMIN_ROLE?: string;
 }
 
-export interface AdminClaims extends JWTPayload {
+export interface EntraClaims extends JWTPayload {
   roles?: string[];
   name?: string;
+  email?: string;
+  oid?: string;
   preferred_username?: string;
 }
 
 export type AuthorizationResult =
-  | { ok: true; claims: AdminClaims }
+  | { ok: true; claims: EntraClaims }
   | { ok: false; status: 401 | 403 | 503; error: string };
 
 interface AuthorizationRequest {
@@ -33,34 +35,54 @@ function bearerToken(request: AuthorizationRequest): string | undefined {
   return value.slice("Bearer ".length).trim() || undefined;
 }
 
-export async function authorizeAdmin(
+const keySets = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+
+function getKeySet(jwksUri: string): ReturnType<typeof createRemoteJWKSet> {
+  let keySet = keySets.get(jwksUri);
+  if (!keySet) {
+    keySet = createRemoteJWKSet(new URL(jwksUri));
+    keySets.set(jwksUri, keySet);
+  }
+  return keySet;
+}
+
+export async function authorizeUser(
   request: AuthorizationRequest,
   environment: EntraEnvironment = process.env,
 ): Promise<AuthorizationResult> {
   const issuer = environment.ENTRA_EXTERNAL_ID_ISSUER?.trim();
   const audience = environment.ENTRA_EXTERNAL_ID_AUDIENCE?.trim();
   const jwksUri = environment.ENTRA_EXTERNAL_ID_JWKS_URI?.trim();
-  const requiredRole =
-    environment.ENTRA_EXTERNAL_ID_ADMIN_ROLE?.trim() || "SentinelOptimizer.Admin";
 
   if (!issuer || !audience || !jwksUri) {
-    return { ok: false, status: 503, error: "Admin identity is not configured." };
+    return { ok: false, status: 503, error: "User identity is not configured." };
   }
 
   const token = bearerToken(request);
   if (!token) return { ok: false, status: 401, error: "Bearer token required." };
 
   try {
-    const keySet = createRemoteJWKSet(new URL(jwksUri));
-    const result = await jwtVerify<AdminClaims>(token, keySet, {
+    const result = await jwtVerify<EntraClaims>(token, getKeySet(jwksUri), {
       issuer,
       audience,
     });
-    if (!result.payload.roles?.includes(requiredRole)) {
-      return { ok: false, status: 403, error: "Admin role required." };
-    }
     return { ok: true, claims: result.payload };
   } catch {
     return { ok: false, status: 401, error: "Invalid bearer token." };
   }
+}
+
+export async function authorizeAdmin(
+  request: AuthorizationRequest,
+  environment: EntraEnvironment = process.env,
+): Promise<AuthorizationResult> {
+  const requiredRole =
+    environment.ENTRA_EXTERNAL_ID_ADMIN_ROLE?.trim() || "SentinelOptimizer.Admin";
+
+  const authorization = await authorizeUser(request, environment);
+  if (!authorization.ok) return authorization;
+  if (!authorization.claims.roles?.includes(requiredRole)) {
+    return { ok: false, status: 403, error: "Admin role required." };
+  }
+  return authorization;
 }
