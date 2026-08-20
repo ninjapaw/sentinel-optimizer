@@ -30,6 +30,7 @@ on:
         required: true
         type: choice
         options:
+          - all
           - site
           - api
           - keyvault
@@ -87,6 +88,13 @@ jobs:
           "$RUNNER_TEMP/bicep" build-params \
             infra/azure/bootstrap/main.bicepparam \
             --outfile "$RUNNER_TEMP/bootstrap.parameters.json"
+          "$RUNNER_TEMP/bicep" build infra/azure/main.bicep \
+            --outfile "$RUNNER_TEMP/all.azuredeploy.json"
+          for environment in dev prod; do
+            "$RUNNER_TEMP/bicep" build-params \
+              "infra/azure/main.${environment}.bicepparam" \
+              --outfile "$RUNNER_TEMP/all.${environment}.parameters.json"
+          done
 
           for component in site api keyvault ai; do
             "$RUNNER_TEMP/bicep" build "infra/azure/$component/main.bicep" \
@@ -148,7 +156,7 @@ jobs:
         run: |
           bash infra/azure/validate-environment.sh
           case "$COMPONENT" in
-            site|api) ;;
+            all|site|api) ;;
             keyvault)
               : "${AZURE_KEY_VAULT_NAME:?Set AZURE_KEY_VAULT_NAME as an Environment variable}"
               ;;
@@ -185,7 +193,7 @@ jobs:
         run: |
           : "${AZURE_LOCATION:?Set the organization or environment variable AZURE_LOCATION}"
 
-          if [[ "$(az group exists --name "$AZURE_RESOURCE_GROUP")" != true ]]; then
+          if [[ "$COMPONENT" != all && "$(az group exists --name "$AZURE_RESOURCE_GROUP")" != true ]]; then
             echo "::error title=Missing Azure resource group::Run infra/azure/bootstrap.sh to create '$AZURE_RESOURCE_GROUP' and configure OIDC."
             exit 1
           fi
@@ -228,6 +236,26 @@ jobs:
 
           parameters=(location="$AZURE_LOCATION")
           case "$COMPONENT" in
+            all)
+              environment_file="infra/azure/main.${DEPLOY_ENVIRONMENT}.bicepparam"
+              [[ -f "$environment_file" ]] || {
+                echo "::error title=Missing environment parameters::Cannot find $environment_file."
+                exit 1
+              }
+              az deployment sub "$command_name" \
+                --name "sentinel-optimizer-all-${GITHUB_RUN_NUMBER}" \
+                --location "$AZURE_LOCATION" \
+                --template-file infra/azure/main.bicep \
+                --parameters \
+                  "$environment_file" \
+                  apiDeploymentPrincipalId="$AZURE_API_PRINCIPAL_OBJECT_ID" \
+                  infrastructurePrincipalId="$AZURE_INFRA_PRINCIPAL_OBJECT_ID" \
+                  enableAnonymousAiRoutes="$AZURE_ENABLE_ANONYMOUS_AI_ROUTES" \
+                  entraExternalIdIssuer="$ENTRA_EXTERNAL_ID_ISSUER" \
+                  entraExternalIdJwksUri="$ENTRA_EXTERNAL_ID_JWKS_URI" \
+                  entraExternalIdAudience="$ENTRA_EXTERNAL_ID_AUDIENCE" \
+                  entraExternalIdAdminRole="${ENTRA_EXTERNAL_ID_ADMIN_ROLE:-SentinelOptimizer.Admin}"
+              ;;
             site)
               : "${AZURE_STATIC_WEB_APP_NAME:?Set AZURE_STATIC_WEB_APP_NAME as an Environment variable}"
               parameters+=(

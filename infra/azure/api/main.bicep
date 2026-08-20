@@ -63,15 +63,18 @@ param entraExternalIdAdminRole string = 'SentinelOptimizer.Admin'
 @description('Object ID of the GitHub OIDC service principal used for API code deployment. Leave blank only when deployment access is configured separately.')
 param apiDeploymentPrincipalId string = ''
 
-@description('Cosmos DB connection string for user session storage. Prefer keyVaultName with cosmosConnectionStringSecretName. Leave blank to disable session persistence.')
+@description('Cosmos DB endpoint used with the Function App managed identity. Prefer this over a connection string.')
+param cosmosEndpoint string = ''
+
+@description('Log Analytics workspace resource ID for Function diagnostics.')
+param logAnalyticsWorkspaceId string = ''
+
+@description('Workspace-based Application Insights connection string.')
 @secure()
-param cosmosConnectionString string = ''
+param applicationInsightsConnectionString string = ''
 
 @description('Key Vault name that stores API runtime secrets. Leave blank to keep plaintext app settings.')
 param keyVaultName string = ''
-
-@description('Key Vault secret name holding the Cosmos DB connection string. Requires keyVaultName and a secret that already exists.')
-param cosmosConnectionStringSecretName string = ''
 
 @description('Key Vault secret name holding the third-party AI API key. Requires keyVaultName and a secret that already exists.')
 param aiApiKeySecretName string = ''
@@ -96,9 +99,6 @@ var storageAccountName = take('st${uniqueString(resourceGroup().id, functionAppN
 var deploymentContainerName = 'function-releases'
 
 // Key Vault references omit the secret version so rotation is picked up without redeploying.
-var cosmosConnectionSetting = (!empty(keyVaultName) && !empty(cosmosConnectionStringSecretName))
-  ? '@Microsoft.KeyVault(VaultName=${keyVaultName};SecretName=${cosmosConnectionStringSecretName})'
-  : cosmosConnectionString
 var aiApiKeySettings = (!empty(keyVaultName) && !empty(aiApiKeySecretName)) ? [
   {
     name: 'AI_API_KEY'
@@ -212,6 +212,10 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
           value: string(enableAnonymousAiRoutes)
         }
         {
+          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+          value: applicationInsightsConnectionString
+        }
+        {
           name: 'ENTRA_EXTERNAL_ID_ISSUER'
           value: entraExternalIdIssuer
         }
@@ -228,8 +232,8 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
           value: entraExternalIdAdminRole
         }
         {
-          name: 'COSMOS_CONNECTION_STRING'
-          value: cosmosConnectionSetting
+          name: 'COSMOS_ENDPOINT'
+          value: cosmosEndpoint
         }
         {
           name: 'COSMOS_DATABASE'
@@ -307,6 +311,26 @@ resource apiDeploymentRoleAssignment 'Microsoft.Authorization/roleAssignments@20
     principalId: apiDeploymentPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: websiteContributor.id
+  }
+}
+
+resource functionDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (!empty(logAnalyticsWorkspaceId)) {
+  name: 'sentinel-optimizer-function-diagnostics'
+  scope: functionApp
+  properties: {
+    workspaceId: logAnalyticsWorkspaceId
+    logs: [
+      {
+        categoryGroup: 'allLogs'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
   }
 }
 

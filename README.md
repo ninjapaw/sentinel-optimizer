@@ -465,8 +465,9 @@ provider jobs:
 | `dev`, `prod` | `AZURE_STATIC_WEB_APPS_API_TOKEN` | Azure Static Web Apps site | Long-lived Static Web Apps deployment token. Rotate it immediately if exposed.                              |
 
 Runtime API secrets such as `AI_API_KEY`, `AZURE_OPENAI_API_KEY`, and
-`COSMOS_CONNECTION_STRING` belong in Azure Key Vault or the Function App's own
-settings, not in GitHub build variables. See
+Cosmos access uses `COSMOS_ENDPOINT` with managed identity. Runtime third-party
+API keys belong in Azure Key Vault or the Function App's own settings, not in
+GitHub build variables. See
 [Key Vault secret management](#key-vault-secret-management). Use
 `api/.env.example` and `api/.dev.vars.example` only as local templates; their
 real counterparts are ignored by Git.
@@ -537,9 +538,8 @@ GitHub Environment variables:
 | `PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE`  | Delegated API scope requested by the SPA. |
 | `PUBLIC_ADMIN_API_BASE`               | Authenticated administration API origin. |
 
-`AZURE_COSMOS_ACCOUNT_NAME` is temporarily supported for legacy Cosmos key
-synchronization. The approved target architecture replaces it with
-`COSMOS_ENDPOINT` plus the Function App managed identity.
+The API receives `COSMOS_ENDPOINT` from the consolidated Bicep deployment and
+uses the Function App managed identity for Cosmos data access.
 
 ### Environment secrets
 
@@ -568,15 +568,15 @@ inputs. These are not stored as Environment variables or secrets:
 | Input                        | Recommended default | Applies to | Guidance                                                           |
 | ---------------------------- | ------------------- | ---------- | ------------------------------------------------------------------ |
 | `environment`                | Auto-detect         | All stacks | Branch `dev` selects `dev`; branch `main` selects `prod`.           |
-| `component`                  | `site`              | All stacks | Deploy in order: `site`, `api`, `keyvault`, then optional `ai`.    |
+| `component`                  | `all`               | All stacks | Deploy the consolidated subscription-scope stack; component mode remains available for recovery. |
 | `operation`                  | `what-if`           | All stacks | Review the preview before selecting `deploy`.                      |
 
 SKUs and capacity settings come from `config/deploy.config.json`, so reviews see
 cost changes in source control. Use `what-if` before applying infrastructure
 changes and require reviewers for `prod`. The consolidated monitoring and
 managed-identity Cosmos design is recorded in `.azure/infrastructure-plan.json`;
-the plan remains `draft` until explicitly approved, and no deployment was run
-during this review.
+the plan is approved for IaC generation, and no deployment was run during this
+review.
 
 ## Key Vault secret management
 
@@ -589,7 +589,7 @@ Bicep templates, or in the browser bundle.
 | Control             | Choice                                              | Why                                                                                                                         |
 | ------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | Authorization       | Azure RBAC, not access policies                     | Roles are auditable, scoped, and managed the same way as the rest of the subscription.                                      |
-| Function App access | `Key Vault Secrets User` on the vault               | Read-only data-plane access for unavoidable third-party secrets during the transition to keyless Azure service access.      |
+| Function App access | `Key Vault Secrets User` on the vault               | Read-only data-plane access for unavoidable third-party secrets.      |
 | Pipeline access     | `Key Vault Secrets Officer` on the vault            | Lets the deployment identity rotate secrets without granting read access to other resources.                                |
 | Deletion protection | Soft delete plus purge protection                   | Prevents irreversible secret loss. Purge protection cannot be turned off once enabled.                                      |
 | App settings        | `@Microsoft.KeyVault(VaultName=...;SecretName=...)` | Versionless references pick up a rotated secret without redeploying the API.                                                |
@@ -600,7 +600,6 @@ Bicep templates, or in the browser bundle.
 | Secret name                | Consumed as                | Required when                                                                                      |
 | -------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------- |
 | `ai-api-key`               | `AI_API_KEY`               | The API calls a third-party AI provider. Not needed for Azure OpenAI, which uses managed identity. |
-| `cosmos-connection-string` | `COSMOS_CONNECTION_STRING` | Temporary compatibility path until the approved Cosmos RBAC IaC is generated.                      |
 
 Non-secret settings such as `AI_BASE_URL`, `AI_MODEL`, `COSMOS_DATABASE`, and
 the `ENTRA_EXTERNAL_ID_*` values stay as plain Function App settings.
@@ -610,16 +609,11 @@ the `ENTRA_EXTERNAL_ID_*` values stay as plain Function App settings.
 The Function App must exist before the vault can grant its identity access, and
 the secrets must exist before the API references them:
 
-1. Deploy `site`, then `api`.
-2. Set `AZURE_KEY_VAULT_NAME` in the deployment Environment, then deploy the
-   `keyvault` component. This creates the vault and both role assignments.
+1. Run the infrastructure workflow with `component: all` and `operation: what-if`.
+2. After review, run it with `operation: deploy`. This creates monitoring,
+  Static Web Apps, Functions, Cosmos RBAC, and Key Vault in dependency order.
 3. Run the **Manage Key Vault Secrets** workflow with `operation: sync`. Leave
    `dry_run: true` for a preview, then rerun with `dry_run: false`.
-4. Set `cosmosConnectionStringSecretName` and `aiApiKeySecretName` for the `api`
-   component, then redeploy `api` so its settings become Key Vault references.
-
-After step 4 every later `api` deployment keeps the references, because the
-wiring lives in the Bicep template rather than in a manual portal edit.
 
 ### Rotation and auditing
 
@@ -629,9 +623,8 @@ creates a new secret version only when the value actually changed, and
 otherwise refreshes the expiration date. Because app settings reference secrets
 without a version, the API picks up a rotated value without a redeployment.
 
-Set `AZURE_COSMOS_ACCOUNT_NAME` so the workflow reads the Cosmos connection
-string straight from Azure. The value is never stored in GitHub and is never
-printed to the workflow log.
+Cosmos credentials are not synchronized: the Function App uses its managed
+identity and `COSMOS_ENDPOINT`.
 
 [`audit-secrets.sh`](infra/azure/keyvault/audit-secrets.sh) runs after every
 sync and on a weekly schedule. It fails the run when a secret has expired, warns
@@ -651,10 +644,8 @@ bash infra/azure/keyvault/audit-secrets.sh --vault <vault-name>
 ### Further hardening
 
 The session storage client accepts `COSMOS_ENDPOINT` and uses
-`DefaultAzureCredential`; existing component Bicep still supplies a connection
-string. After `.azure/infrastructure-plan.json` is explicitly approved,
-generate the Cosmos data-plane role assignment, set `COSMOS_ENDPOINT`, disable
-local Cosmos authentication, and remove the compatibility secret. Private
+`DefaultAzureCredential`. The consolidated Bicep deployment disables Cosmos
+local authentication and grants the Function App its data-plane role. Private
 endpoints require a non-consumption networking design and are intentionally
 deferred until the recovery and traffic requirements justify that cost.
 
