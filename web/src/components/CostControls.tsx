@@ -12,6 +12,10 @@ import type { TableRetention } from "@engine/pricing/sentinelPricing.js";
 import { DEFAULT_SENTINEL_RATES } from "@engine/pricing/index.js";
 import { gbPerDay, gb, money, rate } from "../lib/format.js";
 import { parseOptionalNumber } from "@shared/index.js";
+import { parseKqlDoc } from "../lib/kqlLibrary.js";
+import defenderP2Raw from "../../../kql/defender-for-servers-p2-ingestion-benefit.md?raw";
+import m365E5Raw from "../../../kql/microsoft-365-e5-sentinel-benefit.md?raw";
+import freeSourcesRaw from "../../../kql/always-free-sentinel-data-sources.md?raw";
 
 interface Props {
   result: NormalizedResult;
@@ -53,30 +57,13 @@ type LaneProfile = "detectionFirst" | "balanced" | "costFirst";
 
 /**
  * KQL helper to size the Defender for Servers Plan 2 free-ingestion benefit.
- * The benefit is 500 MB/node/day, pooled per subscription and applied to a
- * fixed set of eligible security tables, so the effective grant is
- * min(eligible ingest, nodes × 500 MB). Run in Log Analytics and paste the
- * resulting FreeGBPerDay into the "Defender Servers P2 (GB/day)" field.
- * Eligible tables per https://learn.microsoft.com/azure/defender-for-cloud/data-ingestion-benefit
+ * Sourced from ../../../kql/defender-for-servers-p2-ingestion-benefit.md —
+ * update the query there, not here. Run in Log Analytics (Logs > Scope >
+ * select every subscription/workspace to include) and paste the resulting
+ * RecommendedFreeGBPerDay into the "Defender Servers P2 (GB/day)" field.
  */
-const DEFENDER_P2_QUERY = `// Defender for Servers Plan 2 — free data-ingestion benefit (500 MB/node/day).
-// Pooled per subscription: effective grant = min(eligible ingest, nodes x 500 MB).
-let lookback = 7d;
-let eligible = dynamic([
-  "SecurityAlert","SecurityBaseline","SecurityBaselineSummary","SecurityDetection",
-  "SecurityEvent","WindowsFirewall","ProtectionStatus","Update","UpdateSummary",
-  "MDCFileIntegrityMonitoringEvents","WindowsEvent"]);
-let nodes = toscalar(
-    Heartbeat
-    | where TimeGenerated > ago(lookback)
-    | summarize dcount(Computer));
-Usage
-| where TimeGenerated > ago(lookback) and IsBillable == true
-| where DataType in (eligible)
-| summarize GB = sum(Quantity) / 1024.0 by bin(TimeGenerated, 1d)
-| summarize EligibleGBPerDay = round(avg(GB), 3)
-| extend Nodes = nodes, CapGBPerDay = round(nodes * 500.0 / 1024.0, 3)
-| extend FreeGBPerDay = min_of(EligibleGBPerDay, CapGBPerDay)`;
+const DEFENDER_P2_DOC = parseKqlDoc(defenderP2Raw);
+const DEFENDER_P2_QUERY = DEFENDER_P2_DOC.query;
 
 /**
  * KQL helper to size the Microsoft 365 E5/A5/F5/G5 benefit. The offer grants up
@@ -86,56 +73,28 @@ Usage
  * into the "M365 E5 (GB/day)" field.
  * Offer + eligible data types: https://azure.microsoft.com/offers/sentinel-microsoft-365-offer/
  */
-const M365_E5_QUERY = `// Microsoft 365 E5/A5/F5/G5 benefit — up to 5 MB/user/day of free Sentinel ingestion.
-// Eligible Microsoft data types per the offer; grant = min(eligible ingest, users x 5 MB).
-let lookback = 7d;
-let e5Users = 0;  // <-- your assigned E5/A5/F5/G5 user count (see the license query below)
-let eligible = dynamic([
-  "SigninLogs","AuditLogs","AADNonInteractiveUserSignInLogs","AADServicePrincipalSignInLogs",
-  "AADManagedIdentitySignInLogs","AADProvisioningLogs","ADFSSignInLogs","AADUserRiskEvents",
-  "AADRiskyUsers","OfficeActivity","McasShadowItReporting","InformationProtectionLogs_CL",
-  "DeviceEvents","DeviceFileEvents","DeviceImageLoadEvents","DeviceInfo","DeviceLogonEvents",
-  "DeviceNetworkEvents","DeviceNetworkInfo","DeviceProcessEvents","DeviceRegistryEvents",
-  "DeviceFileCertificateInfo","EmailEvents","EmailUrlInfo","EmailAttachmentInfo","EmailPostDeliveryEvents"]);
-Usage
-| where TimeGenerated > ago(lookback) and IsBillable == true
-| where DataType in (eligible)
-| summarize GB = sum(Quantity) / 1024.0 by bin(TimeGenerated, 1d)
-| summarize EligibleGBPerDay = round(avg(GB), 3)
-| extend CapGBPerDay = round(e5Users * 5.0 / 1024.0, 3)
-| extend FreeGBPerDay = iff(e5Users > 0, min_of(EligibleGBPerDay, CapGBPerDay), EligibleGBPerDay)`;
+const M365_E5_DOC = parseKqlDoc(m365E5Raw);
+const M365_E5_QUERY = M365_E5_DOC.query;
 
 /**
  * Microsoft Graph (PowerShell) helper to count assigned E5/A5/F5/G5 licenses,
  * which sets the 5 MB/user/day cap above. Licenses live in Entra ID, not in
  * Log Analytics, so this runs separately from the KQL helpers.
  */
-const M365_E5_LICENSE_QUERY = `# Count users with an eligible Microsoft 365 E5/A5/F5/G5 license assigned.
-# Microsoft Graph PowerShell — needs delegated User.Read.All + Organization.Read.All.
-Connect-MgGraph -Scopes "User.Read.All","Organization.Read.All"
-# Eligible SKU part numbers — adjust to match your tenant's plans:
-$eligible = @("SPE_E5","ENTERPRISEPREMIUM","SPE_F5_SECCOMP","M365_F5_SECURITY",
-  "M365EDU_A5_FACULTY","M365EDU_A5_STUUSEBNFT","Microsoft_365_G5")
-$skuIds = (Get-MgSubscribedSku | Where-Object { $_.SkuPartNumber -in $eligible }).SkuId
-(Get-MgUser -All -Property assignedLicenses |
-  Where-Object { $_.AssignedLicenses.SkuId | Where-Object { $_ -in $skuIds } } |
-  Measure-Object).Count`;
+// License-count helper lives in the same kql/microsoft-365-e5-sentinel-benefit.md
+// file, after the KQL query, as the second fenced (powershell) code block.
+const M365_E5_LICENSE_QUERY = (() => {
+  const matches = [...m365E5Raw.matchAll(/```(?:kql|powershell)\r?\n([\s\S]*?)```/g)];
+  return (matches[1]?.[1] ?? "").replace(/\r?\n$/, "");
+})();
 
 /**
  * KQL helper to measure always-free Microsoft Sentinel data sources, so the
  * volume can be excluded from billable estimates. Free sources per
  * https://learn.microsoft.com/azure/sentinel/billing#free-data-sources
  */
-const FREE_SOURCES_QUERY = `// Always-free Microsoft Sentinel data sources (not charged for ingestion).
-// Azure Activity, Sentinel Health, Office 365 audit, and security alerts/incidents.
-let lookback = 7d;
-let freeTypes = dynamic([
-  "AzureActivity","SentinelHealth","OfficeActivity","SecurityAlert","SecurityIncident"]);
-Usage
-| where TimeGenerated > ago(lookback)
-| where DataType in (freeTypes)
-| summarize GB = sum(Quantity) / 1024.0 by bin(TimeGenerated, 1d)
-| summarize FreeGBPerDay = round(avg(GB), 3)`;
+const FREE_SOURCES_DOC = parseKqlDoc(freeSourcesRaw);
+const FREE_SOURCES_QUERY = FREE_SOURCES_DOC.query;
 
 export default function CostControls({
   result,
@@ -1527,7 +1486,8 @@ export default function CostControls({
               onChange={(e) => setBenefit({ defenderP2FreeGbPerDay: parseOptionalNumber(e.target.value) })}
             />
             <p className="ai-note">
-              Run the query below and paste its <code>FreeGBPerDay</code> value.
+              Run the query below (set the Logs scope to every subscription/workspace to
+              include first) and paste its <code>RecommendedFreeGBPerDay</code> value.
             </p>
           </div>
           <div className="query-head">
@@ -1577,18 +1537,26 @@ export default function CostControls({
         <summary>Size the Defender for Servers Plan 2 benefit</summary>
         <p className="ai-note">
           Defender for Servers Plan 2 grants 500 MB/node/day of free ingestion into eligible
-          security tables, pooled across the subscription.
+          security tables, pooled per Log Analytics workspace (not tenant-wide).
         </p>
         <p className="ai-note">
-          Eligible tables and the 500 MB/node/day rule per Microsoft's{" "}
+          {DEFENDER_P2_DOC.docs.map((d, idx) => (
+            <span key={d.url}>
+              {idx > 0 ? ", " : ""}
+              <a href={d.url} target="_blank" rel="noopener noreferrer">
+                {d.label}
+              </a>
+            </span>
+          ))}
+          . Full write-up:{" "}
           <a
-            href="https://learn.microsoft.com/azure/defender-for-cloud/data-ingestion-benefit"
+            href="https://github.com/ninjapaw/sentinel-optimizer/blob/dev/kql/defender-for-servers-p2-ingestion-benefit.md"
             target="_blank"
             rel="noopener noreferrer"
           >
-            data ingestion benefit
-          </a>{" "}
-          documentation.
+            kql/defender-for-servers-p2-ingestion-benefit.md
+          </a>
+          .
         </p>
       </details>
 

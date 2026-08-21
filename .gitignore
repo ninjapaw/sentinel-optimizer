@@ -5,6 +5,7 @@ dist/
 .wrangler/
 local.settings.json
 *.local.bicepparam
+
 .azure/
 .copilot-azure/
 *.log

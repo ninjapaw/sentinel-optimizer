@@ -11,10 +11,12 @@ export {
   isAiTextResponse,
   isApiErrorResponse,
   isExampleRequest,
+  isExplainKqlRequest,
   type AggregatedSummary,
   type AiTextResponse,
   type ApiErrorResponse,
   type ExampleRequest,
+  type ExplainKqlRequest,
   type SummaryStyle,
 } from "./contracts/ai.js";
 export {

@@ -8,6 +8,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { loadEnvFile } from "node:process";
 import { routeApiRequest } from "../../core/router.js";
 import { RECOMMEND_MAX_BODY_BYTES } from "../../core/recommend.js";
+import { EXPLAIN_KQL_MAX_BODY_BYTES } from "../../core/explainKql.js";
 import { createConfiguredAiProvider } from "../../runtime/provider.js";
 import {
   apiResponseHeaders,
@@ -26,6 +27,10 @@ try {
 const provider = createConfiguredAiProvider();
 const port = parsePort(process.env.PORT || process.env.API_PORT, INTERNAL_CONFIG.api.port);
 const host = process.env.HOST || INTERNAL_CONFIG.api.host;
+// Generic pre-routing size gate — must be at least as large as the biggest
+// per-route limit (explain-kql's screenshot payloads), since each handler
+// re-checks its own exact limit afterward via readJson.
+const MAX_REQUEST_BODY_BYTES = Math.max(RECOMMEND_MAX_BODY_BYTES, EXPLAIN_KQL_MAX_BODY_BYTES);
 
 async function readBody(request: IncomingMessage): Promise<string | null> {
   const chunks: Buffer[] = [];
@@ -33,7 +38,7 @@ async function readBody(request: IncomingMessage): Promise<string | null> {
   for await (const chunk of request) {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     bytes += buffer.byteLength;
-    if (bytes > RECOMMEND_MAX_BODY_BYTES) return null;
+    if (bytes > MAX_REQUEST_BODY_BYTES) return null;
     chunks.push(buffer);
   }
   return Buffer.concat(chunks).toString("utf8");

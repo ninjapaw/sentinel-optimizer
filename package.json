@@ -16,6 +16,7 @@
     "build": "npm run build:api && npm run build:web",
     "build:api": "npm --prefix api run build",
     "build:web": "npm --prefix web run build",
+    "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#web/dist\" \"#api/dist\" \"#.astro\"",
     "config:check": "node scripts/deploy-config.mjs --environment dev --check && node scripts/deploy-config.mjs --environment prod --check",
     "test": "npm run test:engine && npm run test:api",
     "test:engine": "vitest run",
@@ -29,6 +30,7 @@
   "devDependencies": {
     "@types/node": "^26.2.0",
     "concurrently": "^9.2.1",
+    "markdownlint-cli2": "^0.18.0",
     "typescript": "^5.4.0",
     "vitest": "^4.1.10"
   }

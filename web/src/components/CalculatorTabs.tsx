@@ -11,6 +11,7 @@ import TabsContainer, { type TabItem } from "./TabsContainer.js";
 const Optimizer = lazy(() => import("./Optimizer.js"));
 const DefenderForCloudCalculator = lazy(() => import("./DefenderForCloudCalculator.js"));
 const UserQuotaCalculator = lazy(() => import("./UserQuotaCalculator.js"));
+const DefenderP2Tool = lazy(() => import("./DefenderP2Tool.js"));
 
 function LoadingSpinner() {
   return (
@@ -53,6 +54,17 @@ export function CalculatorTabs() {
       content: (
         <Suspense fallback={<LoadingSpinner />}>
           <UserQuotaCalculator />
+        </Suspense>
+      ),
+    },
+    {
+      id: "defender-p2",
+      label: "Defender P2 Benefit",
+      icon: "🧮",
+      description: "Size the Defender for Servers Plan 2 free-ingestion benefit from a KQL query",
+      content: (
+        <Suspense fallback={<LoadingSpinner />}>
+          <DefenderP2Tool />
         </Suspense>
       ),
     },

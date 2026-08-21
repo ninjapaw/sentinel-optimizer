@@ -573,10 +573,7 @@ inputs. These are not stored as Environment variables or secrets:
 
 SKUs and capacity settings come from `config/deploy.config.json`, so reviews see
 cost changes in source control. Use `what-if` before applying infrastructure
-changes and require reviewers for `prod`. The consolidated monitoring and
-managed-identity Cosmos design is recorded in `.azure/infrastructure-plan.json`;
-the plan is approved for IaC generation, and no deployment was run during this
-review.
+changes and require reviewers for `prod`.
 
 ## Key Vault secret management
 

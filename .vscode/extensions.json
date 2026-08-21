@@ -1,8 +1,4 @@
 {
-  "unwantedRecommendations": [
-    "docsmsft.docs-authoring-pack",
-    "docsmsft.docs-preview"
-  ],
   "recommendations": [
     "ms-azuretools.vscode-azurefunctions"
   ]

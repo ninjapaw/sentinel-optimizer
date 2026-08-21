@@ -21,6 +21,7 @@ import {
   type AggregatedSummary as SharedAggregatedSummary,
   type AiTextResponse,
   type ExampleRequest,
+  type ExplainKqlRequest,
   type SummaryStyle,
 } from "@shared/index.js";
 
@@ -136,15 +137,46 @@ export async function requestAiExample(
 }
 
 /**
+ * Ask the server to explain a single pasted KQL result row in plain language.
+ * Sends only the query id and the pasted text (never parsed/executed) —
+ * throws with a friendly message when AI isn't enabled so the UI can fall
+ * back to the deterministic, per-column explanation instead.
+ */
+export async function requestAiExplanation(
+  req: ExplainKqlRequest,
+  signal?: AbortSignal,
+): Promise<string> {
+  const endpoints = resolveApiEndpoints("explainKql");
+  const init: RequestInit = {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(req),
+    ...(signal ? { signal } : {}),
+  };
+
+  const res = await fetchWithFallback(endpoints, init);
+  if (res.status === 501 || res.status === 404) {
+    throw new Error("AI explanation isn't enabled for this deployment. Use the plain-language column guide above instead.");
+  }
+  if (!res.ok) throw new Error(`AI service returned an error (HTTP ${res.status}).`);
+  const data: unknown = await res.json();
+  if (isApiErrorResponse(data)) throw new Error(data.error);
+  if (!isAiTextResponse(data)) {
+    throw new Error("AI service returned an empty explanation.");
+  }
+  return data.text;
+}
+
+/**
  * Compute the AI endpoint URL in this order:
  * 1) PUBLIC_AI_API_BASE override (for split-host or local function dev)
  * 2) App base path + /api/* on the current origin
  */
-function resolveApiEndpoint(route: "recommend" | "example"): string {
+function resolveApiEndpoint(route: "recommend" | "example" | "explainKql"): string {
   return resolveApiEndpoints(route)[0] || INTERNAL_CONFIG.api.routes[route];
 }
 
-function resolveApiEndpoints(route: "recommend" | "example"): string[] {
+function resolveApiEndpoints(route: "recommend" | "example" | "explainKql"): string[] {
   const rootRelative = INTERNAL_CONFIG.api.routes[route];
   const absolutePath = rootRelative.replace(/^\/+/, "");
 
@@ -180,8 +212,7 @@ async function fetchWithFallback(
   endpoints: string[],
   init: RequestInit,
   suffix = "",
-): Promise<Response> {
-  let lastError: unknown;
+): Promise<Response> {  let lastError: unknown;
   for (const endpoint of endpoints) {
     try {
       return await fetch(endpoint, init);
