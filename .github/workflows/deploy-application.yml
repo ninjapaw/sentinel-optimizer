@@ -5,51 +5,85 @@
 name: Deploy Application
 
 on:
+  push:
+    branches:
+      - main
+      - dev
   workflow_dispatch:
     inputs:
       environment:
-        description: Deployment environment
-        required: true
-        default: development
+        description: Deployment environment (leave as auto-detect to infer from the branch)
+        required: false
+        default: auto-detect
         type: choice
         options:
-          - development
-          - production
+          - auto-detect
+          - dev
+          - prod
 
 permissions:
   contents: read
 
+# Branch dev uses the dev environment, branch main uses the prod environment.
 concurrency:
-  group: application-${{ inputs.environment }}-${{ github.ref }}
+  group: application-${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev') }}
   cancel-in-progress: false
 
 jobs:
   preflight:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: deployment-${{ inputs.environment }}
+    environment: ${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev') }}
     outputs:
+      environment: ${{ steps.environment.outputs.name }}
       target: ${{ steps.configuration.outputs.target }}
       deploy_api: ${{ steps.configuration.outputs.deploy_api }}
       site-url: ${{ steps.configuration.outputs.site-url }}
       site-base: ${{ steps.configuration.outputs.site-base }}
       ai-api-base: ${{ steps.configuration.outputs.ai-api-base }}
+      subscription-id: ${{ steps.deployment_config.outputs.AZURE_SUBSCRIPTION_ID }}
+      resource-group: ${{ steps.deployment_config.outputs.AZURE_RESOURCE_GROUP }}
+      function-app-name: ${{ steps.deployment_config.outputs.AZURE_FUNCTIONAPP_NAME }}
     env:
-      DEPLOYMENT_TARGET: ${{ vars.DEPLOYMENT_TARGET }}
-      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-      AZURE_STATIC_WEB_APP_NAME: ${{ vars.AZURE_STATIC_WEB_APP_NAME }}
-      AZURE_FUNCTIONAPP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
-      AZURE_PUBLIC_SITE_URL: ${{ vars.AZURE_PUBLIC_SITE_URL }}
-      AZURE_DEPLOY_API: ${{ vars.AZURE_DEPLOY_API }}
-      AZURE_USE_API: ${{ vars.AZURE_USE_API }}
-      AZURE_ENABLE_ANONYMOUS_AI_ROUTES: ${{ vars.AZURE_ENABLE_ANONYMOUS_AI_ROUTES }}
       PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
       PUBLIC_SITE_BASE: ${{ vars.PUBLIC_SITE_BASE }}
       PUBLIC_AI_API_BASE: ${{ vars.PUBLIC_AI_API_BASE }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Resolve environment from branch
+        id: environment
+        env:
+          REQUESTED_ENVIRONMENT: ${{ inputs.environment }}
+          SOURCE_REF: ${{ github.ref_name }}
+        run: |
+          case "$SOURCE_REF" in
+            main) detected=prod ;;
+            dev) detected=dev ;;
+            *)
+              echo "::error title=Unsupported branch::Deploy from 'dev' or 'main', not '$SOURCE_REF'."
+              exit 1
+              ;;
+          esac
+
+          target="${REQUESTED_ENVIRONMENT:-$detected}"
+          if [[ "$target" == "auto-detect" ]]; then
+            target="$detected"
+          fi
+          if [[ "$target" != "$detected" ]]; then
+            echo "::error title=Branch and environment mismatch::Branch '$SOURCE_REF' maps to $detected, not $target."
+            exit 1
+          fi
+
+          echo "name=$target" >> "$GITHUB_OUTPUT"
+          echo "Deploying '$SOURCE_REF' to the $target environment." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Load deployment configuration
+        id: deployment_config
+        env:
+          TARGET_ENVIRONMENT: ${{ steps.environment.outputs.name }}
+        run: node scripts/deploy-config.mjs --environment "$TARGET_ENVIRONMENT" --github-env --github-output --require-subscription
 
       - name: Validate selected deployment target
         id: configuration
@@ -88,12 +122,42 @@ jobs:
           echo "site-base=$site_base" >> "$GITHUB_OUTPUT"
           echo "ai-api-base=$ai_api_base" >> "$GITHUB_OUTPUT"
 
+      - name: Verify environment secrets
+        env:
+          TARGET_ENVIRONMENT: ${{ steps.environment.outputs.name }}
+          DEPLOY_API: ${{ steps.configuration.outputs.deploy_api }}
+          AZURE_STATIC_WEB_APPS_API_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          AZURE_API_CLIENT_ID: ${{ vars.AZURE_API_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          missing=()
+
+          case "$DEPLOYMENT_TARGET" in
+            azure-static-web-app)
+              [[ -n "$AZURE_STATIC_WEB_APPS_API_TOKEN" ]] || missing+=(AZURE_STATIC_WEB_APPS_API_TOKEN)
+              if [[ "$DEPLOY_API" == "true" ]]; then
+                [[ -n "$AZURE_API_CLIENT_ID" ]] || missing+=(AZURE_API_CLIENT_ID)
+                [[ -n "$AZURE_TENANT_ID" ]] || missing+=(AZURE_TENANT_ID)
+                [[ -n "$AZURE_SUBSCRIPTION_ID" ]] || missing+=(AZURE_SUBSCRIPTION_ID)
+              fi
+              ;;
+            cloudflare-worker-api)
+              [[ -n "$CLOUDFLARE_API_TOKEN" ]] || missing+=(CLOUDFLARE_API_TOKEN)
+              ;;
+          esac
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error title=Missing environment secrets::Add ${missing[*]} to the $TARGET_ENVIRONMENT Environment."
+            exit 1
+          fi
+
   build-web:
     if: needs.preflight.outputs.target == 'azure-static-web-app' || needs.preflight.outputs.target == 'github-pages'
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: deployment-${{ inputs.environment }}
+    environment: ${{ needs.preflight.outputs.environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -204,7 +268,7 @@ jobs:
     needs: [preflight, build-web]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: deployment-${{ inputs.environment }}
+    environment: ${{ needs.preflight.outputs.environment }}
     steps:
       - name: Download web artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -215,7 +279,7 @@ jobs:
       - name: Verify Static Web Apps deployment token
         env:
           AZURE_STATIC_WEB_APPS_API_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-        run: ': "${AZURE_STATIC_WEB_APPS_API_TOKEN:?Set AZURE_STATIC_WEB_APPS_API_TOKEN in the selected deployment Environment}"'
+        run: ': "${AZURE_STATIC_WEB_APPS_API_TOKEN:?Set AZURE_STATIC_WEB_APPS_API_TOKEN in the selected Environment}"'
 
       - name: Deploy Azure Static Web Apps site
         uses: Azure/static-web-apps-deploy@1a947af9992250f3bc2e68ad0754c0b0c11566c9 # v1
@@ -233,7 +297,7 @@ jobs:
     needs: [preflight, build-api]
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: deployment-${{ inputs.environment }}
+    environment: ${{ needs.preflight.outputs.environment }}
     permissions:
       contents: read
       id-token: write
@@ -246,10 +310,10 @@ jobs:
 
       - name: Verify Azure deployment configuration
         env:
-          AZURE_FUNCTIONAPP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_API_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_FUNCTIONAPP_NAME: ${{ needs.preflight.outputs.function-app-name }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_API_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ needs.preflight.outputs.subscription-id }}
         run: |
           : "${AZURE_FUNCTIONAPP_NAME:?Set AZURE_FUNCTIONAPP_NAME in the selected deployment Environment}"
           : "${AZURE_CLIENT_ID:?Set AZURE_API_CLIENT_ID in the selected deployment Environment}"
@@ -259,21 +323,21 @@ jobs:
       - name: Sign in to Azure
         uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
         with:
-          client-id: ${{ secrets.AZURE_API_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ vars.AZURE_API_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ needs.preflight.outputs.subscription-id }}
 
       - name: Verify Function App infrastructure
         env:
-          FUNCTION_APP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
-          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          FUNCTION_APP_NAME: ${{ needs.preflight.outputs.function-app-name }}
+          RESOURCE_GROUP: ${{ needs.preflight.outputs.resource-group }}
         run: |
           az functionapp show --resource-group "$RESOURCE_GROUP" --name "$FUNCTION_APP_NAME" --output none
 
       - name: Deploy Azure Functions API
         uses: Azure/functions-action@c27ade7ab0db7a7005f1ee0c6aed9fae27ca4249 # v1
         with:
-          app-name: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
+          app-name: ${{ needs.preflight.outputs.function-app-name }}
           package: function-package/function-app.zip
 
   deploy-github-pages:
@@ -281,7 +345,7 @@ jobs:
     needs: [preflight, build-web]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: deployment-${{ inputs.environment }}
+    environment: ${{ needs.preflight.outputs.environment }}
     permissions:
       contents: read
       pages: write
@@ -310,7 +374,7 @@ jobs:
     needs: [preflight, build-api]
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: deployment-${{ inputs.environment }}
+    environment: ${{ needs.preflight.outputs.environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

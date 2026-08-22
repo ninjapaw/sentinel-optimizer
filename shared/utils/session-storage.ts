@@ -57,19 +57,15 @@ export class NullSessionStorage implements SessionStorage {
 
 export function getSessionStorage(environment: Record<string, string | undefined>): SessionStorage {
   const connectionString = environment.COSMOS_CONNECTION_STRING?.trim();
+  const endpoint = environment.COSMOS_ENDPOINT?.trim();
   const database = environment.COSMOS_DATABASE?.trim();
   const container = environment.COSMOS_SESSIONS_CONTAINER?.trim();
 
-  if (!connectionString || !database || !container) {
+  if ((!connectionString && !endpoint) || !database || !container) {
     return new NullSessionStorage();
   }
 
-  try {
-    // Dynamic import to avoid compile-time dependency
-    return new CosmosSessionStorage(connectionString, database, container);
-  } catch {
-    return new NullSessionStorage();
-  }
+  return new CosmosSessionStorage({ connectionString, endpoint }, database, container);
 }
 
 class CosmosSessionStorage implements SessionStorage {
@@ -77,12 +73,26 @@ class CosmosSessionStorage implements SessionStorage {
   private database: unknown;
   private container: unknown;
 
-  constructor(connectionString: string, database: string, container: string) {
+  constructor(
+    credentials: { connectionString: string | undefined; endpoint: string | undefined },
+    database: string,
+    container: string,
+  ) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports, global-require, @typescript-eslint/no-var-requires
-      const cosmosModule = require("@azure/cosmos") as { CosmosClient: unknown };
-      const CosmosClient = cosmosModule.CosmosClient as new (config: { connectionString: string }) => unknown;
-      this.client = new CosmosClient({ connectionString });
+      const { createRequire } = process.getBuiltinModule("node:module");
+      const nodeRequire = createRequire(`${process.cwd()}/package.json`);
+      const cosmosModule = nodeRequire("@azure/cosmos") as { CosmosClient: unknown };
+      const CosmosClient = cosmosModule.CosmosClient as new (config: Record<string, unknown>) => unknown;
+      if (credentials.endpoint) {
+        const identityModule = nodeRequire("@azure/identity") as { DefaultAzureCredential: unknown };
+        const DefaultAzureCredential = identityModule.DefaultAzureCredential as new () => unknown;
+        this.client = new CosmosClient({
+          endpoint: credentials.endpoint,
+          aadCredentials: new DefaultAzureCredential(),
+        });
+      } else {
+        this.client = new CosmosClient({ connectionString: credentials.connectionString });
+      }
 
       // Type assertion to access database/container methods
       const clientWithDb = this.client as { database: (name: string) => unknown };

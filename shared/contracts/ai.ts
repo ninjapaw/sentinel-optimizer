@@ -33,6 +33,15 @@ export interface ExampleRequest {
   template: string;
 }
 
+export interface ExplainKqlRequest {
+  /** Which canonical kql/*.md query the pasted result came from, e.g. "defender-for-servers-p2-ingestion-benefit". */
+  queryId: string;
+  /** The single result row the user copy/pasted from Log Analytics (tab, comma, or JSON — sent as-is to the AI, never parsed as code). Optional if imageDataUrl is provided instead. */
+  resultText?: string;
+  /** A `data:image/...;base64,...` screenshot of the result row, sent to a vision-capable model to read instead of/alongside resultText. */
+  imageDataUrl?: string;
+}
+
 export interface AiTextResponse {
   text: string;
   model?: string;
@@ -102,6 +111,24 @@ export function isExampleRequest(value: unknown): value is ExampleRequest {
     typeof value.template === "string" &&
     value.template.length <= INTERNAL_CONFIG.api.example.maxTemplateCharacters
   );
+}
+
+export function isExplainKqlRequest(value: unknown): value is ExplainKqlRequest {
+  if (!isRecord(value)) return false;
+  if (typeof value.queryId !== "string" || value.queryId.length === 0 || value.queryId.length > 200) {
+    return false;
+  }
+
+  const hasText =
+    typeof value.resultText === "string" &&
+    value.resultText.length > 0 &&
+    value.resultText.length <= INTERNAL_CONFIG.api.explainKql.maxResultCharacters;
+  const hasImage =
+    typeof value.imageDataUrl === "string" &&
+    /^data:image\/(png|jpeg|jpg|webp);base64,/.test(value.imageDataUrl) &&
+    value.imageDataUrl.length <= INTERNAL_CONFIG.api.explainKql.maxImageDataUrlCharacters;
+
+  return hasText || hasImage;
 }
 
 export function isAiTextResponse(value: unknown): value is AiTextResponse {

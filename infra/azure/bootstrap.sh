@@ -8,8 +8,60 @@ set -Eeuo pipefail
 script_directory="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repository_root="$(cd "$script_directory/../.." && pwd)"
 bootstrap_template="$script_directory/bootstrap/azuredeploy.json"
+deployment_config="${DEPLOYMENT_CONFIG:-$repository_root/config/deploy.config.json}"
+config_environment="${DEPLOY_ENVIRONMENT:-${AZURE_ENVIRONMENT:-dev}}"
+skip_config=false
+arguments=("$@")
+
+for ((argument_index = 0; argument_index < ${#arguments[@]}; argument_index++)); do
+  if [[ "${arguments[$argument_index]}" == --help || "${arguments[$argument_index]}" == -h ]]; then
+    skip_config=true
+  fi
+  if [[ "${arguments[$argument_index]}" == --environment ]]; then
+    value_index=$((argument_index + 1))
+    ((value_index < ${#arguments[@]})) || {
+      printf 'ERROR: --environment requires dev or prod.\n' >&2
+      exit 1
+    }
+    config_environment="${arguments[$value_index]}"
+  fi
+done
+
+case "$config_environment" in
+  dev|development) config_environment=dev ;;
+  prod|production) config_environment=prod ;;
+  *)
+    printf 'ERROR: --environment must be dev or prod.\n' >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$skip_config" == false ]]; then
+  command -v node >/dev/null 2>&1 || {
+    printf 'ERROR: Required command '\''node'\'' was not found.\n' >&2
+    exit 1
+  }
+  [[ -f "$deployment_config" ]] || {
+    printf 'ERROR: Deployment config not found: %s\n' "$deployment_config" >&2
+    exit 1
+  }
+
+  while IFS='=' read -r config_name config_value; do
+    [[ "$config_name" =~ ^[A-Z][A-Z0-9_]*$ ]] || {
+      printf 'ERROR: Invalid deployment config variable: %s\n' "$config_name" >&2
+      exit 1
+    }
+    if [[ -n "$config_value" || -z "${!config_name+x}" ]]; then
+      printf -v "$config_name" '%s' "$config_value"
+      export "$config_name"
+    fi
+  done < <(node "$repository_root/scripts/deploy-config.mjs" \
+    --config "$deployment_config" \
+    --environment "$config_environment")
+fi
+
 location="${AZURE_LOCATION:-eastus2}"
-subscription_id=""
+subscription_id="${AZURE_SUBSCRIPTION_ID:-}"
 repository=""
 deployment_environment="${AZURE_ENVIRONMENT:-development}"
 resource_group="${AZURE_RESOURCE_GROUP:-}"
@@ -41,21 +93,21 @@ Bootstrap Azure and GitHub OIDC for Sentinel Optimizer.
 Usage: infra/azure/bootstrap.sh [options]
 
 Options:
-  --environment <name>       GitHub Environment scope: development or production
+  --environment <name>       Config environment: dev or prod
   --resource-group <name>    Azure resource group (default: AZURE_RESOURCE_GROUP)
   --site-name <name>         Static Web App name (default: AZURE_STATIC_WEB_APP_NAME)
   --function-name <name>     Function App name (default: AZURE_FUNCTIONAPP_NAME)
   --public-site-url <url>    Public site URL (default: AZURE_PUBLIC_SITE_URL)
   --key-vault-name <name>    Key Vault name, 3-24 characters (default: AZURE_KEY_VAULT_NAME)
   --location <region>         Azure region (default: AZURE_LOCATION or eastus2)
-  --subscription <id>        Azure subscription (default: current az account)
+  --subscription <id>        Azure subscription (default: config, then current az account)
   --repository <owner/name>  GitHub repository (default: current gh repository)
   --deploy-api <bool>        Enable API deployment in this environment
   --use-api <bool>           Configure the site to call the API
   --skip-github              Create Azure identities/RBAC without GitHub environments
   --help                     Show this help
 
-Prerequisites: authenticated Azure CLI, jq, and authenticated GitHub CLI unless
+Prerequisites: Node.js, authenticated Azure CLI, jq, and authenticated GitHub CLI unless
 --skip-github is used. The caller must be able to create Entra applications,
 register resource providers, create a resource group, and assign Azure roles.
 EOF
@@ -99,8 +151,12 @@ trap cleanup EXIT
 while (($# > 0)); do
   case "$1" in
     --environment)
-      (($# >= 2)) || fail '--environment requires development or production.'
-      deployment_environment="$2"
+      (($# >= 2)) || fail '--environment requires dev or prod.'
+      case "$2" in
+        dev|development) deployment_environment=development ;;
+        prod|production) deployment_environment=production ;;
+        *) fail '--environment must be dev or prod.' ;;
+      esac
       shift 2
       ;;
     --resource-group)
@@ -209,7 +265,8 @@ fi
 openai_account_name="${openai_account_name:-sentinel-optimizer-${deployment_environment}-openai}"
 infrastructure_application_name="${AZURE_INFRASTRUCTURE_APPLICATION_NAME:-sentinel-optimizer-${deployment_environment}-infrastructure-github}"
 api_application_name="${AZURE_API_APPLICATION_NAME:-sentinel-optimizer-${deployment_environment}-api-github}"
-github_environment="deployment-${deployment_environment}"
+github_environment="$([[ "$deployment_environment" == production ]] && echo prod || echo dev)"
+deployment_branch="$([[ "$deployment_environment" == production ]] && echo main || echo dev)"
 [[ "$infrastructure_application_name" != "$api_application_name" ]] || fail 'Infrastructure and API OIDC application names must be different.'
 resource_group_scope="/subscriptions/$subscription_id/resourceGroups/$resource_group"
 
@@ -362,16 +419,6 @@ ensure_role_assignment() {
     --output none
 }
 
-set_environment_secret() {
-  local environment_name="$1"
-  local secret_name="$2"
-  local secret_value="$3"
-
-  printf '%s' "$secret_value" | gh secret set "$secret_name" \
-    --env "$environment_name" \
-    --repo "$repository"
-}
-
 read -r infrastructure_client_id infrastructure_application_object_id infrastructure_principal_object_id < <(
   ensure_application "$infrastructure_application_name"
 )
@@ -411,36 +458,21 @@ JSON
 
     branch_policy_count="$(gh api \
       "repos/$repository/environments/$environment_name/deployment-branch-policies" \
-      --jq '[.branch_policies[] | select(.name == "main")] | length')"
+      --jq "[.branch_policies[] | select(.name == \"$deployment_branch\")] | length")"
     if [[ "$branch_policy_count" == 0 ]]; then
       gh api \
         --method POST \
         "repos/$repository/environments/$environment_name/deployment-branch-policies" \
-        --field name=main \
+        --field name="$deployment_branch" \
         --silent
     fi
   done
 
-  set_environment_secret "$github_environment" AZURE_CLIENT_ID "$infrastructure_client_id"
-  set_environment_secret "$github_environment" AZURE_TENANT_ID "$tenant_id"
-  set_environment_secret "$github_environment" AZURE_SUBSCRIPTION_ID "$subscription_id"
-  set_environment_secret "$github_environment" AZURE_API_PRINCIPAL_OBJECT_ID "$api_principal_object_id"
-  set_environment_secret "$github_environment" AZURE_INFRA_PRINCIPAL_OBJECT_ID "$infrastructure_principal_object_id"
-  set_environment_secret "$github_environment" AZURE_API_CLIENT_ID "$api_client_id"
-
-  gh variable set AZURE_LOCATION --env "$github_environment" --repo "$repository" --body "$location"
-  gh variable set DEPLOYMENT_TARGET --env "$github_environment" --repo "$repository" --body 'azure-static-web-app'
-  gh variable set AZURE_ENVIRONMENT --env "$github_environment" --repo "$repository" --body "$deployment_environment"
-  gh variable set AZURE_RESOURCE_GROUP --env "$github_environment" --repo "$repository" --body "$resource_group"
-  gh variable set AZURE_STATIC_WEB_APP_NAME --env "$github_environment" --repo "$repository" --body "$static_web_app_name"
-  gh variable set AZURE_FUNCTIONAPP_NAME --env "$github_environment" --repo "$repository" --body "$function_app_name"
-  gh variable set AZURE_PUBLIC_SITE_URL --env "$github_environment" --repo "$repository" --body "$public_site_url"
-  gh variable set AZURE_DEPLOY_API --env "$github_environment" --repo "$repository" --body "$deploy_api"
-  gh variable set AZURE_USE_API --env "$github_environment" --repo "$repository" --body "$use_api"
-  gh variable set AZURE_ENABLE_ANONYMOUS_AI_ROUTES --env "$github_environment" --repo "$repository" --body "$enable_anonymous_ai_routes"
-  gh variable set AZURE_OPENAI_ACCOUNT_NAME --env "$github_environment" --repo "$repository" --body "$openai_account_name"
-  gh variable set AZURE_OPENAI_MODEL_NAME --env "$github_environment" --repo "$repository" --body "$openai_model_name"
-  gh variable set AZURE_OPENAI_MODEL_DEPLOYMENT --env "$github_environment" --repo "$repository" --body "$openai_model_deployment"
+  gh variable set AZURE_CLIENT_ID --env "$github_environment" --repo "$repository" --body "$infrastructure_client_id"
+  gh variable set AZURE_TENANT_ID --env "$github_environment" --repo "$repository" --body "$tenant_id"
+  gh variable set AZURE_API_PRINCIPAL_OBJECT_ID --env "$github_environment" --repo "$repository" --body "$api_principal_object_id"
+  gh variable set AZURE_INFRA_PRINCIPAL_OBJECT_ID --env "$github_environment" --repo "$repository" --body "$infrastructure_principal_object_id"
+  gh variable set AZURE_API_CLIENT_ID --env "$github_environment" --repo "$repository" --body "$api_client_id"
   gh variable set ENTRA_EXTERNAL_ID_ISSUER --env "$github_environment" --repo "$repository" --body "$entra_external_id_issuer"
   gh variable set ENTRA_EXTERNAL_ID_JWKS_URI --env "$github_environment" --repo "$repository" --body "$entra_external_id_jwks_uri"
   gh variable set ENTRA_EXTERNAL_ID_AUDIENCE --env "$github_environment" --repo "$repository" --body "$entra_external_id_audience"
@@ -450,12 +482,6 @@ JSON
   gh variable set PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE --env "$github_environment" --repo "$repository" --body "$public_entra_external_id_api_scope"
   gh variable set PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE --env "$github_environment" --repo "$repository" --body "$entra_external_id_admin_role"
   gh variable set PUBLIC_ADMIN_API_BASE --env "$github_environment" --repo "$repository" --body "$public_admin_api_base"
-
-  if [[ -n "$key_vault_name" ]]; then
-    gh variable set AZURE_KEY_VAULT_NAME --env "$github_environment" --repo "$repository" --body "$key_vault_name"
-  else
-    log 'Key Vault name not supplied; set AZURE_KEY_VAULT_NAME before deploying the keyvault component.'
-  fi
 
   if az staticwebapp show \
     --resource-group "$resource_group" \

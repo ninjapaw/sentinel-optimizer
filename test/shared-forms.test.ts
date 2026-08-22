@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { parseOptionalNumber } from "../web/src/lib/forms.js";
+import { parseOptionalNumber } from "../shared/index.js";
 
 describe("web form utilities", () => {
   it("parses finite optional numbers", () => {

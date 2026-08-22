@@ -5,7 +5,9 @@ dist/
 .wrangler/
 local.settings.json
 *.local.bicepparam
+
 .azure/
 .copilot-azure/
+.vscode/
 *.log
 .DS_Store

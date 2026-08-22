@@ -5,29 +5,9 @@
  */
 
 import type { HttpHandler, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import { authorizeUser } from "../../../../auth/entra.js";
 import { handleSessionLoad, handleSessionDelete } from "../../../../core/session.js";
 import { apiResponseHeaders, getSessionStorage } from "../../../../../../shared/index.js";
-
-function extractUserIdentity(request: HttpRequest): {
-  userId: string | undefined;
-} {
-  const token = request.headers.get("authorization")?.replace("Bearer ", "") || "";
-  if (!token) {
-    return { userId: undefined };
-  }
-
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3 || !parts[1]) {
-      return { userId: undefined };
-    }
-    const encoded = parts[1];
-    const decoded = JSON.parse(atob(encoded));
-    return { userId: (decoded.sub as string | undefined) || (decoded.oid as string | undefined) };
-  } catch {
-    return { userId: undefined };
-  }
-}
 
 function getSessionIdFromRoute(pathname: string): string | null {
   const match = pathname.match(/\/api\/session\/([^/]+)$/);
@@ -39,7 +19,15 @@ export const sessionManage: HttpHandler = async (
   context: InvocationContext,
 ): Promise<HttpResponseInit> => {
   try {
-    const { userId } = extractUserIdentity(request);
+    const authorization = await authorizeUser(request);
+    if (!authorization.ok) {
+      return {
+        status: authorization.status,
+        body: JSON.stringify({ error: authorization.error }),
+        headers: apiResponseHeaders(),
+      };
+    }
+    const userId = authorization.claims.sub || authorization.claims.oid;
     const sessionId = getSessionIdFromRoute(new URL(request.url).pathname);
 
     if (!sessionId) {
