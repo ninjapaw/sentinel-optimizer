@@ -8,5 +8,6 @@ local.settings.json
 
 .azure/
 .copilot-azure/
+.vscode/
 *.log
 .DS_Store
