@@ -50,7 +50,7 @@ jobs:
         run: npm ci
 
       - name: Audit dependencies
-        run: npm audit
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Validate deployment configuration
         run: npm run config:check
