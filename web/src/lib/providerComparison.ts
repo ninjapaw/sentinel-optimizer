@@ -31,7 +31,7 @@ export interface ProviderComparisonModel {
 }
 
 const DAYS_PER_MONTH = 365 / 12;
-const RATE_CARD_LAST_REVIEWED = "2026-06-04";
+export const RATE_CARD_LAST_REVIEWED = "2026-06-04";
 
 /**
  * Public source references for competitor baseline maintenance.
@@ -39,7 +39,7 @@ const RATE_CARD_LAST_REVIEWED = "2026-06-04";
  * These rates are directional only. Keep source links and baselines updated
  * together whenever revising provider assumptions.
  */
-const PROVIDER_BASELINE_SOURCES = {
+export const PROVIDER_BASELINE_SOURCES = {
   sentinel: "https://azure.microsoft.com/en-us/pricing/details/microsoft-sentinel/",
   splunk: "https://www.splunk.com/en_us/products/pricing.html",
   elastic: "https://www.elastic.co/pricing/",
@@ -55,7 +55,7 @@ const PROVIDER_BASELINE_SOURCES = {
 } as const;
 
 // Directional public list-rate baseline per GB ingested.
-const RATE_CARD: ProviderRateCard[] = [
+export const PROVIDER_RATE_CARD: ProviderRateCard[] = [
   { vendor: "sentinel", label: "Microsoft Sentinel", listIngestUsdPerGb: 0.15, sourceNote: "Microsoft Sentinel public list pricing baseline" },
   { vendor: "splunk", label: "Splunk", listIngestUsdPerGb: 0.26, sourceNote: "Public baseline (directional; verify your SKU/contract)" },
   { vendor: "elastic", label: "Elastic", listIngestUsdPerGb: 0.16, sourceNote: "Public baseline (directional; verify your SKU/contract)" },
@@ -85,14 +85,15 @@ export function buildProviderComparison(args: {
   const sentinel: ProviderSpendRow = {
     vendor: "sentinel",
     label: "Microsoft Sentinel (modeled)",
-    listIngestUsdPerGb: RATE_CARD.find((r) => r.vendor === "sentinel")?.listIngestUsdPerGb ?? 0.15,
+    listIngestUsdPerGb: PROVIDER_RATE_CARD.find((r) => r.vendor === "sentinel")?.listIngestUsdPerGb ?? 0.15,
     monthlyListSpend: round2(sentinelMonthly),
     deltaVsSentinelMonthly: 0,
     deltaVsSentinelPct: 0,
   };
 
-  const rows: ProviderSpendRow[] = RATE_CARD
+  const rows: ProviderSpendRow[] = PROVIDER_RATE_CARD
     .map((r) => {
+      if (r.vendor === "sentinel") return sentinel;
       const monthly = round2(total * DAYS_PER_MONTH * r.listIngestUsdPerGb);
       const delta = round2(monthly - sentinelMonthly);
       const deltaPct = sentinelMonthly > 0 ? round2((delta / sentinelMonthly) * 100) : 0;

@@ -9,6 +9,7 @@ import type { ClipboardEvent } from "react";
 import { Card } from "./Card.js";
 import { parseKqlDoc } from "../lib/kqlLibrary.js";
 import { requestAiExplanation } from "../lib/aiClient.js";
+import { exportDefenderP2Pdf } from "../lib/defenderP2Report.js";
 import defenderP2Raw from "../../../kql/defender-for-servers-p2-ingestion-benefit.md?raw";
 
 const DOC = parseKqlDoc(defenderP2Raw);
@@ -116,6 +117,9 @@ export function DefenderP2Tool() {
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [preparedFor, setPreparedFor] = useState("");
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   const parsedRow = parsePastedRow(pastedText);
 
@@ -181,6 +185,40 @@ export function DefenderP2Tool() {
       setAiError(err instanceof Error ? err.message : "Couldn't reach the AI service.");
     } finally {
       setAiLoading(false);
+    }
+  }
+
+  async function generateAiPdf() {
+    if (!parsedRow) return;
+    const reportRow = parsedRow;
+    setPdfLoading(true);
+    setPdfError(null);
+    try {
+      let narrative = aiText;
+      if (!narrative) {
+        narrative = await requestAiExplanation({
+          queryId: DOC.id,
+          resultText: pastedText,
+          ...(screenshot ? { imageDataUrl: screenshot.dataUrl } : {}),
+        });
+        setAiText(narrative);
+      }
+      await exportDefenderP2Pdf({
+        title: DOC.title,
+        summary: DOC.summary,
+        ...(preparedFor.trim() ? { preparedFor: preparedFor.trim() } : {}),
+        generatedAt: new Date(),
+        fields: COLUMNS.map((column, index) => ({
+          ...column,
+          value: reportRow[index] || "",
+        })),
+        aiNarrative: narrative,
+        sources: DOC.docs,
+      });
+    } catch (err) {
+      setPdfError(err instanceof Error ? err.message : "Couldn't generate the PDF report.");
+    } finally {
+      setPdfLoading(false);
     }
   }
 
@@ -284,29 +322,31 @@ export function DefenderP2Tool() {
         </p>
 
         {parsedRow && (
-          <table className="table-compact" style={{ width: "100%", marginTop: "0.75rem" }}>
-            <thead>
-              <tr>
-                <th>Column</th>
-                <th>Value</th>
-                <th>What it means</th>
-              </tr>
-            </thead>
-            <tbody>
-              {COLUMNS.map((col, idx) => {
-                const isJson = col.key === "EligibleTableBreakdown" || col.key === "WorkspaceBreakdown";
-                return (
-                  <tr key={col.key}>
-                    <td>{col.label}</td>
-                    <td className={isJson ? undefined : "num"} style={isJson ? { fontFamily: "monospace", fontSize: "0.8rem", wordBreak: "break-all" } : undefined}>
-                      {parsedRow[idx] || <em>(not provided)</em>}
-                    </td>
-                    <td>{col.help}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div style={{ width: "100%", overflowX: "auto" }}>
+            <table className="table-compact" style={{ width: "100%", minWidth: "540px", marginTop: "0.75rem" }}>
+              <thead>
+                <tr>
+                  <th>Column</th>
+                  <th>Value</th>
+                  <th>What it means</th>
+                </tr>
+              </thead>
+              <tbody>
+                {COLUMNS.map((col, idx) => {
+                  const isJson = col.key === "EligibleTableBreakdown" || col.key === "WorkspaceBreakdown";
+                  return (
+                    <tr key={col.key}>
+                      <td>{col.label}</td>
+                      <td className={isJson ? undefined : "num"} style={isJson ? { fontFamily: "monospace", fontSize: "0.8rem", wordBreak: "break-all" } : undefined}>
+                        {parsedRow[idx] || <em>(not provided)</em>}
+                      </td>
+                      <td>{col.help}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
         {pastedText.trim().length > 0 && !parsedRow && (
           <p className="ai-note">
@@ -341,6 +381,36 @@ export function DefenderP2Tool() {
             {aiError}
           </p>
         )}
+
+        <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px solid var(--color-border, #d9e2ef)" }}>
+          <label htmlFor="defender-p2-prepared-for">Prepared for (optional)</label>
+          <input
+            id="defender-p2-prepared-for"
+            type="text"
+            value={preparedFor}
+            onChange={(event) => setPreparedFor(event.target.value)}
+            placeholder="Customer or organization name"
+            style={{ width: "100%", marginTop: "0.35rem" }}
+          />
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={generateAiPdf}
+            disabled={!parsedRow || pdfLoading || aiLoading}
+            style={{ marginTop: "0.75rem" }}
+          >
+            {pdfLoading ? "Building AI PDF…" : "Generate AI PDF report"}
+          </button>
+          <p className="ai-note">
+            Generates a clean A4 report in your browser. The AI service writes only the interpretation;
+            all figures, tables, headers, footers, and legal notices are deterministic. A valid pasted result row is required.
+          </p>
+          {pdfError && (
+            <p className="ai-note" style={{ color: "var(--color-danger, #c0392b)" }}>
+              {pdfError}
+            </p>
+          )}
+        </div>
       </Card>
     </div>
   );

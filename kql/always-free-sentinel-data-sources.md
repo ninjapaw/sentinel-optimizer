@@ -1,6 +1,8 @@
 ---
 id: always-free-sentinel-data-sources
 title: "Always-free Microsoft Sentinel data sources"
+status: estimate
+lastReviewed: "2026-08-22"
 summary: >-
   Measure ingestion volume from data sources Microsoft never bills for, so
   it can be excluded from billable-cost estimates.
@@ -12,43 +14,76 @@ docs:
     url: "https://learn.microsoft.com/en-us/azure/sentinel/billing#free-data-sources"
 ---
 
+> **Important: unofficial community guidance.** This independent Ninja Paws
+> project is not affiliated with, sponsored by, endorsed by, or supported by
+> Microsoft Corporation. This query is a best-effort estimate based on public
+> documentation, not billing or licensing advice. Verify current Microsoft
+> documentation and your own billing data before relying on the result. Use at
+> your own risk. Microsoft trademarks and product names belong to Microsoft
+> Corporation.
+
+## Overview
+
+This query measures average daily ingestion from the Microsoft Sentinel data
+types that current Microsoft documentation identifies as free. Use the result
+to separate "free by policy" volume from paid ingestion and product-specific
+benefits.
+
+## Prerequisites
+
+- Read access to every Log Analytics workspace in the selected scope.
+- `Usage` data for the complete seven-day analysis window.
+- A scope limited to subscriptions and workspaces you are authorized to review.
+
+## How to use it
+
+1. Open Azure Monitor Logs and select the intended workspace scope.
+2. Switch the editor to KQL mode, paste the query, and select **Run**.
+3. Use `FreeGBPerDay` as contextual nonbillable volume, not as a cash saving.
+
 ## Query
 
 ```kql
 // Always-free Microsoft Sentinel data sources (not charged for ingestion).
 // Azure Activity, Sentinel Health, Office 365 audit, and security alerts/incidents.
 let lookback = 7d;
+let lookbackDays = lookback / 1d;
 let freeTypes = dynamic([
   "AzureActivity","SentinelHealth","OfficeActivity","SecurityAlert","SecurityIncident"]);
 Usage
 | where TimeGenerated > ago(lookback)
 | where DataType in (freeTypes)
-| summarize GB = sum(Quantity) / 1024.0 by bin(TimeGenerated, 1d)
-| summarize FreeGBPerDay = round(avg(GB), 3)
+| summarize FreeGBPerDay = round(sum(Quantity) / 1024.0 / lookbackDays, 3)
 ```
 
-> **Tip:** paste `FreeGBPerDay` wherever you're reconciling billable vs.
-> total ingestion — this volume never appears on the invoice regardless of
-> plan.
+## How the query works
 
-> **Known limits:**
-> - **`Usage` isn't real-time**: usage data can lag by hours, so a short `lookback` can understate `FreeGBPerDay`. The default 7-day average smooths this out.
-> - **List isn't exhaustive**: Microsoft can add or retire always-free source types over time (see the source link below); treat `freeTypes` as a starting point and cross-check it against the current docs periodically, not a permanent list.
-> - **Doesn't include `IsBillable == true` filter**: intentionally, since these types are typically flagged non-billable already — if your workspace shows billable rows for these types, double-check your table plan/tier configuration rather than assuming the query is wrong.
+The query filters `Usage` to the documented free data types, sums megabytes
+across the selected seven-day window, converts to gigabytes, and divides by all
+seven calendar days. Days with no matching rows therefore remain part of the
+average instead of being silently omitted.
 
-## Discussion
+## Result fields
 
-Microsoft Sentinel and Log Analytics never bill for a small set of data
-types, independent of any Defender for Servers or Microsoft 365 E5 benefit:
-`AzureActivity` (Azure control-plane logs), `SentinelHealth` (Sentinel's own
-operational health data), `OfficeActivity` (Office 365 audit logs), and the
-alert/incident tables `SecurityAlert` and `SecurityIncident`. Raw Defender or
-Entra ID logs that feed those alerts are still paid ingestion — only the
-resulting alert/incident records and the sources above are free. This query
-exists to separate "free by policy" volume from "free by benefit" volume
-(Defender for Servers P2, Microsoft 365 E5) so cost estimates don't
-double-count or misattribute savings.
+| Field | Meaning |
+| --- | --- |
+| `FreeGBPerDay` | Average daily volume, in GB, from the listed free data types across the selected scope. |
 
-### Sources
+Do not subtract this value from an invoice line without confirming how the
+tenant's pricing tier and meters represent free ingestion.
+
+## Known limits
+
+- **`Usage` isn't real-time:** usage data can lag by hours. The seven-day
+  window smooths this delay but does not eliminate it.
+- **The list can change:** Microsoft can add or retire free data types. The
+  `lastReviewed` date records when this list was last checked.
+- **No `IsBillable == true` filter:** this is intentional because these data
+  types are generally nonbillable. Investigate unexpected billable rows rather
+  than assuming this estimate supersedes billing data.
+- **Scope and RBAC:** unreadable or unselected workspaces are absent and can
+  make the result incomplete.
+
+## Sources
 
 - [Microsoft Sentinel billing - free data sources](https://learn.microsoft.com/en-us/azure/sentinel/billing#free-data-sources)

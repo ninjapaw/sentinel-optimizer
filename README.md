@@ -4,7 +4,11 @@ Sentinel Optimizer is a client-side demo for estimating Microsoft Sentinel inges
 
 Optional AI features are disabled by default. When enabled, only the bounded API contract is sent to the configured API. Raw exports, credentials, and customer secrets are not sent by this project.
 
-> **Unofficial community helper.** Ninja Paws is a fictional demo organization used by this repository. This is an independent community project, not a Microsoft product, and is not affiliated with, sponsored by, endorsed by, or supported by Microsoft Corporation. Contributions from Microsoft employees, if any, are made in an individual capacity and do not imply Microsoft endorsement or sponsorship. The project is provided publicly **at your own risk**. Cost figures are planning estimates based on public list pricing; verify Microsoft Sentinel pricing and entitlements with your Microsoft account team. The Microsoft Product Terms and [Azure pricing](https://azure.microsoft.com/pricing/) are the source of truth. Validate all estimates, security controls, costs, and deployment settings before using them in production. Microsoft trademarks and product names belong to Microsoft Corporation. See [License](LICENSE) and the official [Microsoft Product Terms](https://www.microsoft.com/licensing/terms/productoffering).
+> **Independent community project.** This repository is not a Microsoft product,
+> assessment, endorsement, or official pricing source. Some contributors may be
+> Microsoft employees acting in an individual or community capacity. Use at your
+> own risk and verify cost, security, and licensing decisions with official
+> Microsoft sources. See [DISCLAIMER.md](DISCLAIMER.md).
 
 ## Contents
 

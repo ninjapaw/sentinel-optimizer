@@ -1,6 +1,8 @@
 ---
 id: microsoft-365-e5-sentinel-benefit
 title: "Microsoft Sentinel benefit for Microsoft 365 E5/A5/F5/G5 customers"
+status: estimate
+lastReviewed: "2026-08-22"
 summary: >-
   Size the up-to-5-MB/user/day free Microsoft Sentinel ingestion benefit for
   a fixed set of Microsoft 365 / Entra ID / Defender data types.
@@ -12,6 +14,35 @@ docs:
   - label: "Microsoft Sentinel benefit for Microsoft 365 E5 customers"
     url: "https://azure.microsoft.com/en-us/offers/sentinel-microsoft-365-offer/"
 ---
+
+> **Important: unofficial community guidance.** This independent Ninja Paws
+> project is not affiliated with, sponsored by, endorsed by, or supported by
+> Microsoft Corporation. This query is a best-effort estimate based on public
+> documentation, not billing or licensing advice. Verify qualifying licenses,
+> current offer terms, and billing data before relying on the result. Use at
+> your own risk. Microsoft trademarks and product names belong to Microsoft
+> Corporation.
+
+## Overview
+
+This query estimates the Microsoft Sentinel data benefit available to
+qualifying Microsoft 365 E5/A5/F5/G5 customers. The benefit is capped at 5 MB
+per qualifying user per day and applies only to the offer's eligible data
+types.
+
+## Prerequisites
+
+- Read access to every Log Analytics workspace in the selected scope.
+- A current count of users assigned a qualifying license.
+- `Usage` data for the complete seven-day analysis window.
+- Confirmation that the offer and listed data types apply to the customer.
+
+## How to use it
+
+1. Run the Microsoft Graph helper under [License-count query](#license-count-query).
+2. Set `e5Users` to the resulting qualifying-user count. Do not leave it at `0`.
+3. Open Azure Monitor Logs, select the intended scope, and switch to KQL mode.
+4. Paste the KQL query and select **Run**.
 
 ## Query
 
@@ -28,6 +59,7 @@ docs:
 // Microsoft 365 E5/A5/F5/G5 benefit — up to 5 MB/user/day of free Sentinel ingestion.
 // Eligible Microsoft data types per the offer; grant = min(eligible ingest, users x 5 MB).
 let lookback = 7d;
+let lookbackDays = lookback / 1d;
 let e5Users = 0;  // <-- your assigned E5/A5/F5/G5 user count (see the license query below)
 let eligible = dynamic([
   "SigninLogs","AuditLogs","AADNonInteractiveUserSignInLogs","AADServicePrincipalSignInLogs",
@@ -39,37 +71,41 @@ let eligible = dynamic([
 Usage
 | where TimeGenerated > ago(lookback) and IsBillable == true
 | where DataType in (eligible)
-| summarize GB = sum(Quantity) / 1024.0 by bin(TimeGenerated, 1d)
-| summarize EligibleGBPerDay = round(avg(GB), 3)
+| summarize EligibleGBPerDay = round(sum(Quantity) / 1024.0 / lookbackDays, 3)
 | extend CapGBPerDay = round(e5Users * 5.0 / 1024.0, 3)
-| extend FreeGBPerDay = iff(e5Users > 0, min_of(EligibleGBPerDay, CapGBPerDay), EligibleGBPerDay)
+| extend FreeGBPerDay = min_of(EligibleGBPerDay, CapGBPerDay)
 ```
 
-> **Tip:** paste `FreeGBPerDay` into the "M365 E5 (GB/day)" field.
+## How the query works
 
-> **Known limits:**
-> - **`Usage` isn't real-time**: usage data can lag by hours, so a short `lookback` can understate `EligibleGBPerDay`. The default 7-day average smooths this out.
-> - **`e5Users` is a manual input, not queried**: if you forget to update it after license changes, `CapGBPerDay` (and therefore `FreeGBPerDay`) will be stale. Re-run the license-count query below whenever assignments change materially.
-> - **SKU part numbers vary by tenant/region**: the `$eligible` list in the license query is a starting point, not exhaustive — Microsoft periodically renames or adds SKUs, so verify against your own `Get-MgSubscribedSku` output.
-> - **Requires tenant-wide `Usage` visibility**: if you only have access to a subset of workspaces, `EligibleGBPerDay` will be understated for the same reason described in the Defender for Servers P2 query's RBAC note.
+The query totals billable ingestion from the documented eligible tables over
+the full lookback and divides by seven calendar days. It then calculates the
+license-based daily cap and returns the smaller of eligible ingestion and the
+cap. With `e5Users = 0`, the result is intentionally `0` rather than an
+unsupported assumption that all eligible ingestion is free.
 
-## Discussion
+## Result fields
 
-The Microsoft Sentinel benefit for Microsoft 365 E5/A5/F5/G5 customers grants
-up to 5 MB/user/day of free Sentinel ingestion across a fixed set of Microsoft
-Entra ID, Microsoft 365/Office activity, Defender XDR/Defender for Endpoint
-raw event, Defender for Cloud Apps Shadow IT, and Information Protection data
-types. Because the cap depends on your qualifying license count (not a
-discoverable table in Log Analytics), you need a separate license-count
-lookup — see the [license-count query](#license-count-query) below — and feed
-that number into `e5Users` before running this query.
+| Field | Meaning |
+| --- | --- |
+| `EligibleGBPerDay` | Average daily billable ingestion from the listed eligible data types. |
+| `CapGBPerDay` | Maximum modeled benefit: qualifying users multiplied by 5 MB/day, converted to GB. |
+| `FreeGBPerDay` | Smaller of eligible ingestion and the license-based cap; use this in the cost model. |
 
-Unlike the Defender for Servers Plan 2 benefit, this offer isn't
-subscription-pooled in the same documented way; the cap scales with your
-tenant-wide qualifying user count, so a single tenant-wide run is sufficient
-(no per-subscription split is required here).
+## Known limits
 
-### License-count query
+- **`Usage` isn't real-time:** usage data can lag by hours. The seven-day
+  average smooths this delay but does not eliminate it.
+- **`e5Users` is manual:** stale or incorrect assignments directly change the
+  cap. Re-run the license helper when assignments materially change.
+- **SKU part numbers vary:** the helper's SKU list is a reviewed starting point,
+  not proof of offer eligibility. Compare it with `Get-MgSubscribedSku` and
+  current offer terms.
+- **Scope and RBAC:** missing workspaces understate eligible ingestion.
+- **Estimate, not allocation evidence:** use Cost Management exports and the
+  documented benefit meter to verify the benefit actually received.
+
+## License-count query
 
 Licenses live in Microsoft Entra ID, not Log Analytics, so counting qualifying
 users requires Microsoft Graph rather than KQL:
@@ -92,6 +128,7 @@ $skuIds = (Get-MgSubscribedSku | Where-Object { $_.SkuPartNumber -in $eligible }
 > tenant — run `Get-MgSubscribedSku | Select SkuPartNumber` to see what's
 > actually provisioned before filtering.
 
-### Sources
+## Sources
 
 - [Microsoft Sentinel benefit for Microsoft 365 E5 customers](https://azure.microsoft.com/en-us/offers/sentinel-microsoft-365-offer/) — offer terms and eligible data types.
+- [View data allocation benefits](https://learn.microsoft.com/en-us/azure/azure-monitor/fundamentals/cost-usage#view-data-allocation-benefits) — billing-export verification guidance.

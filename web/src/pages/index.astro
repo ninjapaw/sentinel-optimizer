@@ -31,83 +31,85 @@ const repositoryUrl = `https://github.com/${BRAND.repo}`;
   </header>
 
   <main id="main">
-    <section class="hero">
+    <section class="hero tool-hero">
       <div class="container">
-        <h1>Plan Your Cloud Security & Costs <span class="grad">with Ease</span></h1>
+        <span class="eyebrow">Security cost tools</span>
+        <h1>Price Sentinel, compare SIEMs, and explain Defender savings.</h1>
         <p>
-          Whether you're moving to Microsoft Sentinel, protecting your cloud with Defender, or managing your team's
-          resource usage — we help you understand costs and plan better. No complicated data uploads, no credentials
-          needed.
+          A practical toolkit for non-technical planning conversations. Start with one number, paste an export when
+          you have it, and keep every estimate traceable to the assumptions behind it.
         </p>
         <div class="badges">
-          <span class="badge"><span class="ic">✓</span> Simple to use</span>
-          <span class="badge"><span class="ic">✓</span> Your data stays private</span>
-          <span class="badge"><span class="ic">✓</span> Multiple calculators in one place</span>
-          <span class="badge"><span class="ic">✓</span> Free to use</span>
+          <span class="badge"><span class="ic">1</span> Enter volume</span>
+          <span class="badge"><span class="ic">2</span> Compare cost</span>
+          <span class="badge"><span class="ic">3</span> Export a clean report</span>
+          <span class="badge"><span class="ic">✓</span> Browser-first</span>
         </div>
       </div>
     </section>
 
-    <section class="features" style="margin: 3rem 0;">
+    <section class="tool-picker section">
       <div class="container">
-        <h2 style="text-align: center; margin-bottom: 2rem; font-size: 1.8rem;">
-          Pick a Calculator Below
-        </h2>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
-          <div style="padding: 1.5rem; background: var(--color-bg-card, white); border: 1px solid var(--color-border, #e0e0e0); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
-            <h3 style="margin: 0.75rem 0; font-size: 1.1rem;">Sentinel Migration</h3>
-            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--color-text-secondary, #666);">
-              Moving from another security tool? See what Microsoft Sentinel will cost and get tips to save money.
-            </p>
-          </div>
-
-          <div style="padding: 1.5rem; background: var(--color-bg-card, white); border: 1px solid var(--color-border, #e0e0e0); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🛡️</div>
-            <h3 style="margin: 0.75rem 0; font-size: 1.1rem;">Defender for Cloud</h3>
-            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--color-text-secondary, #666);">
-              Explore the cost of protecting different parts of your Azure environment with Defender for Cloud.
-            </p>
-          </div>
-
-          <div style="padding: 1.5rem; background: var(--color-bg-card, white); border: 1px solid var(--color-border, #e0e0e0); border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📈</div>
-            <h3 style="margin: 0.75rem 0; font-size: 1.1rem;">Usage & Quotas</h3>
-            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: var(--color-text-secondary, #666);">
-              Track how much of your allowed resources you're using and get alerts before you hit limits.
-            </p>
-          </div>
+        <div class="section-head">
+          <span class="eyebrow">Choose a tool</span>
+          <p class="section-help">Each tool starts simple and shows the assumptions before the numbers.</p>
+        </div>
+        <div class="tool-grid">
+          <a class="tool-card primary" href="#tool-sentinel">
+            <span class="tool-icon">📊</span>
+            <strong>Price Microsoft Sentinel</strong>
+            <span>Paste SIEM volume or estimate from inventory, then tune regions, retention, benefits, and exports.</span>
+          </a>
+          <a class="tool-card" href="#tool-competitor-compare">
+            <span class="tool-icon">⚖️</span>
+            <strong>Compare SIEM providers</strong>
+            <span>Use one GB/day number to compare Sentinel against common public list-rate baselines.</span>
+          </a>
+          <a class="tool-card" href="#tool-defender-p2">
+            <span class="tool-icon">🧮</span>
+            <strong>Defender P2 ingestion benefit</strong>
+            <span>Run the KQL, paste one result row, and generate a customer-ready PDF report.</span>
+          </a>
+          <a class="tool-card" href="#tool-defender">
+            <span class="tool-icon">🛡️</span>
+            <strong>Defender for Cloud plans</strong>
+            <span>Estimate protected-resource cost before enabling plans across servers, storage, apps, and more.</span>
+          </a>
+          <a class="tool-card" href="#tool-quota">
+            <span class="tool-icon">📈</span>
+            <strong>Usage health</strong>
+            <span>Track limits and thresholds so a planning estimate can become an operating conversation.</span>
+          </a>
         </div>
       </div>
     </section>
 
-    <section style="background: var(--color-bg-secondary, #f5f5f5); padding: 2rem 0; margin: 2rem 0;">
+    <section class="tool-workbench">
       <div class="container">
         <CalculatorTabs client:load />
       </div>
     </section>
 
-    <section class="help-section" style="background: var(--color-info-bg, #e7f3ff); padding: 2rem; border-radius: 12px; margin: 3rem 0;">
+    <section class="help-section section">
       <div class="container">
-        <h2 style="margin-top: 0;">Questions? We've Got Answers</h2>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+        <div class="help-panel">
           <div>
-            <h3 style="color: var(--color-primary, #0078D4); font-size: 1rem;">🔒 Is my data safe?</h3>
-            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
-              Yes! Everything happens in your browser. We never send your data to any servers.
-            </p>
+            <span class="eyebrow">Plain-language guardrails</span>
+            <h2>Use this for planning, not as an invoice.</h2>
           </div>
-          <div>
-            <h3 style="color: var(--color-primary, #0078D4); font-size: 1rem;">💰 How accurate are the costs?</h3>
-            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
-              Our calculators use current Microsoft pricing. For exact quotes, check the Azure pricing page.
-            </p>
-          </div>
-          <div>
-            <h3 style="color: var(--color-primary, #0078D4); font-size: 1rem;">❓ Do I need an Azure account?</h3>
-            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
-              No! You can explore all calculators without logging in. Sign in to save your work.
-            </p>
+          <div class="help-grid">
+            <div>
+              <h3>Private by default</h3>
+              <p>Most calculations run in the browser. AI summaries are optional and clearly separated from deterministic numbers.</p>
+            </div>
+            <div>
+              <h3>Assumptions visible</h3>
+              <p>Every tool shows the source volume, public baseline, benefit input, or KQL row behind the estimate.</p>
+            </div>
+            <div>
+              <h3>Customer-ready output</h3>
+              <p>The Defender P2 workflow can produce a clean PDF with headers, footers, sources, and use-at-own-risk language.</p>
+            </div>
           </div>
         </div>
       </div>
