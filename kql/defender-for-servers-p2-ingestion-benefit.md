@@ -1,6 +1,8 @@
 ---
 id: defender-for-servers-p2-ingestion-benefit
 title: "Defender for Servers Plan 2 — data ingestion benefit sizing"
+status: estimate
+lastReviewed: "2026-08-22"
 summary: >-
   Size the 500 MB/node/day free Log Analytics ingestion benefit that ships
   with Microsoft Defender for Servers Plan 2, calculated per subscription and
@@ -62,7 +64,7 @@ Log Analytics ingestion benefit.
 - [How the query works](#how-the-query-works)
 - [Example result](#example-result)
 - [Automate it](#automate-it)
-- [What the result means](#what-the-result-means)
+- [Result fields](#result-fields)
 - [Verification](#verification)
 - [Troubleshooting and FAQ](#troubleshooting-and-faq)
 - [Sources](#sources)
@@ -286,7 +288,7 @@ perWorkspace
 | extend WorkspaceBreakdown = workspaceBreakdown
 ```
 
-### How the query works
+## How the query works
 
 | # | KQL | What it does |
 | --- | --- | --- |
@@ -327,8 +329,8 @@ perWorkspace
 > described below. `ExpandedFreeGBPerDay` is an upper bound; use it to
 > sanity-check, not to price.
 
-> **Known limits:**
->
+## Known limits
+
 > - **Subscription/workspace grain**: Microsoft says the daily allowance is calculated across machines in each subscription, while the benefit is applied at the workspace level. `Usage` is hourly workspace-level data and does not provide a reliable subscription key for allocating eligible volume. This query therefore pools nodes and eligible usage by workspace, which is exact for a one-subscription-per-workspace design but can misstate results when multiple subscriptions share one workspace. For shared workspaces, treat the result as an estimate and validate against Microsoft's allocation view or Cost Management data.
 > - **Workspace scale**: the Scope picker uses implicit resource-context resolution, not the explicit `workspace()`/`app()` functions — those are capped at 100 workspaces per query, this isn't, but selecting hundreds of workspaces can still slow the query down or hit the Log Analytics query timeout (10 minutes by default). For very large estates, run per-management-group or per-region and sum the results.
 > - **RBAC is silent**: you need Log Analytics Reader (or better) on every workspace in scope. Workspaces you can't read are silently omitted from Scope, not flagged as an error — a partial result can look like a complete one.
@@ -553,14 +555,14 @@ The Azure portal can resolve the query across the resources selected in **Logs
 → Scope**. API and CLI jobs are commonly scoped to an individual workspace,
 so multi-workspace automation should run once per workspace, retain the
 workspace identifier, and aggregate results only after considering the
-subscription/workspace limitation described in [What the result means](#what-the-result-means).
+subscription/workspace limitation described in [Result fields](#result-fields).
 Do not simply add workspace caps together if one workspace receives machines
 from multiple subscriptions. Scheduled output inherits the same limitations
 as a manual run: `Heartbeat` is a monitoring proxy, `Usage` can lag,
 agentless-only machines may not be counted, and the result does not prove Plan
 2 protection or entitlement.
 
-## What the result means
+## Result fields
 
 Microsoft Defender for Servers Plan 2 grants **500 MB of free Log Analytics
 ingestion per protected machine, per day**, for a fixed set of security data
@@ -837,7 +839,7 @@ workspace list and permissions first, then compare with Defender for Cloud's
 protected-server inventory and Cost Management. Those services remain the
 authoritative places to validate protection, entitlement, and billed cost.
 
-### Sources
+## Sources
 
 - [Use the data ingestion benefit in Microsoft Defender for Cloud](https://learn.microsoft.com/en-us/azure/defender-for-cloud/data-ingestion-benefit) — supported data types, the 500 MB/node/day rule, and the docs' own per-subscription framing of the allowance (this query approximates it at the workspace level, the closest grain KQL can resolve — see [How the query works](#how-the-query-works)).
 - [Log Analytics table reference index by category (Security)](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables-category#security) — the full Security-category table index the benefit doc points to; every table in `coreEligible`/`conditionalEligible` was cross-checked against this list to confirm it's a real, current Azure Monitor table name (not a typo or a retired one).

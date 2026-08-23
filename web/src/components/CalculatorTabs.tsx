@@ -9,6 +9,7 @@ import TabsContainer, { type TabItem } from "./TabsContainer.js";
 
 // Lazy load the heavy components
 const Optimizer = lazy(() => import("./Optimizer.js"));
+const CompetitorComparisonTool = lazy(() => import("./CompetitorComparisonTool.js"));
 const DefenderForCloudCalculator = lazy(() => import("./DefenderForCloudCalculator.js"));
 const UserQuotaCalculator = lazy(() => import("./UserQuotaCalculator.js"));
 const DefenderP2Tool = lazy(() => import("./DefenderP2Tool.js"));
@@ -26,9 +27,9 @@ export function CalculatorTabs() {
   const tabs: TabItem[] = [
     {
       id: "sentinel",
-      label: "Sentinel Cost",
+      label: "Price Sentinel",
       icon: "📊",
-      description: "Calculate Microsoft Sentinel migration and cost",
+      description: "Estimate Microsoft Sentinel cost from an export or simple inventory",
       content: (
         <Suspense fallback={<LoadingSpinner />}>
           <Optimizer />
@@ -36,8 +37,19 @@ export function CalculatorTabs() {
       ),
     },
     {
+      id: "competitor-compare",
+      label: "Compare SIEMs",
+      icon: "⚖️",
+      description: "Compare Sentinel with common SIEM public list-rate baselines",
+      content: (
+        <Suspense fallback={<LoadingSpinner />}>
+          <CompetitorComparisonTool />
+        </Suspense>
+      ),
+    },
+    {
       id: "defender",
-      label: "Defender for Cloud",
+      label: "Defender Plans",
       icon: "🛡️",
       description: "Estimate Azure Defender for Cloud costs",
       content: (
@@ -48,7 +60,7 @@ export function CalculatorTabs() {
     },
     {
       id: "quota",
-      label: "Usage & Quotas",
+      label: "Usage Health",
       icon: "📈",
       description: "Track your resource usage and quotas",
       content: (
@@ -59,7 +71,7 @@ export function CalculatorTabs() {
     },
     {
       id: "defender-p2",
-      label: "Defender P2 Benefit",
+      label: "Defender P2 Ingestion",
       icon: "🧮",
       description: "Size the Defender for Servers Plan 2 free-ingestion benefit from a KQL query",
       content: (

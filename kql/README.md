@@ -19,10 +19,32 @@ build — there's no separate copy to keep in sync.
 | [microsoft-365-e5-sentinel-benefit.md](./microsoft-365-e5-sentinel-benefit.md) | Microsoft Sentinel benefit for Microsoft 365 E5/A5/F5/G5 customers (up to 5 MB/user/day), plus the Graph PowerShell license-count helper |
 | [always-free-sentinel-data-sources.md](./always-free-sentinel-data-sources.md) | Data sources Microsoft never bills for, regardless of plan |
 
-## File format
+## Standard report template
 
-Each `.md` file has YAML frontmatter (`id`, `title`, `summary`, `tags`,
-`docs`) followed by a `## Query` section containing one fenced code block
-(` ```kql ` or ` ```powershell `). The loader extracts the first fenced code
-block as the copyable query text and surfaces the frontmatter `docs` links in
-the UI.
+Start new reports from [`_TEMPLATE.md`](./_TEMPLATE.md). Every published query
+document must include:
+
+- Frontmatter: `id`, `title`, `status`, `lastReviewed`, `summary`, `tags`, and
+  at least one official Microsoft source under `docs`.
+- The standard unofficial-community disclaimer immediately after frontmatter.
+- `Overview`, `Prerequisites`, `How to use it`, `Query`, `How the query works`,
+  `Result fields`, `Known limits`, and `Sources` sections. Rich reports can add
+  sections and can place limits next to the relevant evidence.
+- A primary fenced `kql` block. Supplemental PowerShell or other supporting
+  code can follow it.
+
+The web loader extracts the first supported fenced block as the copyable query
+and surfaces frontmatter `docs` links in the UI. Run `npm run validate:kql` to
+check the contract; it is also part of `npm test`.
+
+## Review rules
+
+- Filter by time before aggregation and keep the lookback explicit.
+- For calendar-day averages, divide the period total by the full lookback;
+  do not average only bins that happened to contain rows.
+- Never infer licensing, entitlement, protection state, or a free allowance
+  from missing input. Return zero or require the user to provide the value.
+- Keep calculations deterministic. AI can explain a result but must not alter
+  query output, eligibility, or report totals.
+- Record material assumptions and scope/RBAC/data-latency limits, and update
+  `lastReviewed` whenever official sources or query behavior are rechecked.
