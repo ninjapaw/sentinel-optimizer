@@ -253,7 +253,6 @@ jobs:
                   aiApiKeySecretName="${AZURE_AI_API_KEY_SECRET_NAME:-ai-api-key}" \
                   apiDeploymentPrincipalId="$AZURE_API_PRINCIPAL_OBJECT_ID" \
                   infrastructurePrincipalId="$AZURE_INFRA_PRINCIPAL_OBJECT_ID" \
-                  infrastructurePrincipalId="$AZURE_INFRA_PRINCIPAL_OBJECT_ID" \
                   enableAnonymousAiRoutes="$AZURE_ENABLE_ANONYMOUS_AI_ROUTES" \
                   entraExternalIdIssuer="$ENTRA_EXTERNAL_ID_ISSUER" \
                   entraExternalIdJwksUri="$ENTRA_EXTERNAL_ID_JWKS_URI" \

@@ -115,6 +115,13 @@ function validateConfig(root, name, settings, requireSubscription) {
     }
   }
 
+  if (!["azure-static-web-app", "github-pages", "cloudflare-worker-api"].includes(settings.deploymentTarget)) {
+    throw new Error(`environments.${name}.deploymentTarget must be azure-static-web-app, github-pages, or cloudflare-worker-api.`);
+  }
+  if (!/^[A-Za-z0-9-]{1,128}$/.test(settings.aiApiKeySecretName)) {
+    throw new Error(`environments.${name}.aiApiKeySecretName is invalid.`);
+  }
+
   if (settings.branch !== (name === "prod" ? "main" : "dev")) {
     throw new Error(`environments.${name}.branch does not match the promotion model.`);
   }

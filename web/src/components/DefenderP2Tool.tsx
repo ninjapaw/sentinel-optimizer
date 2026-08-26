@@ -11,7 +11,7 @@ import { parseKqlDoc } from "../lib/kqlLibrary.js";
 import { requestAiExplanation } from "../lib/aiClient.js";
 import { exportDefenderP2Pdf } from "../lib/defenderP2Report.js";
 import defenderP2Raw from "../../../kql/defender-for-servers-p2-ingestion-benefit.md?raw";
-import { INTERNAL_CONFIG } from "../../../shared/config/internal.config.js";
+import { INTERNAL_CONFIG } from "@shared/index.js";
 
 const DOC = parseKqlDoc(defenderP2Raw);
 
