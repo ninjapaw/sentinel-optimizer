@@ -2,7 +2,7 @@
 id: defender-for-servers-p2-ingestion-benefit
 title: "Defender for Servers Plan 2 — data ingestion benefit sizing"
 status: estimate
-lastReviewed: "2026-08-22"
+lastReviewed: "2026-08-26"
 summary: >-
   Size the 500 MB/node/day free Log Analytics ingestion benefit that ships
   with Microsoft Defender for Servers Plan 2, calculated per subscription and
@@ -84,6 +84,12 @@ no cross-referencing tables, no workspace-by-workspace guesswork — it works
 whether you're checking one workspace or an entire tenant (see
 [How to use it](#how-to-use-it)).
 
+The ingestion benefit is applied automatically to eligible data when the
+Defender for Servers Plan 2 prerequisites are met; there is no separate
+"enable benefit" toggle. The benefit itself is a zero-cost allocation, so it
+typically appears in product/cost-allocation views rather than as a direct
+invoice line item.
+
 **Why this is useful:**
 
 - **P1 → P2**: run this against your current Plan 1 estate to see how much of
@@ -112,6 +118,9 @@ Before running the query, confirm the following:
 - **Relevant data:** the target workspaces should contain `Heartbeat` and
   `Usage` data for the review window. The query uses a 30-day look-back and
   reports a trend, not a real-time balance.
+- **Execution context:** run from **Azure Monitor Logs** with Log Analytics
+  workspace scope selection. Do not run this from Resource Graph Explorer or
+  expect subscription/resource-group contexts to expose `Usage` the same way.
 - **Licensing context:** know which machines and workspaces are actually
   covered by Defender for Servers Plan 2. The query estimates from telemetry;
   it does not prove protection, licensing, or entitlement.
@@ -135,8 +144,9 @@ No KQL experience required — follow these steps exactly.
    **KQL mode** instead — this query is written in KQL and won't run in
    Simple mode's point-and-click interface.
 3. **Pick your scope.** A **Scope** picker appears (usually top-left of the
-   query editor). Select every subscription or workspace whose servers you
-   want counted. If you only manage one subscription, just leave the default.
+  query editor). Select every workspace (or subscription containing target
+  workspaces) whose servers you want counted. There is no implicit
+  all-workspaces scope, so include each target explicitly.
 4. **Copy the query.** Use the "Copy query" button above, or open the
    **Defender P2 Benefit** tool in [Sentinel Optimizer](https://sentineloptimizer.com)
    (the tab alongside Sentinel Cost, Defender for Cloud, and Usage & Quotas)
@@ -172,6 +182,11 @@ No KQL experience required — follow these steps exactly.
 > It never references a workspace ID — Log Analytics resolves `Heartbeat` and
 > `Usage` across whatever you selected in Scope, so the same one-click
 > copy/paste works for a single workspace or an entire tenant.
+>
+> Workspace billing model still matters for downstream interpretation:
+> Microsoft documents that classic Sentinel meters apply this benefit to Log
+> Analytics ingestion, while simplified (unified) Sentinel meters apply it to
+> Sentinel ingestion.
 >
 > No workspace yet? Try the query against Microsoft's read-only
 > [Log Analytics demo environment](https://portal.azure.com/#blade/Microsoft_Azure_Monitoring_Logs/DemoLogsBlade)
@@ -335,6 +350,9 @@ perWorkspace
 > - **Workspace scale**: the Scope picker uses implicit resource-context resolution, not the explicit `workspace()`/`app()` functions — those are capped at 100 workspaces per query, this isn't, but selecting hundreds of workspaces can still slow the query down or hit the Log Analytics query timeout (10 minutes by default). For very large estates, run per-management-group or per-region and sum the results.
 > - **RBAC is silent**: you need Log Analytics Reader (or better) on every workspace in scope. Workspaces you can't read are silently omitted from Scope, not flagged as an error — a partial result can look like a complete one.
 > - **`Usage` isn't real-time**: ingestion/usage data can lag by hours. A 30-day trailing average (the default `lookback` here) smooths this out; don't shrink `lookback` to 1d and expect an accurate daily number.
+> - **Benefit visibility on billing artifacts**: this is a zero-cost allocation,
+>   so do not expect a one-to-one billed invoice line named for the benefit;
+>   validate allocation in Defender for Cloud and Cost Management exports.
 > - **`Heartbeat` undercounts agentless-only nodes**: machines protected only through agentless scanning (no AMA/MMA agent) never send a heartbeat, so `Nodes` — and therefore `CapGBPerDay` — can be understated for agentless-heavy estates.
 > - **`Heartbeat` is a monitoring proxy, not proof of P2 protection**: every machine counted here must be sending a heartbeat, but the table does not prove that the machine is covered by Defender for Servers Plan 2. It can therefore overstate the benefit if unprotected or differently licensed machines report to the workspace. Validate `Nodes` against the Defender for Cloud protected-server inventory and Plan 2 scope.
 > - **The 30-day node count is not a daily node-day average**: `dcount(Computer)` counts any machine seen during the look-back window, even if it reported briefly. It can overstate the daily capacity for machines that were retired during the window and can misrepresent estates with substantial onboarding or offboarding churn. Use a shorter window or a separate daily node-day analysis when churn is material.
