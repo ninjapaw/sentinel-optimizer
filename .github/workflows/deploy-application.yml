@@ -48,6 +48,7 @@ jobs:
       PUBLIC_SITE_URL: ${{ vars.PUBLIC_SITE_URL }}
       PUBLIC_SITE_BASE: ${{ vars.PUBLIC_SITE_BASE }}
       PUBLIC_AI_API_BASE: ${{ vars.PUBLIC_AI_API_BASE }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
