@@ -193,7 +193,7 @@ jobs:
         run: |
           : "${AZURE_LOCATION:?Set the organization or environment variable AZURE_LOCATION}"
 
-          if [[ "$COMPONENT" != all && "$(az group exists --name "$AZURE_RESOURCE_GROUP")" != true ]]; then
+          if [[ "$(az group exists --name "$AZURE_RESOURCE_GROUP")" != true ]]; then
             echo "::error title=Missing Azure resource group::Run infra/azure/bootstrap.sh to create '$AZURE_RESOURCE_GROUP' and configure OIDC."
             exit 1
           fi
@@ -242,13 +242,17 @@ jobs:
                 echo "::error title=Missing environment parameters::Cannot find $environment_file."
                 exit 1
               }
-              az deployment sub "$command_name" \
+              az deployment group "$command_name" \
                 --name "sentinel-optimizer-all-${GITHUB_RUN_NUMBER}" \
-                --location "$AZURE_LOCATION" \
+                --resource-group "$AZURE_RESOURCE_GROUP" \
                 --template-file infra/azure/main.bicep \
                 --parameters \
                   "$environment_file" \
+                  deployOpenAi="$AZURE_DEPLOY_OPENAI" \
+                  keyVaultName="$AZURE_KEY_VAULT_NAME" \
+                  aiApiKeySecretName="${AZURE_AI_API_KEY_SECRET_NAME:-ai-api-key}" \
                   apiDeploymentPrincipalId="$AZURE_API_PRINCIPAL_OBJECT_ID" \
+                  infrastructurePrincipalId="$AZURE_INFRA_PRINCIPAL_OBJECT_ID" \
                   infrastructurePrincipalId="$AZURE_INFRA_PRINCIPAL_OBJECT_ID" \
                   enableAnonymousAiRoutes="$AZURE_ENABLE_ANONYMOUS_AI_ROUTES" \
                   entraExternalIdIssuer="$ENTRA_EXTERNAL_ID_ISSUER" \
@@ -319,8 +323,10 @@ jobs:
               ;;
           esac
 
-          az deployment group "$command_name" \
-            --name "sentinel-optimizer-$COMPONENT-${GITHUB_RUN_NUMBER}" \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --template-file "infra/azure/$COMPONENT/azuredeploy.json" \
-            --parameters "${parameters[@]}"
+          if [[ "$COMPONENT" != all ]]; then
+            az deployment group "$command_name" \
+              --name "sentinel-optimizer-$COMPONENT-${GITHUB_RUN_NUMBER}" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --template-file "infra/azure/$COMPONENT/azuredeploy.json" \
+              --parameters "${parameters[@]}"
+          fi

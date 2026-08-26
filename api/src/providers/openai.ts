@@ -27,6 +27,8 @@ export interface AiEnvironment {
 }
 
 class OpenAiProvider implements AiProvider {
+  readonly supportsImages = true;
+
   constructor(
     private readonly client: OpenAI,
     private readonly model: string,

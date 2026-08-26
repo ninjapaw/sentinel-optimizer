@@ -27,7 +27,8 @@ const settings = { ...config.defaults, ...environment };
 validateConfig(config, environmentName, settings, values["require-subscription"]);
 
 const output = {
-  DEPLOYMENT_TARGET: "azure-static-web-app",
+  DEPLOYMENT_TARGET: settings.deploymentTarget,
+  AZURE_AI_API_KEY_SECRET_NAME: settings.aiApiKeySecretName,
   DEPLOY_ENVIRONMENT: environmentName,
   AZURE_ENVIRONMENT: settings.azureEnvironment,
   AZURE_SUBSCRIPTION_ID: settings.subscriptionId,

@@ -14,8 +14,8 @@ resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' existi
   name: accountName
 }
 
-resource cosmosDataContributor 'Microsoft.Authorization/roleDefinitions@2022-04-01' existing = {
-  scope: subscription()
+resource cosmosDataContributor 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions@2024-05-15' existing = {
+  parent: cosmosAccount
   name: '00000000-0000-0000-0000-000000000002'
 }
 

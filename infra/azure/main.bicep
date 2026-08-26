@@ -2,10 +2,7 @@
 // Copyright (c) 2026 Microsoft Corporation
 // See LICENSE in the repository root.
 
-targetScope = 'subscription'
-
-@description('Environment-specific resource group name.')
-param resourceGroupName string
+targetScope = 'resourceGroup'
 
 @description('Azure region for all regional resources.')
 param location string = 'centralus'
@@ -77,6 +74,9 @@ param enableAnonymousAiRoutes bool = false
 @description('Key Vault resource name.')
 param keyVaultName string
 
+@description('Key Vault secret name holding the third-party AI API key.')
+param aiApiKeySecretName string = 'ai-api-key'
+
 @description('Infrastructure deployment principal object ID for Key Vault administration.')
 param infrastructurePrincipalId string = ''
 
@@ -131,15 +131,8 @@ param tags object = {
   managedBy: 'bicep'
 }
 
-resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
-  name: resourceGroupName
-  location: location
-  tags: tags
-}
-
 module monitoring './modules/monitoring.bicep' = {
   name: 'sentinel-optimizer-monitoring-${environmentName}'
-  scope: resourceGroup
   params: {
     location: location
     environmentName: environmentName
@@ -151,7 +144,6 @@ module monitoring './modules/monitoring.bicep' = {
 
 module site './site/main.bicep' = {
   name: 'sentinel-optimizer-site-${environmentName}'
-  scope: resourceGroup
   params: {
     siteName: siteName
     location: location
@@ -163,7 +155,6 @@ module site './site/main.bicep' = {
 
 module customDomain './modules/custom-domain.bicep' = if (!empty(customDomainName)) {
   name: 'sentinel-optimizer-domain-${environmentName}'
-  scope: resourceGroup
   params: {
     siteName: siteName
     customDomainName: customDomainName
@@ -173,7 +164,6 @@ module customDomain './modules/custom-domain.bicep' = if (!empty(customDomainNam
 
 module storage './storage/main.bicep' = {
   name: 'sentinel-optimizer-cosmos-${environmentName}'
-  scope: resourceGroup
   params: {
     location: location
     namePrefix: cosmosNamePrefix
@@ -186,7 +176,6 @@ module storage './storage/main.bicep' = {
 
 module api './api/main.bicep' = {
   name: 'sentinel-optimizer-api-${environmentName}'
-  scope: resourceGroup
   params: {
     functionAppName: functionAppName
     location: location
@@ -202,6 +191,8 @@ module api './api/main.bicep' = {
     entraExternalIdAudience: entraExternalIdAudience
     entraExternalIdAdminRole: entraExternalIdAdminRole
     apiDeploymentPrincipalId: apiDeploymentPrincipalId
+    keyVaultName: keyVaultName
+    aiApiKeySecretName: aiApiKeySecretName
     cosmosEndpoint: storage.outputs.endpoint
     cosmosDatabaseName: storage.outputs.databaseName
     cosmosSessionsContainerName: storage.outputs.sessionsContainerName
@@ -213,7 +204,6 @@ module api './api/main.bicep' = {
 
 module cosmosRbac './modules/cosmos-rbac.bicep' = {
   name: 'sentinel-optimizer-cosmos-rbac-${environmentName}'
-  scope: resourceGroup
   params: {
     accountName: storage.outputs.accountName
     principalId: api.outputs.managedIdentityPrincipalId
@@ -222,7 +212,6 @@ module cosmosRbac './modules/cosmos-rbac.bicep' = {
 
 module keyVault './keyvault/main.bicep' = {
   name: 'sentinel-optimizer-keyvault-${environmentName}'
-  scope: resourceGroup
   params: {
     keyVaultName: keyVaultName
     location: location
@@ -237,7 +226,6 @@ module keyVault './keyvault/main.bicep' = {
 
 module ai './ai/main.bicep' = if (deployOpenAi) {
   name: 'sentinel-optimizer-ai-${environmentName}'
-  scope: resourceGroup
   params: {
     openAiAccountName: openAiAccountName
     functionAppName: functionAppName
@@ -252,8 +240,8 @@ module ai './ai/main.bicep' = if (deployOpenAi) {
   dependsOn: [api]
 }
 
-output resourceGroupId string = resourceGroup.id
-output resourceGroupName string = resourceGroup.name
+output resourceGroupId string = resourceGroup().id
+output resourceGroupName string = resourceGroup().name
 output staticWebAppUrl string = site.outputs.siteUrl
 output functionAppUrl string = api.outputs.apiUrl
 output cosmosEndpoint string = storage.outputs.endpoint
