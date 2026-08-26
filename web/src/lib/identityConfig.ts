@@ -13,6 +13,7 @@ export const IDENTITY_CONFIG = Object.freeze({
 });
 
 const configuredApiOrigin =
+  import.meta.env.PUBLIC_SESSION_API_BASE?.trim() ||
   import.meta.env.PUBLIC_ADMIN_API_BASE?.trim() ||
   import.meta.env.PUBLIC_AI_API_BASE?.trim() ||
   "";

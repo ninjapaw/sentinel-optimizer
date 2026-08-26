@@ -200,6 +200,7 @@ jobs:
           PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE || '' }}
           PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE: ${{ vars.PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE || '' }}
           PUBLIC_ADMIN_API_BASE: ${{ vars.PUBLIC_ADMIN_API_BASE || '' }}
+          PUBLIC_SESSION_API_BASE: ${{ vars.PUBLIC_SESSION_API_BASE || '' }}
 
       - name: Upload web artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

@@ -9,6 +9,7 @@
 
 interface ImportMetaEnv {
 	readonly PUBLIC_ADMIN_API_BASE?: string;
+	readonly PUBLIC_SESSION_API_BASE?: string;
 	readonly PUBLIC_AI_API_BASE?: string;
 	readonly PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE?: string;
 	readonly PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE?: string;

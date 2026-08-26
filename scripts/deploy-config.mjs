@@ -27,7 +27,8 @@ const settings = { ...config.defaults, ...environment };
 validateConfig(config, environmentName, settings, values["require-subscription"]);
 
 const output = {
-  DEPLOYMENT_TARGET: "azure-static-web-app",
+  DEPLOYMENT_TARGET: settings.deploymentTarget,
+  AZURE_AI_API_KEY_SECRET_NAME: settings.aiApiKeySecretName,
   DEPLOY_ENVIRONMENT: environmentName,
   AZURE_ENVIRONMENT: settings.azureEnvironment,
   AZURE_SUBSCRIPTION_ID: settings.subscriptionId,
@@ -112,6 +113,13 @@ function validateConfig(root, name, settings, requireSubscription) {
     if (typeof settings[property] !== "string" || settings[property].trim() === "") {
       throw new Error(`environments.${name}.${property} must be a non-empty string.`);
     }
+  }
+
+  if (!["azure-static-web-app", "github-pages", "cloudflare-worker-api"].includes(settings.deploymentTarget)) {
+    throw new Error(`environments.${name}.deploymentTarget must be azure-static-web-app, github-pages, or cloudflare-worker-api.`);
+  }
+  if (!/^[A-Za-z0-9-]{1,128}$/.test(settings.aiApiKeySecretName)) {
+    throw new Error(`environments.${name}.aiApiKeySecretName is invalid.`);
   }
 
   if (settings.branch !== (name === "prod" ? "main" : "dev")) {

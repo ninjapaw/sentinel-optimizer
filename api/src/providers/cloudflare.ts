@@ -12,6 +12,8 @@ export interface WorkersAiBinding {
 }
 
 class WorkersAiProvider implements AiProvider {
+  readonly supportsImages = false;
+
   constructor(
     private readonly ai: WorkersAiBinding,
     private readonly model: string,

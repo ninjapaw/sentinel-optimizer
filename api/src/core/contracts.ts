@@ -33,6 +33,7 @@ export interface ChatResult {
 }
 
 export interface AiProvider {
+  supportsImages?: boolean;
   complete(request: ChatRequest): Promise<ChatResult>;
 }
 

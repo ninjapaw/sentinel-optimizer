@@ -6,6 +6,8 @@
     "repository": "ninjapaw/sentinel-optimizer"
   },
   "defaults": {
+    "deploymentTarget": "azure-static-web-app",
+    "aiApiKeySecretName": "ai-api-key",
     "location": "centralus",
     "siteSku": "Free",
     "functionMemoryMB": 512,

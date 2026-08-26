@@ -49,6 +49,9 @@ export async function handleExplainKql(
   if (!isExplainKqlRequest(parsed.value)) {
     return result({ error: "Expected a query id and either pasted result text or a screenshot." }, 400);
   }
+  if (parsed.value.imageDataUrl && provider.supportsImages !== true) {
+    return result({ error: "This AI provider accepts pasted result text but not screenshots." }, 400);
+  }
 
   try {
     const completion = await provider.complete({

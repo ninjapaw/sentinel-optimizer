@@ -11,11 +11,14 @@ import { parseKqlDoc } from "../lib/kqlLibrary.js";
 import { requestAiExplanation } from "../lib/aiClient.js";
 import { exportDefenderP2Pdf } from "../lib/defenderP2Report.js";
 import defenderP2Raw from "../../../kql/defender-for-servers-p2-ingestion-benefit.md?raw";
+import { INTERNAL_CONFIG } from "@shared/index.js";
 
 const DOC = parseKqlDoc(defenderP2Raw);
 
-/** Client-side cap on attached screenshots, well under the API's 4 MB body limit once base64-encoded. */
-const MAX_SCREENSHOT_BYTES = 3 * 1024 * 1024;
+/** Keep the encoded image and JSON envelope below the API request limit. */
+const MAX_SCREENSHOT_BYTES = Math.floor(
+  ((INTERNAL_CONFIG.api.explainKql.maxBodyBytes - INTERNAL_CONFIG.api.explainKql.maxResultCharacters - 4096) * 3) / 4,
+);
 
 const PORTAL_LOGS_URL =
   "https://portal.azure.com/#view/Microsoft_Azure_Monitoring/AzureMonitoringBrowseBlade/~/logs";

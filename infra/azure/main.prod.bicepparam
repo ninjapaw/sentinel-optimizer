@@ -1,6 +1,5 @@
 using './main.bicep'
 
-param resourceGroupName = 'NP-SentinelOptimizer-CentralUS'
 param location = 'centralus'
 param environmentName = 'production'
 param siteName = 'np-sentineloptimizer-centralus'
