@@ -23,7 +23,11 @@ if (!environment) {
   throw new Error(`Environment '${environmentName}' is not defined in ${configPath}.`);
 }
 
-const settings = { ...config.defaults, ...environment };
+const settings = {
+  ...config.defaults,
+  ...environment,
+  subscriptionId: environment.subscriptionId || process.env.AZURE_SUBSCRIPTION_ID || "",
+};
 validateConfig(config, environmentName, settings, values["require-subscription"]);
 
 const output = {
