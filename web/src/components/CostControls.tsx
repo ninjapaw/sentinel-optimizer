@@ -119,8 +119,6 @@ export default function CostControls({
   const [m365CostPerUser, setM365CostPerUser] = useState<number>(0);
   const [m365SkuRows, setM365SkuRows] = useState<M365SkuRow[]>([
     { label: "Microsoft 365 E7 / E5 / A5 / F5 / G5", users: 0 },
-    { label: "Microsoft 365 F5", users: 0 },
-    { label: "Microsoft 365 G5", users: 0 },
   ]);
   const [m365EligibleRows, setM365EligibleRows] = useState<M365EligibleRow[]>([
     { name: "SigninLogs / AuditLogs", gbPerDay: 0 },

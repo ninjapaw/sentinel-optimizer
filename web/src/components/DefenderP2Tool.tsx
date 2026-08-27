@@ -92,8 +92,11 @@ function parsePastedRow(text: string): string[] | null {
   // Accept the full row, the scalar columns plus the breakdown, or scalars
   // alone. The summary row is the recommended row to paste.
   const numericCount = COLUMNS.length - OPTIONAL_JSON_COLUMNS;
-  if (cells.length >= numericCount && cells.length <= COLUMNS.length) {
-    return [...cells, ...Array(COLUMNS.length - cells.length).fill("")];
+  if (cells.length === numericCount) {
+    cells.splice(COLUMNS.findIndex((column) => column.key === "EligibleTableBreakdown"), 0, "");
+  }
+  if (cells.length === COLUMNS.length) {
+    return cells;
   }
   return null;
 }

@@ -258,6 +258,7 @@ if [[ -n "$subscription_id" ]]; then
 fi
 
 if [[ "${select_subscription:-false}" == true || ( "$subscription_argument_provided" == false && -t 0 && -t 1 ) ]]; then
+  [[ -t 0 && -t 1 ]] || fail '--select-subscription requires an interactive terminal.'
   mapfile -t available_subscriptions < <(az account list --all --query "[?state == 'Enabled'].{id:id,name:name}" --output tsv)
   ((${#available_subscriptions[@]} > 0)) || fail 'No enabled Azure subscriptions are available to the authenticated account.'
 
