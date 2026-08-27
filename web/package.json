@@ -18,7 +18,7 @@
   "dependencies": {
     "@astrojs/react": "^6.0.2",
     "@azure/msal-browser": "^5.18.0",
-    "astro": "^7.1.6",
+    "astro": "^7.2.0",
     "chart.js": "^4.4.7",
     "jspdf": "^4.2.1",
     "pptxgenjs": "^4.0.1",
