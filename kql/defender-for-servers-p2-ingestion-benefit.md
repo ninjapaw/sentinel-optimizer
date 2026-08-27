@@ -60,10 +60,11 @@ Log Analytics ingestion benefit.
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
 - [How to use it](#how-to-use-it)
+- [Multi-workspace behavior](#multi-workspace-behavior)
 - [Query](#query)
 - [How the query works](#how-the-query-works)
 - [Example result](#example-result)
-- [Automate it](#automate-it)
+- [Automation guidance](#automation-guidance)
 - [Result fields](#result-fields)
 - [Verification](#verification)
 - [Troubleshooting and FAQ](#troubleshooting-and-faq)
@@ -104,6 +105,22 @@ the overall Summary row.
   you're actually using (`FreeGBPerDay` vs `CapGBPerDay`) and
   whether unused headroom exists to onboard more eligible data sources.
 
+  ## Multi-workspace behavior
+
+  The query summarizes across every workspace available in the current
+  **Logs -> Scope** that has a recent `Usage` or `Heartbeat` row. It returns one
+  aggregate `Summary` row and one `Workspace` row per discovered workspace. The
+  license-based cap is calculated once from `Nodes` in the Summary row; it is not
+  multiplied by the number of workspaces.
+
+  This is a scope-aware estimate, not a tenant inventory. Workspaces outside the
+  selected Logs scope, unreadable workspaces, and workspaces with neither source
+  of data are absent. Confirm the selected scope and Log Analytics Reader access
+  before treating the Summary count as complete. For separate batches, retain
+  only Workspace rows, remove duplicate workspace IDs, and recalculate the
+  aggregate. Never add Summary rows from batches that represent the same Plan 2
+  allowance.
+
 ## Prerequisites
 
 Before running the query, confirm the following:
@@ -132,8 +149,8 @@ Before running the query, confirm the following:
   that are not approved for your organization's information.
 
 For automation, use a managed identity or workload identity with workspace
-read access instead of a personal account. See [Automate it](#automate-it) for
-the scheduling and storage pattern.
+read access instead of a personal account. See
+[Automation guidance](#automation-guidance) for the scheduling and storage pattern.
 
 ## How to use it
 
@@ -277,11 +294,11 @@ let workspaceRows = perWorkspace
     WorkspaceId,
     Nodes = tolong(Nodes),
     CapGBPerDay = round(CapGBPerDay, 3),
-    EligibleGBPerDay = round(EligibleGBPerDay, 3),
+    EligibleGBPerDay,
     EligibleTableBreakdown,
-    FreeGBPerDay = round(FreeGBPerDay, 3),
-    UnusedCapGBPerDay = round(UnusedCapGBPerDay, 3),
-    OverCapGBPerDay = round(OverCapGBPerDay, 3);
+    FreeGBPerDay,
+    UnusedCapGBPerDay,
+    OverCapGBPerDay;
 let summaryRow = perWorkspace
   | summarize
     WorkspaceCount = dcount(WorkspaceId),
@@ -464,7 +481,7 @@ investigating a change. Do not replace a real result with these fictional
 examples, and do not publish workspace identifiers, timestamps, or raw tenant
 breakdowns in documentation or issue reports.
 
-## Automate it
+## Automation guidance
 
 Once the query works manually, schedule it so changes in coverage, ingestion,
 and unused capacity are visible without repeating the portal steps by hand.

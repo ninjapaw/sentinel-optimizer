@@ -55,6 +55,23 @@ planning signal, not proof of the best price, because prices vary by region,
 pricing model, discounts, commitment tier, and whether classic or simplified
 meters are used.
 
+## Multi-workspace behavior
+
+The query summarizes the complete daily ingestion series across every readable
+workspace that contributes `Usage` in the current **Logs -> Scope**. It returns
+one aggregate `Summary` row, one `Workspace` row per contributing workspace,
+and `Source` rows for solution/table detail. The commitment recommendation is
+calculated once from the combined daily series; it must not be applied as a
+separate tier to each workspace.
+
+This is scope-aware planning, not a tenant inventory. Workspaces outside the
+selected scope, unreadable workspaces, and workspaces with no billable usage in
+the complete-day window are absent. Confirm scope and Log Analytics Reader
+access before treating the Summary workspace count as complete. For batches
+larger than the Logs scope limit, retain workspace-level daily values, remove
+duplicates, and recompute the combined percentiles. Do not average batch
+percentiles or add batch recommendations.
+
 ## What Microsoft documents
 
 Microsoft's current guidance says to:
@@ -200,7 +217,7 @@ let scopeStats = materialize(
         DaysOverCurrentTier = countif(BillableGBPerDay > currentTierGBPerDay),
         ReviewDays = count()
 );
-    let planningVolumeGBPerDay = case(
+  let planningVolumeGBPerDay = case(
       recommendationPercentile == 50, toreal(toscalar(scopeStats | project P50GBPerDay)),
       recommendationPercentile == 75, toreal(toscalar(scopeStats | project P75GBPerDay)),
       recommendationPercentile == 90, toreal(toscalar(scopeStats | project P90GBPerDay)),
@@ -358,7 +375,7 @@ commitment tier may not be cheaper when volume is highly variable, discounts
 apply, or a workload is temporary. Use Cost Analysis and the current pricing
 page for the decision.
 
-## Sources and billing validation
+## Verification
 
 Use the Microsoft Sentinel cost-management sources alongside this query:
 
@@ -371,7 +388,7 @@ Use the Microsoft Sentinel cost-management sources alongside this query:
 - **Cost Management exports**: retain daily cost data for trend and forecast
   analysis. Cost data is the billing record; `Usage` is telemetry for sizing.
 
-## Automation
+## Automation guidance
 
 Run this query daily or weekly with the same complete-day window. Store the
 Summary, Workspace, and Source rows together. Alert when:
