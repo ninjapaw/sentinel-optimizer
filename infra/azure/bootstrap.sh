@@ -470,6 +470,7 @@ JSON
 
   gh variable set AZURE_CLIENT_ID --env "$github_environment" --repo "$repository" --body "$infrastructure_client_id"
   gh variable set AZURE_TENANT_ID --env "$github_environment" --repo "$repository" --body "$tenant_id"
+  gh variable set AZURE_SUBSCRIPTION_ID --env "$github_environment" --repo "$repository" --body "$subscription_id"
   gh variable set AZURE_API_PRINCIPAL_OBJECT_ID --env "$github_environment" --repo "$repository" --body "$api_principal_object_id"
   gh variable set AZURE_INFRA_PRINCIPAL_OBJECT_ID --env "$github_environment" --repo "$repository" --body "$infrastructure_principal_object_id"
   gh variable set AZURE_API_CLIENT_ID --env "$github_environment" --repo "$repository" --body "$api_client_id"

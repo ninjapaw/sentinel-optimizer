@@ -128,6 +128,7 @@ jobs:
         id: deployment_config
         env:
           TARGET_ENVIRONMENT: ${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev') }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
         run: node scripts/deploy-config.mjs --environment "$TARGET_ENVIRONMENT" --github-env --github-output --require-subscription
 
       - name: Verify branch matches environment
