@@ -11,6 +11,7 @@ bootstrap_template="$script_directory/bootstrap/azuredeploy.json"
 deployment_config="${DEPLOYMENT_CONFIG:-$repository_root/config/deploy.config.json}"
 config_environment="${DEPLOY_ENVIRONMENT:-${AZURE_ENVIRONMENT:-dev}}"
 skip_config=false
+subscription_argument_provided=false
 arguments=("$@")
 
 for ((argument_index = 0; argument_index < ${#arguments[@]}; argument_index++)); do
@@ -101,6 +102,7 @@ Options:
   --key-vault-name <name>    Key Vault name, 3-24 characters (default: AZURE_KEY_VAULT_NAME)
   --location <region>         Azure region (default: AZURE_LOCATION or eastus2)
   --subscription <id>        Azure subscription (default: config, then current az account)
+  --select-subscription      Show the subscription picker even when a subscription is configured
   --repository <owner/name>  GitHub repository (default: current gh repository)
   --deploy-api <bool>        Enable API deployment in this environment
   --use-api <bool>           Configure the site to call the API
@@ -192,7 +194,13 @@ while (($# > 0)); do
     --subscription)
       (($# >= 2)) || fail '--subscription requires a value.'
       subscription_id="$2"
+      subscription_argument_provided=true
       shift 2
+      ;;
+    --select-subscription)
+      subscription_argument_provided=false
+      select_subscription=true
+      shift
       ;;
     --repository)
       (($# >= 2)) || fail '--repository requires owner/name.'
@@ -247,6 +255,25 @@ fi
 az account show >/dev/null 2>&1 || fail "Azure CLI is not authenticated. Run 'az login' and retry."
 if [[ -n "$subscription_id" ]]; then
   az account set --subscription "$subscription_id"
+fi
+
+if [[ "${select_subscription:-false}" == true || ( "$subscription_argument_provided" == false && -t 0 && -t 1 ) ]]; then
+  mapfile -t available_subscriptions < <(az account list --all --query "[?state == 'Enabled'].{id:id,name:name}" --output tsv)
+  ((${#available_subscriptions[@]} > 0)) || fail 'No enabled Azure subscriptions are available to the authenticated account.'
+
+  printf '\nAzure subscription selection\n'
+  printf '  0) Keep current/configured subscription: %s\n' "${subscription_id:-$(az account show --query id --output tsv)}"
+  for subscription_index in "${!available_subscriptions[@]}"; do
+    printf '  %d) %s\n' "$((subscription_index + 1))" "${available_subscriptions[$subscription_index]}"
+  done
+  read -r -p 'Choose a subscription (Enter keeps current/configured): ' subscription_choice
+  if [[ -n "$subscription_choice" && "$subscription_choice" != 0 ]]; then
+    [[ "$subscription_choice" =~ ^[0-9]+$ ]] || fail 'Subscription selection must be a number.'
+    selected_index=$((subscription_choice - 1))
+    ((selected_index >= 0 && selected_index < ${#available_subscriptions[@]})) || fail 'Subscription selection is out of range.'
+    subscription_id="${available_subscriptions[$selected_index]%%$'\t'*}"
+    az account set --subscription "$subscription_id"
+  fi
 fi
 
 subscription_id="$(az account show --query id --output tsv)"
