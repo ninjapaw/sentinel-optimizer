@@ -486,8 +486,10 @@ The lowest-cost topology is:
 
 The repository uses Bicep. It does not require Docker for the Azure Functions deployment. The API Dockerfile remains available for local/container scenarios.
 
-Set `environments.dev.subscriptionId` and `environments.prod.subscriptionId` in
-`config/deploy.config.json`; they must identify different subscriptions. Then run:
+Set the subscription ID in the selected GitHub Environment with bootstrap, or
+set `environments.dev.subscriptionId` and `environments.prod.subscriptionId`
+in `config/deploy.config.json`; they must identify different subscriptions.
+Then run:
 
 ```bash
 bash infra/azure/bootstrap.sh --environment dev
@@ -497,6 +499,41 @@ bash infra/azure/bootstrap.sh --environment prod
 Bootstrap reads names, domains, SKUs, and feature flags from that file. It
 creates GitHub OIDC federation and scoped role assignments without a client
 secret. Command-line options remain available for exceptional one-off overrides.
+
+### Cloudflare DNS for Azure Static Web Apps
+
+Cloudflare can remain the authoritative DNS provider while Azure Static Web
+Apps hosts the site. The Azure deployment creates the Static Web App first; DNS
+validation is a separate, explicit step because it changes records in the
+Cloudflare zone.
+
+The supported connector is
+[`infra/azure/site/connect-cloudflare-dns.sh`](infra/azure/site/connect-cloudflare-dns.sh).
+It discovers or starts the Azure custom-domain validation, creates the required
+non-proxied `_dnsauth.<domain>` TXT record, and creates the non-proxied CNAME
+from the custom hostname to the Static Web Apps default hostname. It is
+idempotent and updates existing records rather than creating duplicates.
+
+Run it after the Static Web App exists:
+
+```bash
+az login
+export AZURE_RESOURCE_GROUP=NP-SentinelOptimizer-Dev-CentralUS
+export AZURE_STATIC_WEB_APP_NAME=np-sentineloptimizer-dev-centralus
+export AZURE_CUSTOM_DOMAIN=dev.sentineloptimizer.com
+export CLOUDFLARE_ZONE_ID=<zone-id>
+export CLOUDFLARE_API_TOKEN=<scoped-dns-edit-token>
+bash infra/azure/site/connect-cloudflare-dns.sh
+```
+
+The Cloudflare token is the only sensitive input. Create it with zone-scoped
+DNS edit permission, use it only in the local shell or a protected GitHub
+Environment secret, and never commit it. Keep the records **DNS only** while
+Azure validates the hostname; proxying can be reconsidered after validation if
+the resulting TLS and origin behavior are tested. DNS propagation can take
+time. Verify the Azure custom-domain status with the command printed by the
+connector. The connector does not replace Cloudflare's registrar, name-server,
+zone, or certificate settings.
 
 ### Branching and promotion
 
@@ -541,6 +578,7 @@ GitHub Environment variables:
 | `PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY`  | MSAL authority for the SPA. |
 | `PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE`  | Delegated API scope requested by the SPA. |
 | `PUBLIC_ADMIN_API_BASE`               | Authenticated administration API origin. |
+| `CLOUDFLARE_ZONE_ID`                   | Cloudflare zone identifier used by the optional Static Web Apps DNS connector. |
 
 The API receives `COSMOS_ENDPOINT` from the consolidated Bicep deployment and
 uses the Function App managed identity for Cosmos data access.
@@ -553,7 +591,7 @@ Create only true credentials as secrets in `dev` and `prod`:
 | --------------------------------- | ------- |
 | `AZURE_STATIC_WEB_APPS_API_TOKEN` | Static Web Apps deployment credential, scoped to one site. |
 | `AI_API_KEY`                      | Optional third-party model credential synchronized to Key Vault. |
-| `CLOUDFLARE_API_TOKEN`            | Optional Cloudflare Worker deployment credential. |
+| `CLOUDFLARE_API_TOKEN`            | Optional Cloudflare DNS-edit or Worker deployment credential, scoped to the required zone/account. |
 
 Azure client, tenant, subscription, and principal IDs are identifiers, not
 credentials. The subscription IDs and public site URLs live in the versioned
