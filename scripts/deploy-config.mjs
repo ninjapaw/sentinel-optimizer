@@ -30,6 +30,15 @@ const settings = {
 };
 validateConfig(config, environmentName, settings, values["require-subscription"]);
 
+const publicSiteUrl =
+  settings.deploymentTarget === "azure-static-web-app"
+    ? settings.publicSiteUrl
+    : (process.env.PUBLIC_SITE_URL || settings.publicSiteUrl);
+const publicSiteBase =
+  settings.deploymentTarget === "azure-static-web-app"
+    ? "/"
+    : (process.env.PUBLIC_SITE_BASE || "/");
+
 const output = {
   DEPLOYMENT_TARGET: settings.deploymentTarget,
   AZURE_AI_API_KEY_SECRET_NAME: settings.aiApiKeySecretName,
@@ -58,8 +67,8 @@ const output = {
   AZURE_DEPLOY_OPENAI: settings.deployOpenAi,
   AZURE_CUSTOM_DOMAIN: settings.customDomain,
   AZURE_PUBLIC_SITE_URL: settings.publicSiteUrl,
-  PUBLIC_SITE_URL: settings.publicSiteUrl,
-  PUBLIC_SITE_BASE: "/",
+  PUBLIC_SITE_URL: publicSiteUrl,
+  PUBLIC_SITE_BASE: publicSiteBase,
   AZURE_SECRET_EXPIRES_IN_DAYS: settings.secretExpirationDays,
   AZURE_SECRET_WARN_DAYS: settings.secretWarningDays,
 };
