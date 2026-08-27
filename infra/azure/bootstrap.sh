@@ -501,15 +501,22 @@ JSON
   gh variable set AZURE_API_PRINCIPAL_OBJECT_ID --env "$github_environment" --repo "$repository" --body "$api_principal_object_id"
   gh variable set AZURE_INFRA_PRINCIPAL_OBJECT_ID --env "$github_environment" --repo "$repository" --body "$infrastructure_principal_object_id"
   gh variable set AZURE_API_CLIENT_ID --env "$github_environment" --repo "$repository" --body "$api_client_id"
-  gh variable set ENTRA_EXTERNAL_ID_ISSUER --env "$github_environment" --repo "$repository" --body "$entra_external_id_issuer"
-  gh variable set ENTRA_EXTERNAL_ID_JWKS_URI --env "$github_environment" --repo "$repository" --body "$entra_external_id_jwks_uri"
-  gh variable set ENTRA_EXTERNAL_ID_AUDIENCE --env "$github_environment" --repo "$repository" --body "$entra_external_id_audience"
   gh variable set ENTRA_EXTERNAL_ID_ADMIN_ROLE --env "$github_environment" --repo "$repository" --body "$entra_external_id_admin_role"
-  gh variable set PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID --env "$github_environment" --repo "$repository" --body "$public_entra_external_id_client_id"
-  gh variable set PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY --env "$github_environment" --repo "$repository" --body "$public_entra_external_id_authority"
-  gh variable set PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE --env "$github_environment" --repo "$repository" --body "$public_entra_external_id_api_scope"
   gh variable set PUBLIC_ENTRA_EXTERNAL_ID_ADMIN_ROLE --env "$github_environment" --repo "$repository" --body "$entra_external_id_admin_role"
-  gh variable set PUBLIC_ADMIN_API_BASE --env "$github_environment" --repo "$repository" --body "$public_admin_api_base"
+
+  for optional_variable_name in \
+    ENTRA_EXTERNAL_ID_ISSUER \
+    ENTRA_EXTERNAL_ID_JWKS_URI \
+    ENTRA_EXTERNAL_ID_AUDIENCE \
+    PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID \
+    PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY \
+    PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE \
+    PUBLIC_ADMIN_API_BASE; do
+    optional_variable_value="${!optional_variable_name:-}"
+    if [[ -n "$optional_variable_value" ]]; then
+      gh variable set "$optional_variable_name" --env "$github_environment" --repo "$repository" --body "$optional_variable_value"
+    fi
+  done
 
   if az staticwebapp show \
     --resource-group "$resource_group" \
