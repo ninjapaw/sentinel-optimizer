@@ -339,10 +339,9 @@ export function DefenderP2Tool() {
         )}
         {pastedText.trim().length > 0 && !parsedRow && (
           <p className="ai-note">
-            Couldn't automatically match that to the expected columns (Workspaces, Nodes, CapGBPerDay,
-            RowType, WorkspaceId, Nodes, CapGBPerDay, EligibleGBPerDay, EligibleTableBreakdown,
-            FreeGBPerDay, UnusedCapGBPerDay, OverCapGBPerDay) — paste the Summary row as copied from the results grid, or type
-            the {NUMERIC_COLUMN_COUNT} numbers in order separated by spaces, commas, or tabs. "Explain with AI"
+            Couldn't automatically match that to the expected columns (RowType, WorkspaceId, Nodes, CapGBPerDay,
+            EligibleGBPerDay, EligibleTableBreakdown, FreeGBPerDay, UnusedCapGBPerDay, OverCapGBPerDay) — paste the Summary row as copied from the results grid, or type
+            the {NUMERIC_COLUMN_COUNT} values in order separated by spaces, commas, or tabs. "Explain with AI"
             below works from the raw text either way.
           </p>
         )}

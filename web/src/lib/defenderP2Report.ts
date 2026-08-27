@@ -149,7 +149,7 @@ export async function exportDefenderP2Pdf(data: DefenderP2ReportData): Promise<v
   heading("Executive summary");
   paragraph(data.summary);
   paragraph(
-    `The analysis observed ${fieldValue("Nodes")} nodes across ${fieldValue("WorkspaceId")} workspaces. ` +
+    `The analysis observed ${fieldValue("Nodes")} nodes in the selected workspace scope. ` +
       `The estimated eligible ingestion is ${fieldValue("EligibleGBPerDay")} GB/day, ` +
       `of which ${fieldValue("FreeGBPerDay")} GB/day is within the modeled allowance.`,
   );
@@ -159,7 +159,7 @@ export async function exportDefenderP2Pdf(data: DefenderP2ReportData): Promise<v
     ["Measure", "Result"],
     [
       ["Protected nodes observed", fieldValue("Nodes")],
-      ["Workspaces analyzed", fieldValue("WorkspaceId")],
+      ["Workspace scope", fieldValue("WorkspaceId")],
       ["Eligible ingestion", `${fieldValue("EligibleGBPerDay")} GB/day`],
       ["Estimated free ingestion", `${fieldValue("FreeGBPerDay")} GB/day`],
       ["Unused allowance", `${fieldValue("UnusedCapGBPerDay")} GB/day`],
