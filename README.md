@@ -486,6 +486,12 @@ The lowest-cost topology is:
 
 The repository uses Bicep. It does not require Docker for the Azure Functions deployment. The API Dockerfile remains available for local/container scenarios.
 
+Shared Bicep compilation and committed-template drift checks are provided by
+the immutable reusable validator in [Pawprint](https://github.com/ninjapaw/pawprint).
+Sentinel-specific Functions, Cosmos DB, Key Vault, and Static Web Apps settings
+remain owned by this repository; Pawprint supplies the cross-repository IaC
+validation contract rather than replacing those application resources.
+
 Set the subscription ID in the selected GitHub Environment with bootstrap, or
 set `environments.dev.subscriptionId` and `environments.prod.subscriptionId`
 in `config/deploy.config.json`; they must identify different subscriptions.
