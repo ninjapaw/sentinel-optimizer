@@ -35,6 +35,21 @@ The result is an ingestion estimate, not an invoice calculation. A source can
 be free by policy while related raw data, analysis, retention, connectors, or
 other Azure services remain billable.
 
+### Multi-workspace behavior
+
+The query summarizes across every workspace available in the current
+**Logs -> Scope** that has a `Usage` or `Heartbeat` row during the seven-day
+window. It returns one aggregate `Summary` row and one `Workspace` row per
+discovered workspace. `Summary.FreeGBPerDay` is the sum of the unrounded
+workspace values; use it for the selected scope as a whole and use workspace
+rows to investigate contributors or combine separate batches.
+
+This is the same scope-aware pattern used by the Defender for Servers Plan 2
+query. It does not discover workspaces outside the Logs scope. A workspace
+with no matching data, or one the caller cannot read, is not emitted as a zero
+row, so the Summary count is discovered coverage rather than proof of complete
+tenant coverage.
+
 ## Free sources in Microsoft Sentinel
 
 The following sources and data types are listed as free in Microsoft's billing
@@ -69,6 +84,9 @@ or Microsoft Sentinel data and Cost Management views.
 - A scope limited to workspaces you are authorized to review. The Logs scope
   selector can include up to 100 workspaces; run separate batches for larger
   estates.
+- Awareness that the separate 31-day, 10-GB/day Sentinel free trial has its
+  own eligibility and workspace limits. This query does not calculate trial
+  eligibility or remaining trial capacity.
 
 ## How to use it
 
@@ -77,8 +95,12 @@ or Microsoft Sentinel data and Cost Management views.
   workspaces to include. Do not select a subscription or resource group as
   the query scope.
 3. Switch to KQL mode, paste the query, and select **Run**.
-4. Review the `Summary` row and the per-workspace rows. Use workspace rows for
+4. Confirm that the selected scope and seven-day window match the review you
+  intend to make.
+5. Review the `Summary` row and the per-workspace rows. Use workspace rows for
   combining batches and do not add `Summary` rows together.
+6. Compare the result with Cost Management or applicable Sentinel billing views
+  before using it in a savings or chargeback calculation.
 
 ## Query
 
@@ -126,8 +148,9 @@ let workspaceRows = workspaceIds
 | extend FreeGBPerDay = round(coalesce(FreeGBPerDay, 0.0), 3)
 | extend FreeSourceBreakdown = coalesce(FreeSourceBreakdown, dynamic({}))
 | project RowType = "Workspace", WorkspaceId, FreeSourceCount = array_length(freeTypes), FreeGBPerDay, FreeSourceBreakdown;
-let summaryRow = workspaceRows
-| summarize WorkspaceCount = dcount(WorkspaceId), FreeGBPerDay = sum(FreeGBPerDay)
+let summaryRow = workspaceIds
+| join kind=leftouter perWorkspace on WorkspaceId
+| summarize WorkspaceCount = dcount(WorkspaceId), FreeGBPerDay = sum(coalesce(FreeGBPerDay, 0.0))
 | extend RowType = "Summary", WorkspaceId = tostring(WorkspaceCount), FreeSourceCount = array_length(freeTypes), FreeSourceBreakdown = dynamic({})
 | project RowType, WorkspaceId, FreeSourceCount, FreeGBPerDay, FreeSourceBreakdown;
 union summaryRow, workspaceRows
@@ -142,6 +165,12 @@ with `0.000`, and converts the seven-day quantity to an average GB/day. It then
 returns the aggregate `Summary` row followed by workspace detail rows. The
 query deliberately does not filter on `IsBillable`: Microsoft policy, rather
 than a single Usage flag, is the source of the free classification.
+
+`workspaceIds` is built from both matching `Usage` and recent `Heartbeat` rows.
+This lets a workspace with monitoring activity but zero matching free-source
+usage appear with zero volume. It is still not a complete inventory of selected
+workspaces because unreadable workspaces and workspaces with no rows in either
+source remain absent.
 
 ## Example result
 
@@ -185,6 +214,69 @@ For cost reconciliation, compare the result with Azure Cost Management and the
 free-data meters documented by Microsoft. The query is useful for sizing and
 trend analysis, but the billing artifacts remain authoritative.
 
+## Verification
+
+Run these checks in the same Logs scope and with the same seven-day window:
+
+1. Confirm the Summary workspace count matches the workspaces you selected and
+  can read. Missing RBAC can silently omit a workspace.
+2. Add the `FreeGBPerDay` values from Workspace rows. The result should be close
+  to `Summary.FreeGBPerDay`; small differences can result from displayed
+  three-decimal rounding.
+3. Inspect `FreeSourceBreakdown` on Workspace rows to identify contributing
+  table names. Do not treat a table name as proof of its originating connector.
+4. Compare the estimate with Azure Cost Management and Sentinel billing views.
+  Those billing artifacts remain authoritative for charges and free meters.
+
+If a selected workspace is missing, reopen **Logs -> Scope**, verify the
+selection, and confirm Log Analytics Reader access. Do not invent a zero row.
+
+## Frequently asked questions
+
+**Does the Summary row include every workspace I selected?**
+
+It includes every selected workspace for which the query can observe a recent
+`Usage` or `Heartbeat` row. It cannot report an empty or unreadable workspace,
+so the Summary count is discovered coverage, not proof of complete tenant
+coverage.
+
+**Can I add Summary rows from multiple runs?**
+
+No. For separate scope batches, keep only Workspace rows, remove duplicate
+workspace IDs, and recompute the aggregate. Adding Summary rows can double-count
+a workspace.
+
+**Does this query measure the Sentinel free trial?**
+
+No. Microsoft's free trial is a separate offer with its own 31-day, 10-GB/day,
+and 20-workspace limits. This query measures documented free data-source volume
+and does not determine trial eligibility or remaining trial capacity.
+
+**Why is `SecurityAlert` not attributed to a specific connector?**
+
+`Usage` generally exposes the table name rather than the originating connector.
+Use connector configuration, Sentinel data, and Cost Management evidence for
+source-level attribution.
+
+**Can I use FreeGBPerDay as savings?**
+
+Use it as an estimated free-volume input to a cost model, not as guaranteed
+dollar savings. Pricing tier, meter, retention, processing, and other Azure
+charges can change the billed outcome.
+
+## Automation guidance
+
+For recurring reporting, save the query in source control and run it from an
+approved scheduled Azure Function, Automation runbook, Logic App, GitHub
+Actions workflow, or Azure Monitor Query API client. Prefer managed identity or
+workload identity with least-privilege Log Analytics Reader access.
+
+For API or CLI automation, run once per workspace when the execution surface
+does not support the portal's multi-workspace Logs scope. Store the workspace
+identifier with each result, aggregate only Workspace rows, and retain the
+original breakdown. Do not automatically disable connectors or delete data
+based on this estimate.
+
 ## Known limits
 
 - **`Usage` isn't real-time:** usage data can lag by hours. The seven-day
@@ -209,6 +301,15 @@ trend analysis, but the billing artifacts remain authoritative.
   than assuming this estimate supersedes billing data.
 - **Scope and RBAC:** unreadable or unselected workspaces are absent and can
   make the result incomplete.
+- **No complete empty-workspace inventory:** workspaces with neither matching
+  `Usage` nor recent `Heartbeat` rows are not returned, even if selected. Treat
+  the Summary count as discovered coverage.
+- **Trial and free-source scopes differ:** the Sentinel free trial, free data
+  sources, and other free or discounted meters are separate concepts. This
+  query reports only the listed free data types.
+- **Portal transition:** Microsoft is transitioning Sentinel experiences to the
+  Defender portal. Navigation and query availability can change; verify current
+  Microsoft documentation and use the supported Logs experience for your tenant.
 
 ## Sources
 
