@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 describe("deploy-config", () => {
@@ -62,7 +63,7 @@ describe("deploy-config", () => {
         "node",
         ["scripts/deploy-config.mjs", "--config", configPath, "--environment", "dev"],
         {
-          cwd: "/workspaces/sentinel-optimizer",
+          cwd: fileURLToPath(new URL("..", import.meta.url)),
           env: {
             ...process.env,
             PUBLIC_SITE_URL: "https://example.github.io/sentinel-optimizer",
