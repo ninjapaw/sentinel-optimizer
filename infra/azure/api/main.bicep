@@ -204,10 +204,6 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
           value: 'true'
         }
         {
-          name: 'FUNCTIONS_WORKER_RUNTIME'
-          value: 'node'
-        }
-        {
           name: 'AI_API_ENABLED'
           value: string(enableAnonymousAiRoutes)
         }

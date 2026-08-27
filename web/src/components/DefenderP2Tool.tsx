@@ -28,32 +28,20 @@ const REPO_DOC_URL =
 
 /** Column order the query's final `summarize`/`extend` produces, used to explain a pasted row positionally. */
 const COLUMNS: { key: string; label: string; help: string }[] = [
-  { key: "Workspaces", label: "Workspaces", help: "How many Log Analytics workspaces (in your selected Scope) had data." },
+  { key: "RowType", label: "Row type", help: "Summary identifies the aggregate row; Workspace identifies a workspace detail row." },
+  { key: "WorkspaceId", label: "Workspace ID", help: "The Log Analytics workspace identifier; the Summary row shows the workspace count." },
   { key: "Nodes", label: "Nodes", help: "Distinct servers seen sending a heartbeat, across those workspaces." },
   { key: "CapGBPerDay", label: "Cap (GB/day)", help: "The maximum the P2 benefit could ever cover: Nodes × 500 MB." },
-  { key: "ConservativeEligibleGBPerDay", label: "Conservative eligible (GB/day)", help: "Real ingestion into the always-qualifying tables, before any cap." },
-  { key: "ExpandedEligibleGBPerDay", label: "Expanded eligible (GB/day)", help: "Same, generously including the conditional tables (Update/UpdateSummary/WindowsEvent)." },
-  { key: "ConservativeFreeGBPerDay", label: "Conservative free (GB/day)", help: "The safe-to-quote free benefit: min(conservative eligible, cap)." },
-  { key: "ExpandedFreeGBPerDay", label: "Expanded free (GB/day)", help: "Upper-bound free benefit: min(expanded eligible, cap). Don't price this one." },
-  { key: "RecommendedFreeGBPerDay", label: "Recommended (GB/day)", help: "Paste this number into a cost calculator or quote — same as conservative free." },
-  { key: "CapGBPerMonth", label: "Cap (GB/month)", help: "CapGBPerDay converted to a monthly figure (average 30.4368-day month)." },
-  { key: "ConservativeFreeGBPerMonth", label: "Conservative free (GB/month)", help: "ConservativeFreeGBPerDay converted to monthly — safe-to-quote." },
-  { key: "ExpandedFreeGBPerMonth", label: "Expanded free (GB/month)", help: "ExpandedFreeGBPerDay converted to monthly — upper bound, don't price this one." },
-  { key: "RecommendedFreeGBPerMonth", label: "Recommended (GB/month)", help: "RecommendedFreeGBPerDay converted to monthly — the number to quote for a monthly conversation." },
-  { key: "RecommendedFreeGBPerYear", label: "Recommended (GB/year)", help: "RecommendedFreeGBPerDay converted to an annual estimate (365.25-day average year)." },
-  { key: "AvgGBPerNodePerDay", label: "Avg per node (GB/day)", help: "Eligible ingestion ÷ node count — a sanity-check density figure." },
-  { key: "ConservativeCoveragePct", label: "Coverage (%)", help: "Share of eligible ingestion actually covered today. 100% = fully covered; below 100% = over the cap somewhere." },
-  { key: "UnusedCapGBPerDay", label: "Unused cap (GB/day)", help: "Spare daily allowance: cap minus conservative free." },
-  { key: "UnusedCapPct", label: "Unused cap (%)", help: "The same spare allowance, as a percentage of the cap." },
-  { key: "AnalysisWindowDays", label: "Analysis window (days)", help: "The look-back window this row was computed over." },
-  { key: "GeneratedAtUtc", label: "Generated at (UTC)", help: "Timestamp of when this row was computed." },
-  { key: "EligibleTableBreakdown", label: "Per-table breakdown", help: "JSON array of GB/day by DataType (Core vs. Conditional) — the same detail level as the built-in Defender for Cloud cost workbook." },
-  { key: "WorkspaceBreakdown", label: "Per-workspace breakdown", help: "JSON array of each workspace's own Nodes/CapGBPerDay/free-GB numbers, before they're summed into the totals above." },
+  { key: "EligibleGBPerDay", label: "Eligible (GB/day)", help: "Daily eligible ingestion including supported conditional tables." },
+  { key: "EligibleTableBreakdown", label: "Per-table breakdown", help: "JSON object of daily ingestion by supported DataType, including zero-volume tables." },
+  { key: "FreeGBPerDay", label: "Free (GB/day)", help: "The estimated free ingestion: the lower of eligible ingestion and the cap." },
+  { key: "UnusedCapGBPerDay", label: "Unused cap (GB/day)", help: "Daily benefit capacity not used by eligible ingestion." },
+  { key: "OverCapGBPerDay", label: "Over cap (GB/day)", help: "Eligible ingestion above the estimated daily benefit capacity." },
 ];
 
-/** How many of the trailing JSON columns (EligibleTableBreakdown, WorkspaceBreakdown) are optional in a pasted/typed row. */
-const OPTIONAL_JSON_COLUMNS = 2;
-/** How many numeric/scalar columns come before the two optional JSON breakdown columns — this is what someone can realistically type by hand. */
+/** How many JSON columns are optional in a pasted/typed row. */
+const OPTIONAL_JSON_COLUMNS = 1;
+/** How many scalar columns come before the optional breakdown column. */
 const NUMERIC_COLUMN_COUNT = COLUMNS.length - OPTIONAL_JSON_COLUMNS;
 
 /** Splits a comma-delimited CSV line into cells, respecting double-quoted fields (so quoted numbers like "17.09" split cleanly). */
@@ -101,13 +89,14 @@ function parsePastedRow(text: string): string[] | null {
         ? splitCsvLine(last)
         : last.trim().split(/\s+/)
   ).map((c) => c.trim());
-  // Accept the full row (including both JSON breakdown columns), just the
-  // numeric columns plus one breakdown, or just the numeric columns alone —
-  // nobody types the breakdown JSON by hand, and some copy methods only grab
-  // the visible numeric columns.
+  // Accept the full row, the scalar columns plus the breakdown, or scalars
+  // alone. The summary row is the recommended row to paste.
   const numericCount = COLUMNS.length - OPTIONAL_JSON_COLUMNS;
-  if (cells.length >= numericCount && cells.length <= COLUMNS.length) {
-    return [...cells, ...Array(COLUMNS.length - cells.length).fill("")];
+  if (cells.length === numericCount) {
+    cells.splice(COLUMNS.findIndex((column) => column.key === "EligibleTableBreakdown"), 0, "");
+  }
+  if (cells.length === COLUMNS.length) {
+    return cells;
   }
   return null;
 }
@@ -249,7 +238,7 @@ export function DefenderP2Tool() {
           </li>
           <li>
             Select <strong>Share</strong> above the results grid → <strong>Export to CSV - all columns</strong>,
-            open the downloaded file, and copy the one data row (skip the header) into the box below.
+            open the downloaded file, and copy the <strong>Summary</strong> row into the box below.
           </li>
         </ol>
       </Card>
@@ -275,15 +264,15 @@ export function DefenderP2Tool() {
 
       <Card title="Paste your result &amp; get an explanation" icon="🧮">
         <label htmlFor="defender-p2-paste">
-          Paste (or type) the single result row from Log Analytics — the {NUMERIC_COLUMN_COUNT} numbers (optionally
-          followed by the per-table and per-workspace breakdowns), in order, separated by tabs, commas, or spaces —
+          Paste (or type) the Summary result row from Log Analytics — the {NUMERIC_COLUMN_COUNT} scalar values
+          (optionally followed by the per-table breakdown), in order, separated by tabs, commas, or spaces —
           or paste/attach a screenshot instead
         </label>
         <textarea
           id="defender-p2-paste"
           rows={3}
           style={{ width: "100%", fontFamily: "monospace", fontSize: "0.85rem" }}
-          placeholder="3	240	117.188	96.4	142.7	96.4	117.188	96.4	3566.83	2934.11	3566.83	2934.11	35210.10	0.4017	100.0	20.788	17.7	30	2026-08-21T00:00:00Z"
+          placeholder="Summary	6	75	36.621	0.916	{}	0.916	35.705	0.000"
           value={pastedText}
           onChange={(e) => setPastedText(e.target.value)}
           onPaste={onPasteResultArea}
@@ -336,7 +325,7 @@ export function DefenderP2Tool() {
               </thead>
               <tbody>
                 {COLUMNS.map((col, idx) => {
-                  const isJson = col.key === "EligibleTableBreakdown" || col.key === "WorkspaceBreakdown";
+                  const isJson = col.key === "EligibleTableBreakdown";
                   return (
                     <tr key={col.key}>
                       <td>{col.label}</td>
@@ -353,13 +342,9 @@ export function DefenderP2Tool() {
         )}
         {pastedText.trim().length > 0 && !parsedRow && (
           <p className="ai-note">
-            Couldn't automatically match that to the expected columns (Workspaces, Nodes, CapGBPerDay,
-            ConservativeEligibleGBPerDay, ExpandedEligibleGBPerDay, ConservativeFreeGBPerDay, ExpandedFreeGBPerDay,
-            RecommendedFreeGBPerDay, CapGBPerMonth, ConservativeFreeGBPerMonth, ExpandedFreeGBPerMonth,
-            RecommendedFreeGBPerMonth, RecommendedFreeGBPerYear, AvgGBPerNodePerDay, ConservativeCoveragePct,
-            UnusedCapGBPerDay, UnusedCapPct, AnalysisWindowDays, GeneratedAtUtc, and optionally
-            EligibleTableBreakdown/WorkspaceBreakdown) — paste the row as copied from the results grid, or type
-            the {NUMERIC_COLUMN_COUNT} numbers in order separated by spaces, commas, or tabs. "Explain with AI"
+            Couldn't automatically match that to the expected columns (RowType, WorkspaceId, Nodes, CapGBPerDay,
+            EligibleGBPerDay, EligibleTableBreakdown, FreeGBPerDay, UnusedCapGBPerDay, OverCapGBPerDay) — paste the Summary row as copied from the results grid, or type
+            the {NUMERIC_COLUMN_COUNT} values in order separated by spaces, commas, or tabs. "Explain with AI"
             below works from the raw text either way.
           </p>
         )}

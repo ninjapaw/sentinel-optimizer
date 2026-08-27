@@ -59,25 +59,25 @@ type LaneProfile = "detectionFirst" | "balanced" | "costFirst";
  * KQL helper to size the Defender for Servers Plan 2 free-ingestion benefit.
  * Sourced from ../../../kql/defender-for-servers-p2-ingestion-benefit.md —
  * update the query there, not here. Run in Log Analytics (Logs > Scope >
- * select every subscription/workspace to include) and paste the resulting
- * RecommendedFreeGBPerDay into the "Defender Servers P2 (GB/day)" field.
+ * select the Sentinel workspace scope to include) and paste FreeGBPerDay from
+ * the Summary row into the "Defender Servers P2 (GB/day)" field when relevant.
  */
 const DEFENDER_P2_DOC = parseKqlDoc(defenderP2Raw);
 const DEFENDER_P2_QUERY = DEFENDER_P2_DOC.query;
 
 /**
- * KQL helper to size the Microsoft 365 E5/A5/F5/G5 benefit. The offer grants up
+ * KQL helper to size the Microsoft 365 E7/E5/A5/F5/G5 benefit. The offer grants up
  * to 5 MB/user/day of free Sentinel ingestion across a fixed set of eligible
  * Microsoft data types, so the effective grant is min(eligible ingest,
- * E5 users × 5 MB). Run in Log Analytics, set e5Users, and paste FreeGBPerDay
- * into the "M365 E5 (GB/day)" field.
+ * qualifying users × 5 MB). Run in a Sentinel workspace scope, set e5Users,
+ * and paste FreeGBPerDay from the Summary row into the benefit field.
  * Offer + eligible data types: https://azure.microsoft.com/offers/sentinel-microsoft-365-offer/
  */
 const M365_E5_DOC = parseKqlDoc(m365E5Raw);
 const M365_E5_QUERY = M365_E5_DOC.query;
 
 /**
- * Microsoft Graph (PowerShell) helper to count assigned E5/A5/F5/G5 licenses,
+ * Microsoft Graph (PowerShell) helper to count assigned E7/E5/A5/F5/G5 licenses,
  * which sets the 5 MB/user/day cap above. Licenses live in Entra ID, not in
  * Log Analytics, so this runs separately from the KQL helpers.
  */
@@ -89,8 +89,9 @@ const M365_E5_LICENSE_QUERY = (() => {
 })();
 
 /**
- * KQL helper to measure always-free Microsoft Sentinel data sources, so the
- * volume can be excluded from billable estimates. Free sources per
+ * KQL helper to measure always-free Microsoft Sentinel data sources. Use the
+ * Summary row's FreeGBPerDay as context, not as a direct invoice adjustment.
+ * Free sources per
  * https://learn.microsoft.com/azure/sentinel/billing#free-data-sources
  */
 const FREE_SOURCES_DOC = parseKqlDoc(freeSourcesRaw);
@@ -117,9 +118,7 @@ export default function CostControls({
   const [whatIfOptimizationPct, setWhatIfOptimizationPct] = useState<number>(10);
   const [m365CostPerUser, setM365CostPerUser] = useState<number>(0);
   const [m365SkuRows, setM365SkuRows] = useState<M365SkuRow[]>([
-    { label: "Microsoft 365 E5 / A5", users: 0 },
-    { label: "Microsoft 365 F5", users: 0 },
-    { label: "Microsoft 365 G5", users: 0 },
+    { label: "Microsoft 365 E7 / E5 / A5 / F5 / G5", users: 0 },
   ]);
   const [m365EligibleRows, setM365EligibleRows] = useState<M365EligibleRow[]>([
     { name: "SigninLogs / AuditLogs", gbPerDay: 0 },
@@ -1001,7 +1000,7 @@ export default function CostControls({
                       <input
                         type="text"
                         value={r.label}
-                        placeholder="E5 / A5 / F5 / G5 variant"
+                        placeholder="E7 / E5 / A5 / F5 / G5 variant"
                         onChange={(e) => setM365SkuRow(i, { label: e.target.value })}
                       />
                     </td>
@@ -1137,7 +1136,7 @@ export default function CostControls({
             </table>
           </div>
           <p className="ai-note">
-            Qualifier examples include E5/A5/F5/G5 families. Validate your exact SKUs against current
+            Qualifier examples include E7/E5/A5/F5/G5 families. Validate your exact SKUs against current
             Microsoft offer terms.
           </p>
         </>
@@ -1188,7 +1187,7 @@ export default function CostControls({
       </div>
       <p className="ai-note">
         Some Sentinel sources are always free. Use inventory mode to enter each source and total it,
-        or query mode to paste the <code>FreeGBPerDay</code> total from the provided query.
+        or query mode to paste the <code>FreeGBPerDay</code> value from the query's <code>Summary</code> row.
       </p>
       <div className="segmented" role="tablist" aria-label="Always-free sizing mode">
         <button
@@ -1290,7 +1289,7 @@ export default function CostControls({
               onChange={(e) => setBenefit({ freeDataSourceGbPerDay: parseOptionalNumber(e.target.value) })}
             />
             <p className="ai-note">
-              Run the query below and paste its <code>FreeGBPerDay</code> total.
+              Run the query below and paste <code>FreeGBPerDay</code> from its <code>Summary</code> row.
             </p>
           </div>
           <div className="query-head">
@@ -1487,7 +1486,7 @@ export default function CostControls({
             />
             <p className="ai-note">
               Run the query below (set the Logs scope to every subscription/workspace to
-              include first) and paste its <code>RecommendedFreeGBPerDay</code> value.
+              include first) and paste its <code>FreeGBPerDay</code> value from the <code>Summary</code> row.
             </p>
           </div>
           <div className="query-head">
@@ -1509,7 +1508,7 @@ export default function CostControls({
       <details className="mt-sm">
         <summary>Size the Microsoft 365 qualifying-license benefit</summary>
         <p className="ai-note">
-          The Microsoft Sentinel benefit for Microsoft 365 E5/A5/F5/G5 customers grants up to
+          The Microsoft Sentinel benefit for Microsoft 365 E7/E5/A5/F5/G5 customers grants up to
           5 MB/user/day of free Sentinel ingestion across a fixed set of eligible Microsoft data
           types (Microsoft Entra ID logs, Microsoft 365/Office activity, Defender XDR &amp; Defender
           for Endpoint raw data, Defender for Cloud Apps Shadow IT, and Information Protection). The
@@ -1517,7 +1516,7 @@ export default function CostControls({
           5 MB.
         </p>
         <p className="ai-note">
-          Qualifier examples include E5, A5, F5, and G5 families (tenant SKU mix determines exact
+          Qualifier examples include E7, E5, A5, F5, and G5 families (tenant SKU mix determines exact
           eligibility).
         </p>
         <p className="ai-note">
@@ -1527,7 +1526,7 @@ export default function CostControls({
             target="_blank"
             rel="noopener noreferrer"
           >
-            Microsoft Sentinel benefit for Microsoft 365 E5 customers
+            Microsoft Sentinel benefit for Microsoft 365 E7/E5/A5/F5/G5 customers
           </a>
           .
         </p>
