@@ -28,7 +28,7 @@
     "@azure/functions": "^4.16.2",
     "@azure/identity": "^4.13.1",
     "jose": "^6.2.8",
-    "openai": "^7.3.0"
+    "openai": "^7.4.0"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
