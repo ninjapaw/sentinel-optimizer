@@ -29,4 +29,5 @@ if (missing.length > 0) {
 }
 
 await Promise.all(expected.map((name) => import(new URL(`${name}/index.js`, compiled).href)));
+await import(new URL("../dist/api/src/index.js", import.meta.url).href);
 console.log(`Loaded ${expected.length} Azure function entry points: ${expected.join(", ")}.`);

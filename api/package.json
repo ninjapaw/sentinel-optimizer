@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Portable AI enhancement API for Sentinel Optimizer.",
-  "main": "dist/api/src/adapters/azure/functions/*.js",
+  "main": "dist/api/src/index.js",
   "engines": {
     "node": "22.12.0",
     "npm": "11.9.0"

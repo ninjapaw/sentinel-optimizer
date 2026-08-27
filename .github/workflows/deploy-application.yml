@@ -254,26 +254,7 @@ jobs:
         run: |
           npm prune --omit=dev
           npm run smoke:azure
-          while IFS= read -r -d '' function_json; do
-            function_name="$(basename "$(dirname "$function_json")")"
-            case "$function_name" in
-              admin-health) entry_point=adminHealth ;;
-              admin-sessions) entry_point=adminSessions ;;
-              admin-stats) entry_point=adminStats ;;
-              explain-kql) entry_point=explainKql ;;
-              session-list) entry_point=sessionList ;;
-              session-manage) entry_point=sessionManage ;;
-              session-save) entry_point=sessionSave ;;
-              *) entry_point="$function_name" ;;
-            esac
-            mkdir -p "$function_name"
-            jq --arg scriptFile "../dist/api/${function_json%/function.json}/index.js" \
-              --arg entryPoint "$entry_point" \
-              '.scriptFile = $scriptFile | .entryPoint = $entryPoint' "$function_json" > "$function_name/function.json"
-          done < <(find src/adapters/azure/functions -name function.json -print0)
-          zip -r "$RUNNER_TEMP/function-app.zip" \
-            dist host.json node_modules package.json package-lock.json \
-            admin-health admin-sessions admin-stats example explain-kql health recommend session-list session-manage session-save
+          zip -r "$RUNNER_TEMP/function-app.zip" dist host.json node_modules package.json package-lock.json
 
       - name: Upload API artifact
         if: needs.preflight.outputs.target == 'azure-static-web-app'
