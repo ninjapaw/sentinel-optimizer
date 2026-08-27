@@ -18,6 +18,7 @@ build — there's no separate copy to keep in sync.
 | [defender-for-servers-p2-ingestion-benefit.md](./defender-for-servers-p2-ingestion-benefit.md) | Defender for Servers Plan 2 free ingestion benefit (500 MB/node/day, pooled per subscription) |
 | [microsoft-365-e5-sentinel-benefit.md](./microsoft-365-e5-sentinel-benefit.md) | Microsoft Sentinel benefit for Microsoft 365 E5/A5/F5/G5 customers (up to 5 MB/user/day), plus the Graph PowerShell license-count helper |
 | [always-free-sentinel-data-sources.md](./always-free-sentinel-data-sources.md) | Data sources Microsoft never bills for, regardless of plan |
+| [sentinel-commitment-tier-sizing.md](./sentinel-commitment-tier-sizing.md) | Analyze Sentinel billable ingestion and recommend commitment-tier changes |
 
 ## Standard report template
 

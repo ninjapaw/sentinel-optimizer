@@ -2,7 +2,7 @@
 id: defender-for-servers-p2-ingestion-benefit
 title: "Defender for Servers Plan 2 — data ingestion benefit sizing"
 status: estimate
-lastReviewed: "2026-08-26"
+lastReviewed: "2026-08-27"
 summary: >-
   Size the 500 MB/node/day free Log Analytics ingestion benefit that ships
   with Microsoft Defender for Servers Plan 2, calculated per subscription and
@@ -79,7 +79,8 @@ subscription and applies the benefit at the workspace level, per the official
 but Azure doesn't show you a single number for how much of that allowance
 you're actually using, or how much you'd gain by enabling it. This is a
 single, self-contained KQL query that estimates that amount: copy it into
-Azure Monitor Logs, run it, and read one result row back. No manual math,
+Azure Monitor Logs, run it, and read the `Summary` row plus its workspace
+detail rows. No manual math,
 no cross-referencing tables, no workspace-by-workspace guesswork — it works
 whether you're checking one workspace or an entire tenant (see
 [How to use it](#how-to-use-it)).
@@ -88,7 +89,9 @@ The ingestion benefit is applied automatically to eligible data when the
 Defender for Servers Plan 2 prerequisites are met; there is no separate
 "enable benefit" toggle. The benefit itself is a zero-cost allocation, so it
 typically appears in product/cost-allocation views rather than as a direct
-invoice line item.
+invoice line item. The query reports eligible ingestion, free ingestion,
+unused capacity, and over-cap ingestion separately for each workspace and for
+the overall Summary row.
 
 **Why this is useful:**
 
@@ -98,7 +101,7 @@ invoice line item.
 - **Nothing → P2**: run this to estimate the free ingestion you'd receive from
   day one, as a floor on the effective cost of turning Plan 2 on.
 - **Already on P2**: run this periodically to see how much of your allowance
-  you're actually using (`ConservativeFreeGBPerDay` vs `CapGBPerDay`) and
+  you're actually using (`FreeGBPerDay` vs `CapGBPerDay`) and
   whether unused headroom exists to onboard more eligible data sources.
 
 ## Prerequisites
@@ -154,12 +157,12 @@ No KQL experience required — follow these steps exactly.
    result when you're done.
 5. **Paste it into the big empty text box** in the Logs window (that's the
    query editor) and select **Run** (or press **Shift+Enter**).
-6. **Read the single row of results** that appears in the table below the
-  query. See [Example result](#example-result) below for what each column
-  means.
+6. **Read the results** that appear in the table below the query. The first
+  row is `Summary`; the following rows contain workspace details. See
+  [Example result](#example-result) below for what each column means.
 7. **Get the raw result row.** Select **Share** above the results grid →
    **Export to CSV - all columns**, then open the downloaded file and copy
-   the one data row (skip the header row).
+   the `Summary` row (skip the header row).
 8. **Paste it into Sentinel Optimizer.** Open the **Defender P2 Benefit** tab
    in [Sentinel Optimizer](https://sentineloptimizer.com), paste the copied
    row into its "Paste your result" box, and it auto-parses each column into
@@ -192,115 +195,118 @@ No KQL experience required — follow these steps exactly.
 > [Log Analytics demo environment](https://portal.azure.com/#blade/Microsoft_Azure_Monitoring_Logs/DemoLogsBlade)
 > instead — sample data only, no subscription required.
 
+The query below follows the Microsoft documentation pattern: it returns one
+`Summary` row and one `Workspace` row per workspace. The summary row provides
+the aggregate, while the workspace rows preserve the detail needed to combine
+batches of up to 100 workspaces. It includes every supported table in the
+per-workspace breakdown, including tables with zero observed usage.
+
 ```kql
-// Defender for Servers Plan 2 — free data-ingestion benefit sizing
-// (500 MB/node/day, calculated per subscription and applied at workspace level).
-//
-// Before running: Azure Monitor > Logs > Scope > select every
-// subscription/workspace to include, then Run. No workspace IDs needed here —
-// Log Analytics resolves Heartbeat/Usage across the selected scope.
+// Estimates the Defender for Servers Plan 2 data ingestion benefit
+// (500 MB per node per day) for the selected Log Analytics workspaces.
 let lookback = 30d;
 let lookbackDays = lookback / 1d;
-// Average calendar days per month (365.2425 / 12) — used only to turn the
-// per-day figures into monthly estimates below; it's not a specific month.
-let daysPerMonth = 30.4368;
-// Unconditionally eligible tables per the Defender for Cloud docs.
 let coreEligible = dynamic([
   "SecurityAlert", "SecurityBaseline", "SecurityBaselineSummary", "SecurityDetection",
   "SecurityEvent", "WindowsFirewall", "ProtectionStatus", "MDCFileIntegrityMonitoringEvents",
   "DeviceCustomFileEvents", "DeviceCustomRegistryEvents"]);
-// Conditionally eligible: Update/UpdateSummary only qualify when the Update
-// Management solution isn't running in the workspace (or solution targeting
-// is enabled). WindowsEvent only qualifies for rows from the
-// Microsoft-SecurityEvent stream; the aggregated Usage table can't prove that
-// per row, so treat this half of the estimate as an upper bound, not a quote.
 let conditionalEligible = dynamic(["Update", "UpdateSummary", "WindowsEvent"]);
-// Per-table breakdown (like the built-in Defender for Cloud cost workbook
-// shows), packed into one JSON array so it travels in the same single row —
-// expand it in the results grid by selecting the row's ">" chevron.
-let tableBreakdown = toscalar(
-    Usage
-    | where TimeGenerated > ago(lookback) and IsBillable == true
-    | where DataType in (coreEligible) or DataType in (conditionalEligible)
-    | summarize GBPerDay = round(sum(Quantity) / 1024.0 / lookbackDays, 3) by DataType
-    | extend Eligibility = iff(DataType in (coreEligible), "Core", "Conditional")
-    | sort by GBPerDay desc
-    | summarize Breakdown = make_list(pack("DataType", DataType, "GBPerDay", GBPerDay, "Eligibility", Eligibility))
+let allEligibleTables = materialize(
+  print DataType = array_concat(coreEligible, conditionalEligible)
+  | mv-expand DataType to typeof(string)
+  | project DataType
 );
-// TenantId is Log Analytics' (confusingly named) standard column for the
-// *workspace* GUID. Heartbeat has subscription-related columns, but Usage is
-// aggregated at workspace grain and has no reliable matching subscription key.
-// materialize() runs the per-workspace pipeline once and caches it, so it can
-// be reused below for both the per-workspace breakdown and the overall totals
-// without scanning Heartbeat/Usage twice.
+let allEligibleUsage = materialize(
+  Usage
+  | where TimeGenerated > ago(lookback) and IsBillable == true
+  | where DataType in (coreEligible) or DataType in (conditionalEligible)
+  | project WorkspaceId = TenantId, DataType, Quantity
+);
+let perTableDaily = materialize(
+  allEligibleUsage
+  | summarize GBPerDayRaw = sum(Quantity) / 1024.0 / lookbackDays
+    by WorkspaceId, DataType
+);
+let perWorkspaceAllEligible = materialize(
+  allEligibleUsage
+  | summarize EligibleGBPerDay = sum(Quantity) / 1024.0 / lookbackDays by WorkspaceId
+);
+let workspaceIds = materialize(
+  union
+    (Heartbeat
+    | where TimeGenerated > ago(lookback)
+    | summarize by WorkspaceId = TenantId),
+    (perWorkspaceAllEligible | project WorkspaceId)
+  | distinct WorkspaceId
+);
+let perTableAllEligible = materialize(
+  workspaceIds
+  | extend JoinKey = 1
+  | join kind=inner (allEligibleTables | extend JoinKey = 1) on JoinKey
+  | project WorkspaceId, DataType
+  | join kind=leftouter (
+    perTableDaily
+    | extend Eligibility = iff(DataType in (coreEligible), "Core", "Conditional")
+    | project WorkspaceId, DataType, GBPerDayRaw, Eligibility
+  ) on WorkspaceId, DataType
+  | extend GBPerDay = round(coalesce(GBPerDayRaw, 0.0), 3)
+  | extend Eligibility = coalesce(Eligibility, iff(DataType in (coreEligible), "Core", "Conditional"))
+  | summarize EligibleTableBreakdown = make_bag(pack(DataType, pack("GBPerDay", GBPerDay, "Eligibility", Eligibility)))
+    by WorkspaceId
+);
 let perWorkspace = materialize(
+  workspaceIds
+  | join kind=leftouter (
     Heartbeat
     | where TimeGenerated > ago(lookback)
     | summarize Nodes = dcount(Computer) by WorkspaceId = TenantId
-    | join kind=fullouter (
-        Usage
-        | where TimeGenerated > ago(lookback) and IsBillable == true
-        // Convert to a per-day average here, at the source — everything below
-        // this point is already "per day," so nothing gets divided twice.
-        | summarize
-            ConservativeEligibleGBPerDay = sumif(Quantity, DataType in (coreEligible)) / 1024.0 / lookbackDays,
-            ExpandedEligibleGBPerDay = sumif(Quantity, DataType in (coreEligible) or DataType in (conditionalEligible)) / 1024.0 / lookbackDays
-          by WorkspaceId = TenantId
-    ) on WorkspaceId
-    | extend WorkspaceId = coalesce(WorkspaceId, WorkspaceId1)
-    | extend Nodes = toint(coalesce(Nodes, 0))
-    | extend ConservativeEligibleGBPerDay = coalesce(ConservativeEligibleGBPerDay, 0.0)
-    | extend ExpandedEligibleGBPerDay = coalesce(ExpandedEligibleGBPerDay, 0.0)
-    // CapGBPerDay is already a daily rate (500 MB/node/day) — don't divide it
-    // by lookbackDays, it isn't a period total like the eligible-GB figures.
-    | extend CapGBPerDay = Nodes * 500.0 / 1024.0
-    // Microsoft calculates the allowance across machines in a subscription, while
-    // applying the benefit at the workspace level. Usage is aggregated by
-    // workspace and does not expose a reliable subscription key, so this query
-    // uses workspace-level pooling as an approximation. See the Known limits note.
-    | extend ConservativeFreeGBPerDay = min_of(ConservativeEligibleGBPerDay, CapGBPerDay)
-    | extend ExpandedFreeGBPerDay = min_of(ExpandedEligibleGBPerDay, CapGBPerDay)
+  ) on WorkspaceId
+  | join kind=leftouter perWorkspaceAllEligible on WorkspaceId
+  | extend Nodes = toint(coalesce(Nodes, 0))
+  | extend EligibleGBPerDay = coalesce(EligibleGBPerDay, 0.0)
+  | extend CapGBPerDay = Nodes * 500.0 / 1024.0
+  | extend FreeGBPerDay = min_of(EligibleGBPerDay, CapGBPerDay)
+  | extend UnusedCapGBPerDay = max_of(CapGBPerDay - FreeGBPerDay, 0.0)
+  | extend OverCapGBPerDay = max_of(EligibleGBPerDay - CapGBPerDay, 0.0)
 );
-// Per-workspace sub-totals, packed the same way as the per-table breakdown —
-// expand this row's "WorkspaceBreakdown" column to see each workspace's own
-// Nodes/CapGBPerDay/free-GB numbers before they're summed below.
-let workspaceBreakdown = toscalar(
-    perWorkspace
-    | sort by ConservativeFreeGBPerDay desc
-    | summarize Breakdown = make_list(pack(
-        "WorkspaceId", WorkspaceId,
-        "Nodes", Nodes,
-        "CapGBPerDay", CapGBPerDay,
-        "ConservativeFreeGBPerDay", ConservativeFreeGBPerDay,
-        "ExpandedFreeGBPerDay", ExpandedFreeGBPerDay))
-);
-perWorkspace
-| summarize
-    Workspaces = dcount(WorkspaceId),
+let workspaceRows = perWorkspace
+  | join kind=leftouter perTableAllEligible on WorkspaceId
+  | extend EligibleTableBreakdown = coalesce(EligibleTableBreakdown, dynamic({}))
+  | project
+    RowType = "Workspace",
+    WorkspaceId,
+    Nodes = tolong(Nodes),
+    CapGBPerDay = round(CapGBPerDay, 3),
+    EligibleGBPerDay = round(EligibleGBPerDay, 3),
+    EligibleTableBreakdown,
+    FreeGBPerDay = round(FreeGBPerDay, 3),
+    UnusedCapGBPerDay = round(UnusedCapGBPerDay, 3),
+    OverCapGBPerDay = round(OverCapGBPerDay, 3);
+let summaryRow = perWorkspace
+  | summarize
+    WorkspaceCount = dcount(WorkspaceId),
     Nodes = sum(Nodes),
-    CapGBPerDay = round(sum(CapGBPerDay), 3),
-    ConservativeEligibleGBPerDay = round(sum(ConservativeEligibleGBPerDay), 3),
-    ExpandedEligibleGBPerDay = round(sum(ExpandedEligibleGBPerDay), 3),
-    ConservativeFreeGBPerDay = round(sum(ConservativeFreeGBPerDay), 3),
-    ExpandedFreeGBPerDay = round(sum(ExpandedFreeGBPerDay), 3)
-| extend RecommendedFreeGBPerDay = ConservativeFreeGBPerDay
-// Monthly estimates, purely derived from the per-day figures above — useful
-// since Azure billing and customer quotes are usually discussed per month.
-| extend CapGBPerMonth = round(CapGBPerDay * daysPerMonth, 2)
-| extend ConservativeFreeGBPerMonth = round(ConservativeFreeGBPerDay * daysPerMonth, 2)
-| extend ExpandedFreeGBPerMonth = round(ExpandedFreeGBPerDay * daysPerMonth, 2)
-| extend RecommendedFreeGBPerMonth = round(RecommendedFreeGBPerDay * daysPerMonth, 2)
-// A few extra, self-contained context columns so the row explains itself
-// without re-reading the query — none of these change the headline numbers.
-| extend RecommendedFreeGBPerYear = round(RecommendedFreeGBPerDay * 365.25, 2)
-| extend AvgGBPerNodePerDay = round(iff(Nodes > 0, ConservativeEligibleGBPerDay / Nodes, 0.0), 4)
-| extend ConservativeCoveragePct = round(iff(ConservativeEligibleGBPerDay > 0, 100.0 * ConservativeFreeGBPerDay / ConservativeEligibleGBPerDay, 100.0), 1)
-| extend UnusedCapGBPerDay = round(max_of(CapGBPerDay - ConservativeFreeGBPerDay, 0.0), 3)
-| extend UnusedCapPct = round(iff(CapGBPerDay > 0, 100.0 * UnusedCapGBPerDay / CapGBPerDay, 0.0), 1)
-| extend AnalysisWindowDays = toint(lookbackDays)
-| extend GeneratedAtUtc = now()
-| extend EligibleTableBreakdown = tableBreakdown
-| extend WorkspaceBreakdown = workspaceBreakdown
+    CapGBPerDay = sum(CapGBPerDay),
+    EligibleGBPerDay = sum(EligibleGBPerDay),
+    FreeGBPerDay = sum(FreeGBPerDay),
+    UnusedCapGBPerDay = sum(UnusedCapGBPerDay),
+    OverCapGBPerDay = sum(OverCapGBPerDay)
+  | extend
+    RowType = "Summary",
+    WorkspaceId = tostring(WorkspaceCount),
+    EligibleTableBreakdown = dynamic({})
+  | project
+    RowType,
+    WorkspaceId,
+    Nodes,
+    CapGBPerDay = round(CapGBPerDay, 3),
+    EligibleGBPerDay = round(EligibleGBPerDay, 3),
+    EligibleTableBreakdown,
+    FreeGBPerDay = round(FreeGBPerDay, 3),
+    UnusedCapGBPerDay = round(UnusedCapGBPerDay, 3),
+    OverCapGBPerDay = round(OverCapGBPerDay, 3);
+union summaryRow, workspaceRows
+| sort by RowType asc, FreeGBPerDay desc
 ```
 
 ## How the query works
@@ -309,40 +315,26 @@ perWorkspace
 | --- | --- | --- |
 | 1 | `let lookback = 30d;` / `let lookbackDays = lookback / 1d;` | Sets the look-back window (30 days) and converts it to a plain number so later steps can divide by it. |
 | 2 | `let coreEligible = dynamic([...])` | Lists the 10 tables that **always** qualify for the P2 benefit. |
-| 3 | `let conditionalEligible = dynamic([...])` | Lists the 3 tables that only **sometimes** qualify (`Update`, `UpdateSummary`, `WindowsEvent`). |
-| 4 | `let tableBreakdown = toscalar(Usage \| ... \| summarize Breakdown = make_list(pack(...)))` | Separately computes a per-`DataType` GB/day breakdown (like the built-in Defender for Cloud cost workbook shows) and packs it into one JSON array, ready to attach to the final row. |
-| 5 | `let perWorkspace = materialize(Heartbeat \| ... \| join kind=fullouter (Usage \| ...) \| extend ...)` | Runs the whole per-workspace Nodes/eligible/cap/free pipeline **once** and caches the result, so it can be reused below without re-scanning `Heartbeat`/`Usage`. |
-| 6 | `let workspaceBreakdown = toscalar(perWorkspace \| sort by ... \| summarize Breakdown = make_list(pack(...)))` | Packs each workspace's own Nodes/Cap/Free numbers into a JSON array, sorted highest-free-GB-first, ready to attach to the final row. |
-| 7 | `perWorkspace \| summarize Workspaces = dcount(...), Nodes = sum(...), ...` | Adds every workspace's already-capped numbers together into one overall result row. |
-| 8 | `\| extend RecommendedFreeGBPerDay = ConservativeFreeGBPerDay` | Copies the safest number into a clearly-labeled column so it's obvious what to paste elsewhere. |
-| 9 | `\| extend CapGBPerMonth = round(CapGBPerDay * daysPerMonth, 2)` (and the three matching `...GBPerMonth` lines) | Multiplies each per-day figure by an average 30.4368 days/month, purely for convenience — no new data, just a different unit. |
-| 10 | `\| extend RecommendedFreeGBPerYear = round(RecommendedFreeGBPerDay * 365.25, 2)` | Same idea, annualized (365.25-day average year) — useful for yearly budget conversations. |
-| 11 | `\| extend AvgGBPerNodePerDay = round(iff(Nodes > 0, ConservativeEligibleGBPerDay / Nodes, 0.0), 4)` | A sanity-check density figure: how much eligible ingestion each node sends, on average — useful for spotting a handful of noisy servers vs. a broad pattern. |
-| 12 | `\| extend ConservativeCoveragePct = round(iff(ConservativeEligibleGBPerDay > 0, 100.0 * ConservativeFreeGBPerDay / ConservativeEligibleGBPerDay, 100.0), 1)` | What percentage of your real eligible ingestion the benefit is actually covering today — 100% means every eligible byte is free; below 100% means you're over the cap somewhere. |
-| 13 | `\| extend UnusedCapGBPerDay = round(max_of(CapGBPerDay - ConservativeFreeGBPerDay, 0.0), 3)` | Spare daily allowance — how much more eligible ingestion you could add before hitting the cap. |
-| 14 | `\| extend UnusedCapPct = round(iff(CapGBPerDay > 0, 100.0 * UnusedCapGBPerDay / CapGBPerDay, 0.0), 1)` | The same spare allowance, as a percentage of the cap — easier to eyeball at a glance than a raw GB number. |
-| 15 | `\| extend AnalysisWindowDays = toint(lookbackDays)` | Restates the look-back window (30) directly in the result row, so it's self-describing without reopening the query. |
-| 16 | `\| extend GeneratedAtUtc = now()` | Timestamps the row with when it was computed — useful context if you're saving or sharing the result later. |
-| 17 | `\| extend EligibleTableBreakdown = tableBreakdown` | Attaches the per-table breakdown computed in step 4 onto the same single result row, as a nested JSON column. |
-| 18 | `\| extend WorkspaceBreakdown = workspaceBreakdown` | Attaches the per-workspace breakdown computed in step 6 onto the same single result row, as a nested JSON column. |
+| 3 | `let conditionalEligible = dynamic([...])` | Lists the 3 tables that only **sometimes** qualify (`Update`, `UpdateSummary`, and `WindowsEvent`). Review the documented stream and Update Management conditions before treating the expanded amount as covered. |
+| 4 | `let allEligibleTables = materialize(...)` | Builds the complete supported-table list so every workspace breakdown includes zero-volume supported tables. |
+| 5 | `let allEligibleUsage = materialize(Usage \| ...)` | Filters billable usage to supported tables and retains the workspace, table, and quantity columns. |
+| 6 | `let perTableDaily = materialize(...)` | Calculates the 30-day average GB/day for each supported table in each workspace. |
+| 7 | `let workspaceIds = materialize(...)` | Includes workspaces found through either `Heartbeat` or eligible `Usage`, including workspaces with no heartbeat nodes. |
+| 8 | `let perTableAllEligible = materialize(...)` | Left-joins every supported table to each workspace and packs the values into `EligibleTableBreakdown`. |
+| 9 | `let perWorkspace = materialize(...)` | Joins node counts and eligible ingestion, then calculates the daily cap, free amount, unused cap, and over-cap amount per workspace. |
+| 10 | `let workspaceRows = perWorkspace ...` | Projects one detail row for each workspace with its numeric values and table breakdown. |
+| 11 | `let summaryRow = perWorkspace ...` | Aggregates the workspace rows into one `Summary` row; `WorkspaceId` contains the workspace count for this row. |
+| 12 | `union summaryRow, workspaceRows` | Returns the summary followed by workspace detail rows, ordered by row type and free ingestion. |
 
-> **Units:** `Usage.Quantity` is stored in **MB**; every `/ 1024.0` in the
-> query converts that to **GB** (1024 MB), and the P2 benefit's own
-> 500 MB/node/day allowance is converted the same way for a fair comparison.
-> The `...GBPerMonth` columns use an **average** month length
-> (365.2425 ÷ 12 = 30.4368 days), and `RecommendedFreeGBPerYear` an average
-> year (365.25 days) — neither is tied to a specific calendar period, so
-> don't expect exact invoice matches. `...Pct` columns are plain percentages
-> (0–100, not 0–1). `AnalysisWindowDays` is a day count and `GeneratedAtUtc`
-> is a timestamp — neither is a GB figure. `EligibleTableBreakdown` and
-> `WorkspaceBreakdown` are JSON arrays — select the row's **">"** chevron in
-> the results grid to expand them into readable lists.
+> **Units:** `Usage.Quantity` is stored in MB, so the query divides by 1,024
+> to convert it to GB. Every `...GBPerDay` value is a daily rate, not a period
+> total. `EligibleTableBreakdown` is a JSON object containing every supported
+> table, including tables with zero observed usage. Select the row's **">"**
+> chevron in the results grid to inspect the supported tables and values.
 
-> **Tip:** paste **`RecommendedFreeGBPerDay`** into the "Defender Servers P2
-> (GB/day)" field. It's the same as `ConservativeFreeGBPerDay` — the safer
-> number to quote, since it excludes the two conditional table groups
-> described below. `ExpandedFreeGBPerDay` is an upper bound; use it to
-> sanity-check, not to price.
+> **Tip:** use **`FreeGBPerDay`** as the estimated daily free ingestion. It is
+> the lower of `EligibleGBPerDay` and `CapGBPerDay`. Use the workspace rows
+> when combining batches; do not add a `Summary` row to workspace rows.
 
 ## Known limits
 
@@ -360,135 +352,96 @@ perWorkspace
 
 ## Example result
 
-Running the query produces exactly **one summary row**. The following is a
-fictional example using generated data; it is not a tenant result:
+Running the query produces one `Summary` row followed by one `Workspace` row
+for each workspace. The following fictional example uses the Microsoft output
+shape; it is not a tenant result:
 
-| Workspaces | Nodes | CapGBPerDay | ConservativeEligibleGBPerDay | ExpandedEligibleGBPerDay | ConservativeFreeGBPerDay | ExpandedFreeGBPerDay | RecommendedFreeGBPerDay | CapGBPerMonth | ConservativeFreeGBPerMonth | ExpandedFreeGBPerMonth | RecommendedFreeGBPerMonth | RecommendedFreeGBPerYear | AvgGBPerNodePerDay | ConservativeCoveragePct | UnusedCapGBPerDay | UnusedCapPct | AnalysisWindowDays | GeneratedAtUtc | EligibleTableBreakdown | WorkspaceBreakdown |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 80 | 39.063 | 11.7 | 16.8 | 11.7 | 16.8 | 11.7 | 1188.95 | 356.11 | 511.34 | 356.11 | 4273.43 | 0.1463 | 100.0 | 27.363 | 70.0 | 30 | 2026-01-15 12:00:00.000 PM UTC | `[ {"DataType":"SecurityEvent","GBPerDay":8.4,"Eligibility":"Core"},{"DataType":"Update","GBPerDay":3.7,"Eligibility":"Conditional"},{"DataType":"DeviceCustomFileEvents","GBPerDay":2.1,"Eligibility":"Core"},{"DataType":"WindowsEvent","GBPerDay":1.4,"Eligibility":"Conditional"},{"DataType":"MDCFileIntegrityMonitoringEvents","GBPerDay":1.2,"Eligibility":"Core"} ]` | `[ {"WorkspaceId":"workspace-guid-redacted","Nodes":80,"CapGBPerDay":39.0625,"ConservativeFreeGBPerDay":11.7,"ExpandedFreeGBPerDay":16.8} ]` |
+| RowType | WorkspaceId | Nodes | CapGBPerDay | EligibleGBPerDay | FreeGBPerDay | UnusedCapGBPerDay | OverCapGBPerDay |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Summary | `6` | 75 | 36.621 | 0.916 | 0.916 | 35.705 | 0.000 |
+| Workspace | `workspace-id-redacted-1` | 34 | 16.602 | 0.903 | 0.903 | 15.699 | 0.000 |
+| Workspace | `workspace-id-redacted-2` | 1 | 0.488 | 0.011 | 0.011 | 0.477 | 0.000 |
+| Workspace | `workspace-id-redacted-3` | 17 | 8.301 | 0.002 | 0.002 | 8.299 | 0.000 |
 
 ### CSV export shape
 
 Use **Share → Export to CSV - all columns** in Azure Monitor Logs. The
-download contains one header row and one data row. Azure may label the UTC
-column as `GeneratedAtUtc [UTC]`, and CSV quoting is normal: decimal values or
-JSON fields may be surrounded by double quotes, while the JSON's internal
-quotes are doubled for CSV escaping.
+download contains one header row, one `Summary` row, and one `Workspace` row
+per workspace. CSV quoting is normal: JSON fields may be surrounded by double
+quotes, while the JSON's internal quotes are doubled for CSV escaping.
 
 The following abbreviated example shows the shape only; values and identifiers
-are fictional. The actual export contains all 21 columns in this same order:
+are fictional. The actual export contains these nine columns in this same order:
 
 ```csv
-Workspaces,Nodes,CapGBPerDay,ConservativeEligibleGBPerDay,...,AnalysisWindowDays,"GeneratedAtUtc [UTC]",EligibleTableBreakdown,WorkspaceBreakdown
-1,80,"39.063","11.7",...,30,"1/15/2026, 12:00:00 PM","[{""DataType"":""SecurityEvent"",""GBPerDay"":8.4,""Eligibility"":""Core""},...]","[{""WorkspaceId"":""workspace-guid-redacted"",""Nodes"":80,...}]"
+RowType,WorkspaceId,Nodes,CapGBPerDay,EligibleGBPerDay,EligibleTableBreakdown,FreeGBPerDay,UnusedCapGBPerDay,OverCapGBPerDay
+Summary,6,75,"36.621","0.916","{}","0.916","35.705","0.000"
 ```
 
-Paste the complete data row, not the header row, into the Sentinel Optimizer
-result box. The two JSON fields are optional for manual entry, but retaining
-them gives the per-table and per-workspace detail documented below.
+Paste the complete `Summary` row, not the header or workspace rows, into the
+Sentinel Optimizer result box. The JSON field is optional for manual entry.
 
 ### What to validate
 
-This generated example is mathematically consistent with the documented query:
+This fictional example is consistent with the Microsoft query:
 
-- `80 × 500 MB ÷ 1024 = 39.0625 GB/day`, displayed as `39.063`.
-- Conservative eligible ingestion is `8.4 + 2.1 + 1.2 = 11.7 GB/day`.
-- The conditional tables add `3.7 + 1.4 = 5.1 GB/day`, so the expanded
-  estimate is higher than the conservative estimate.
-- `39.063 - 11.7 = 27.363 GB/day`, or `70.0%`, is unused capacity in this
-  dummy row, demonstrating that the result
-  has headroom for additional eligible ingestion.
-
-The dummy JSON includes five table entries and one redacted workspace entry
-only to demonstrate the format. A real result can contain fewer or more table
-entries depending on which eligible `DataType` values have `Usage` rows in the
-look-back window; omitted eligible tables are not automatically unsupported.
+- The `Summary` row reports six workspaces and 75 observed nodes.
+- `75 × 500 MB ÷ 1,024 = 36.621 GB/day`, displayed as `CapGBPerDay`.
+- `FreeGBPerDay` is the lower of `EligibleGBPerDay` and `CapGBPerDay`.
+- Workspace rows are calculated before the summary, so batch results can be
+  combined by adding workspace rows and excluding summary rows.
 
 ### Per-table breakdown
 
-`EligibleTableBreakdown` is a JSON array produced by the `Usage` query. Each
-object reports one `DataType`, its 30-day average in GB/day, and the
-eligibility classification used by the query. Expanded into a readable table,
-the dummy array is:
+`EligibleTableBreakdown` is a JSON object produced for each workspace. Each
+property is a supported `DataType` whose value contains its 30-day average in
+GB/day and its eligibility classification. The object includes zero-volume
+supported tables.
 
 | DataType | GB/day | Eligibility | Interpretation |
 | --- | ---: | --- | --- |
-| `SecurityEvent` | 8.400 | Core | Largest eligible contributor in this example. |
-| `Update` | 3.700 | Conditional | Included only when the documented Update Management condition is satisfied. |
-| `DeviceCustomFileEvents` | 2.100 | Core | Custom file telemetry contributing to eligible ingestion. |
-| `WindowsEvent` | 1.400 | Conditional | Upper-bound contribution because `Usage` cannot prove the required stream. |
-| `MDCFileIntegrityMonitoringEvents` | 1.200 | Core | FIM telemetry contributing to eligible ingestion. |
+| `SecurityEvent` | 0.715 | Core | Largest eligible contributor in this example. |
+| `DeviceCustomFileEvents` | 0.188 | Core | Custom file telemetry contributing to eligible ingestion. |
+| `WindowsFirewall` | 0.000 | Core | Supported table with no observed usage in this example. |
+| `Update` | 0.001 | Conditional | Included only when the documented Update Management condition is satisfied. |
 
-The array is sorted by `GBPerDay` descending. It includes only `DataType`
-values returned by `Usage`; the query's eligibility lists remain the source of
-truth for supported tables. A zero-volume table can appear when a zero-valued
-`Usage` row exists, while an eligible table with no `Usage` row is omitted.
+The object contains every supported table for the workspace, including tables
+with no matching usage in the look-back window. The eligibility lists remain
+the source of truth for supported tables.
 
-### Per-workspace breakdown
-
-`WorkspaceBreakdown` is a JSON array produced from the materialized
-per-workspace calculation. It preserves the workspace-level cap calculation
-before the overall summary is emitted:
-
-| WorkspaceId | Nodes | CapGBPerDay | ConservativeFreeGBPerDay | ExpandedFreeGBPerDay |
-| --- | ---: | ---: | ---: | ---: |
-| `workspace-guid-redacted` | 80 | 39.0625 | 11.7 | 16.8 |
-
-The workspace identifier is fictional and redacted. The unrounded workspace
-cap explains why the final summary displays `39.063` after its explicit
-rounding step. With one workspace,
-these per-workspace values directly reconcile to the summary row; with several
-workspaces, each workspace is capped before the totals are added.
+The workspace rows are the per-workspace breakdown. The workspace identifier
+is fictional and redacted. The summary is calculated from unrounded workspace
+values, so totals can differ slightly from adding displayed rounded values.
 
 What each column means, in plain terms:
 
 | Column | Unit | Example value | What it means |
 | --- | --- | --- | --- |
-| `Workspaces` | count (whole number) | 1 | How many Log Analytics workspaces (within the Scope you selected) actually had data — one workspace reported data in this example. |
-| `Nodes` | count (whole number) | 80 | The total distinct machines (servers) seen sending a heartbeat across those workspaces. |
-| `CapGBPerDay` | GB per day | 39.063 | The maximum free ingestion the P2 benefit could ever give you at that node count: `Nodes × 500 MB ÷ 1024`. This is the ceiling, not necessarily what you're using. |
-| `ConservativeEligibleGBPerDay` | GB per day | 11.7 | How much eligible data (from the always-qualifying tables only) you're actually sending in, per day, before any cap is applied. This is your real, safe-to-quote ingestion volume. |
-| `ExpandedEligibleGBPerDay` | GB per day | 16.8 | The same thing, but generously including `Update`/`UpdateSummary`/`WindowsEvent` too (tables that only *sometimes* qualify). Always ≥ the conservative number; treat the difference as conditional. |
-| `ConservativeFreeGBPerDay` | GB per day | 11.7 | The actual free benefit you're getting today (or would get) using only the always-eligible tables: `min(ConservativeEligibleGBPerDay, CapGBPerDay)`. Here eligible ingestion is below the cap, so all of it is free. |
-| `ExpandedFreeGBPerDay` | GB per day | 16.8 | Same idea, using the generous eligible number: `min(16.8, 39.063) = 16.8` — the eligible volume is below the cap. |
-| `RecommendedFreeGBPerDay` | GB per day | 11.7 | The number to actually use. It's a copy of `ConservativeFreeGBPerDay`, called out separately so it's the one obvious number to paste into a cost calculator or quote to a customer. |
-| `CapGBPerMonth` | GB per month | 1188.94 | `CapGBPerDay` converted to a monthly figure using an average 30.4368-day month — the same ceiling, just in the unit customers usually think in. |
-| `ConservativeFreeGBPerMonth` | GB per month | 356.11 | `ConservativeFreeGBPerDay` converted to monthly — the safe-to-quote monthly free-ingestion figure. |
-| `ExpandedFreeGBPerMonth` | GB per month | 511.34 | `ExpandedFreeGBPerDay` converted to monthly — the upper-bound monthly figure; don't price this one either. |
-| `RecommendedFreeGBPerMonth` | GB per month | 356.11 | `RecommendedFreeGBPerDay` converted to monthly — the number to actually quote for a monthly conversation. |
-| `RecommendedFreeGBPerYear` | GB per year | 4273.43 | `RecommendedFreeGBPerDay` converted to an annual estimate (365.25-day average year) — for yearly budget conversations. |
-| `AvgGBPerNodePerDay` | GB per node per day | 0.1463 | Eligible ingestion divided by node count — a sanity-check density figure. A number that looks way too high or low for your environment is worth investigating before you quote anything. |
-| `ConservativeCoveragePct` | percent (0–100) | 100.0 | What share of your real eligible ingestion the benefit is covering today. 100% means every eligible byte is free; below 100% means you're over the cap somewhere. |
-| `UnusedCapGBPerDay` | GB per day | 27.363 | Spare daily allowance: `CapGBPerDay − ConservativeFreeGBPerDay`. How much more eligible ingestion you could add before hitting the cap. |
-| `UnusedCapPct` | percent (0–100) | 70.0 | The same spare allowance, as a percentage of the cap — easier to eyeball than a raw GB figure. |
-| `AnalysisWindowDays` | count (whole number) | 30 | The look-back window this row was computed over, restated so the row is self-describing without reopening the query. |
-| `GeneratedAtUtc` | timestamp (UTC) | 2026-01-15 12:00:00 PM UTC | When this row was computed — useful context if you save or share the result later. |
-| `EligibleTableBreakdown` | JSON array | 5 objects | Per-`DataType` GB/day breakdown, sorted highest-first, tagged `"Eligibility": "Core"` or `"Conditional"`. See [Per-table breakdown](#per-table-breakdown). |
-| `WorkspaceBreakdown` | JSON array | 1 object | Per-workspace sub-totals — Nodes, CapGBPerDay, ConservativeFreeGBPerDay, ExpandedFreeGBPerDay — before they're summed into the overall row. See [Per-workspace breakdown](#per-workspace-breakdown). |
+| `RowType` | text | `Summary` | `Summary` identifies the aggregate row; `Workspace` identifies a workspace detail row. |
+| `WorkspaceId` | ID or count | `6` | The workspace identifier on detail rows; the summary row shows the workspace count. |
+| `Nodes` | count | 75 | Distinct machines that sent a heartbeat during the look-back period. |
+| `CapGBPerDay` | GB/day | 36.621 | Maximum daily benefit capacity: nodes × 500 MB ÷ 1,024. |
+| `EligibleGBPerDay` | GB/day | 0.916 | Daily eligible ingestion, including supported conditional tables. |
+| `EligibleTableBreakdown` | JSON object | 4 properties | Per-table daily ingestion and eligibility for every supported table in the workspace. |
+| `FreeGBPerDay` | GB/day | 0.916 | Estimated free ingestion: the lower of eligible ingestion and the cap. |
+| `UnusedCapGBPerDay` | GB/day | 35.705 | Daily benefit capacity not used by eligible ingestion. |
+| `OverCapGBPerDay` | GB/day | 0.000 | Eligible ingestion above the estimated daily capacity, floored at zero. |
 
-> **Note on units:** every `...GBPerDay` column is a **GB-equivalent daily
-> rate using 1024 MB per GB in this query**. It is not a period total. The
-> `...GBPerMonth`/`...GBPerYear`
-> columns are the same per-day figures multiplied by an average month
-> (30.4368 days) or year (365.25 days) — a convenience unit, not a new
-> measurement. `...Pct` columns are plain percentages (0–100).
-> `AnalysisWindowDays` is a day count and `GeneratedAtUtc` is a timestamp —
-> neither is a GB figure. `Workspaces` and `Nodes` are plain counts, not rates.
+> **Note on units:** `Usage.Quantity` is stored in MB, so the query divides by
+> 1,024 to convert it to GB. Every `...GBPerDay` value is a daily rate, not a
+> period total. The summary and workspace values are calculated from the same
+> 30-day look-back window.
 
-**Turning this into a dollar figure:** multiply `RecommendedFreeGBPerMonth`
-(or `RecommendedFreeGBPerDay` / `RecommendedFreeGBPerYear`, whichever period
-you're quoting) by your effective per-GB ingestion price:
+**Turning this into a dollar figure:** multiply `FreeGBPerDay` by 30.4368 and
+your effective per-GB ingestion price:
 
 ```text
-Estimated monthly savings = RecommendedFreeGBPerMonth × price-per-GB
+Estimated monthly savings = FreeGBPerDay × 30.4368 × price-per-GB
 ```
 
-Using the dummy result at a rough $2.30/GB list rate:
-**356.11 × 2.30 ≈ $819.05/month** in free ingestion the P2 benefit is
-covering (or would cover, if you're not yet on P2). At 100% coverage
-(`ConservativeCoveragePct`) with 27.363 GB/day of spare allowance
-(`UnusedCapGBPerDay`, 70.0% of the cap unused), there's meaningful headroom
-here to onboard more eligible data sources before the benefit runs out.
+Using the fictional Summary row at a rough $2.30/GB list rate:
+**0.916 × 30.4368 × 2.30 ≈ $64.20/month** in free ingestion the benefit is
+covering. The `UnusedCapGBPerDay` value shows the remaining daily capacity.
 
 ### Expected result patterns
 
@@ -498,15 +451,15 @@ they are not customer or tenant data:
 
 | Pattern | What you may see | What it usually means |
 | --- | --- | --- |
-| Core-only activity | `ConservativeEligibleGBPerDay` equals `ExpandedEligibleGBPerDay` and the JSON lists only core tables | No conditional-table usage was observed, or the current service configuration does not write to those tables. This is normal. |
-| Conditional activity | `ExpandedEligibleGBPerDay` is greater than `ConservativeEligibleGBPerDay` and `Update`, `UpdateSummary`, or `WindowsEvent` appears in the JSON | Additional data was observed, but the expanded amount may not qualify in full. Review the eligibility conditions before using it for planning. |
-| Below the cap | `ConservativeFreeGBPerDay` equals `ConservativeEligibleGBPerDay` and `UnusedCapGBPerDay` is positive | The observed conservative eligible volume is below the estimated allowance. |
-| At or above the cap | `ConservativeFreeGBPerDay` equals `CapGBPerDay` and `ConservativeCoveragePct` is below 100% | The estimated allowance is fully used; some eligible ingestion may be charged outside the benefit. |
+| Core-only activity | The breakdown contains only core tables with non-zero values | No conditional-table usage was observed, or the current service configuration does not write to those tables. This is normal. |
+| Conditional activity | `EligibleTableBreakdown` includes `Update`, `UpdateSummary`, or `WindowsEvent` with a non-zero value | Additional data was observed, but the expanded amount may not qualify in full. Review the eligibility conditions before using it for planning. |
+| Below the cap | `FreeGBPerDay` equals `EligibleGBPerDay` and `UnusedCapGBPerDay` is positive | The observed eligible volume is below the estimated allowance. |
+| At or above the cap | `FreeGBPerDay` equals `CapGBPerDay` and `OverCapGBPerDay` is positive | The estimated allowance is fully used; some eligible ingestion may be charged outside the benefit. |
 | No heartbeat data | `Nodes` and `CapGBPerDay` are zero, or lower than the protected-server inventory | The selected scope has no visible heartbeat data, or some protected machines use agentless coverage or lack monitoring data. |
-| Multiple workspaces | `WorkspaceBreakdown` contains several objects | Each workspace was evaluated separately before the displayed totals were combined. Check shared-subscription limitations before treating the aggregate as authoritative. |
+| Multiple workspaces | Several `Workspace` rows follow the `Summary` row | Each workspace was evaluated separately before the displayed totals were combined. Check shared-subscription limitations before treating the aggregate as authoritative. |
 | Empty table breakdown | `EligibleTableBreakdown` is empty | No billable `Usage` rows matched the eligible table lists during the look-back window. This does not mean the tables are unsupported. |
 
-For a real run, preserve the complete CSV row and both JSON arrays when
+For a real run, preserve the complete CSV export and the JSON breakdowns when
 investigating a change. Do not replace a real result with these fictional
 examples, and do not publish workspace identifiers, timestamps, or raw tenant
 breakdowns in documentation or issue reports.
@@ -535,14 +488,13 @@ only when a meaningful threshold is crossed.
 4. **Run at a useful interval.** Daily is usually enough because `Usage` is
   hourly and can lag. Keep the query's 30-day window so the result is a
   stable trend rather than a noisy single-day snapshot.
-5. **Store the complete result.** Retain the scalar columns plus both JSON
-  arrays. The arrays explain which tables contributed and which workspace was
-  capped, which makes an alert or cost review easier to investigate.
-6. **Apply thresholds to the conservative value.** Alert on conditions such
-  as `UnusedCapPct < 20`, `ConservativeCoveragePct < 100`, a sharp increase in
-  `ConservativeEligibleGBPerDay`, or a sudden drop in `Nodes`. Use the
-  conservative value for action; keep `ExpandedEligibleGBPerDay` as context,
-  not as a billing commitment.
+5. **Store the complete result.** Retain the scalar columns and
+  `EligibleTableBreakdown`. The workspace rows explain which tables
+  contributed, which makes an alert or cost review easier to investigate.
+6. **Apply thresholds to the result.** Alert on conditions such
+  as `UnusedCapGBPerDay` approaching zero, `OverCapGBPerDay` becoming positive,
+  a sharp increase in `EligibleGBPerDay`, or a sudden drop in `Nodes`. Use the
+  workspace rows for investigation and the Summary row for the aggregate.
 7. **Review exceptions.** A changed result can indicate new telemetry, a
   retired machine, missing scope/RBAC, delayed `Usage`, a changed workspace
   design, or a licensing change. Compare stored breakdowns with Defender for
@@ -565,7 +517,8 @@ only when a meaningful threshold is crossed.
   security telemetry based on this estimate alone.
 - **Sentinel Optimizer:** pass the complete exported row to the Defender P2
   Benefit tool for a plain-language explanation. Keep the original result
-  alongside the explanation so the source values remain auditable.
+  alongside the explanation so the source values remain auditable. Do not
+  combine Summary rows with workspace rows.
 
 ### Important automation boundaries
 
@@ -591,7 +544,7 @@ and all three are handled by the query above:
   level.** Microsoft's current documentation says the total daily allowance
   is calculated across all machines in a subscription, while the benefit is
   applied at the Log Analytics workspace level. This query caps
-  `ConservativeEligibleGBPerDay`/`ExpandedEligibleGBPerDay` per workspace
+  `EligibleGBPerDay` per workspace
   (grouped by `TenantId`, Log Analytics' standard — if oddly named —
   workspace-GUID column) because `Usage` is aggregated at workspace grain.
   That is exact when each workspace belongs to one subscription. If several
@@ -605,13 +558,11 @@ and all three are handled by the query above:
    `MDCFileIntegrityMonitoringEvents`, `DeviceCustomFileEvents`, and
    `DeviceCustomRegistryEvents` always qualify. `Update` and `UpdateSummary`
    qualify only when the Update Management solution isn't running in the
-   workspace (or solution targeting is enabled), and `WindowsEvent` qualifies
-   only for rows from the `Microsoft-SecurityEvent` stream — the aggregated
-   `Usage` table can't distinguish that stream from Application/System channel
-   volume in the same table. The query reports both a `Conservative` estimate
-   (core tables only) and an `Expanded` estimate (core + conditional tables) so
-   you don't over-promise a savings number that depends on tenant-specific
-   configuration.
+  workspace (or solution targeting is enabled), and `WindowsEvent` is treated
+  as conditional because `Usage` cannot prove the required stream. The query
+  reports one eligible estimate using all supported tables. Conditional table
+  entries are labeled in `EligibleTableBreakdown`; review their conditions
+  before treating the full estimate as covered.
 
    That "Update Management solution" condition refers to the **legacy**
    Log Analytics/Azure Automation-based Update Management solution — not
@@ -621,8 +572,7 @@ and all three are handled by the query above:
    "no dependency on Log Analytics and Azure Automation." If your estate has
    fully moved to Update Manager, expect `Update`/`UpdateSummary` to show
    little or no data in your workspace — that's expected, not a query bug,
-   and it's exactly why `ConservativeEligibleGBPerDay` doesn't depend on
-   those two tables at all.
+  and the query reports those tables as conditional when they are present.
 3. **The benefit is scope-aware, not workspace-hardcoded.** The query never
    references a workspace ID. Azure Monitor Logs resolves `Heartbeat` and
    `Usage` across whatever subscriptions/workspaces you select under **Logs →
@@ -703,7 +653,7 @@ useful way to manage `UnusedCapGBPerDay` headroom.
 
 The article lists `DeviceCustomFileEvents` among its supported event tables,
 and that table is already in this query's `coreEligible` set. Custom file
-events therefore contribute to `ConservativeEligibleGBPerDay` when they are
+events therefore contribute to `EligibleGBPerDay` when they are
 billable in `Usage`. The article also lists other custom tables, such as
 `DeviceCustomProcessEvents`, `DeviceCustomNetworkEvents`, and
 `DeviceCustomScriptEvents`; this query does **not** automatically classify
@@ -714,17 +664,21 @@ query's eligibility set.
 
 ## Troubleshooting and FAQ
 
-**Q: `Workspaces` shows fewer workspaces than I expected — did I miss some?**
+**Q: The Summary row shows fewer workspaces than I expected — did I miss some?**
 Usually one of two things: (1) your **Scope** selection doesn't actually include every subscription you meant to — reopen the Scope picker and confirm each one is checked; or (2) you're missing **Log Analytics Reader** (or better) on some workspaces. Missing RBAC causes a workspace to be silently excluded from Scope rather than showing an error, so a partial result can look complete. Ask your administrator to confirm your role assignments if the count looks low.
 
 **Q: The `Nodes` count looks lower than my actual server count.**
 `Heartbeat` only includes machines reporting through the Azure Monitor Agent (AMA) or legacy MMA agent. Servers protected only through **agentless scanning** (no agent installed) never send a heartbeat and won't be counted here, which understates both `Nodes` and `CapGBPerDay`. This is a genuine gap in what KQL can see, not a query bug — cross-check your actual protected-server count in Defender for Cloud's inventory.
 
-**Q: Why did `ConservativeEligibleGBPerDay` increase after enabling custom data collection?**
+**Q: Why did `EligibleGBPerDay` increase after enabling custom data collection?**
 If the rule targets files and writes events to `DeviceCustomFileEvents`, the increase is expected: that table is included in the query's core eligible set, and additional billable events consume more of the available benefit. Narrow the rule's device targeting or event filters if the added volume is not worth the security value. For other custom event tables, confirm eligibility separately before changing the query.
 
-**Q: `ExpandedEligibleGBPerDay` equals `ConservativeEligibleGBPerDay` — is `Update`/`UpdateSummary`/`WindowsEvent` broken?**
-Most likely not — it usually means those tables genuinely have no data in this workspace. If you've migrated to [Azure Update Manager](https://learn.microsoft.com/en-us/azure/update-manager/overview) (Microsoft's current patching service, which has no Log Analytics dependency), `Update`/`UpdateSummary` will legitimately show little or nothing, since Update Manager doesn't write to those tables the way the legacy Update Management solution did. That's expected, and it's exactly why the conservative estimate never depends on them.
+**Q: Why is `EligibleGBPerDay` lower than expected?**
+Check the workspace scope, the `IsBillable` filter, and whether supported tables
+contain data during the look-back period. If you've migrated to [Azure Update
+Manager](https://learn.microsoft.com/en-us/azure/update-manager/overview),
+`Update` and `UpdateSummary` may show little or no data because Update Manager
+doesn't write to those tables the way the legacy solution did.
 
 **Q: My results change slightly between runs a few minutes apart.**
 Expected — `Usage` isn't real-time and can lag by hours. The query uses a 30-day trailing average specifically to smooth this out; small drift (thousandths of a GB/day) between back-to-back runs is normal and not worth chasing. See [Verification](#verification) below for standalone checks.
@@ -764,12 +718,12 @@ Heartbeat
 
 ### Confirm eligible ingestion
 
-This should be close to `ConservativeEligibleGBPerDay`. Small differences can
+This should be close to `EligibleGBPerDay`. Small differences can
 come from rounding or delayed `Usage` records. It checks billable usage only
 and uses the same core table list as the main query.
 
 ```kql
-// Verify eligible ingestion — should be close to ConservativeEligibleGBPerDay
+// Verify eligible ingestion — should be close to EligibleGBPerDay
 let lookback = 30d;
 let lookbackDays = lookback / 1d;
 Usage
@@ -780,6 +734,8 @@ Usage
     "DeviceCustomFileEvents", "DeviceCustomRegistryEvents")
 | summarize round(sum(Quantity) / 1024.0 / lookbackDays, 3)
 ```
+
+### Confirm total ingested data
 
 ### Identify core contributing tables
 
@@ -803,15 +759,15 @@ Usage
 
 ### Check conditional contributing tables
 
-Run this additional check when you want to explain a difference between the
-conservative and expanded values. `Update` and `UpdateSummary` depend on the
+Run this additional check when you want to explain conditional entries in
+`EligibleTableBreakdown`. `Update` and `UpdateSummary` depend on the
 legacy Update Management condition, and `WindowsEvent` requires the
 `Microsoft-SecurityEvent` stream. Because `Usage` does not preserve enough
 detail to prove those conditions per row, treat this output as context rather
 than confirmed free-benefit volume.
 
 ```kql
-// Check conditional tables — context for ExpandedEligibleGBPerDay
+// Check conditional tables — context for EligibleGBPerDay
 let lookback = 30d;
 let lookbackDays = lookback / 1d;
 Usage
@@ -831,22 +787,18 @@ not prove that every counted node is licensed for Plan 2.
 
 ### Confirm the final result relationships
 
-Check these relationships in the returned row:
+Check these relationships in the returned rows:
 
-- `RecommendedFreeGBPerDay` equals `ConservativeFreeGBPerDay`.
-- `ConservativeFreeGBPerDay` equals the lower of
-  `ConservativeEligibleGBPerDay` and `CapGBPerDay`.
-- `ExpandedFreeGBPerDay` equals the lower of
-  `ExpandedEligibleGBPerDay` and `CapGBPerDay`.
-- `UnusedCapGBPerDay` is the non-negative difference between
-  `CapGBPerDay` and `ConservativeFreeGBPerDay`.
-- `UnusedCapPct` is `UnusedCapGBPerDay ÷ CapGBPerDay × 100` when the cap is
-  greater than zero.
-- Monthly and yearly columns are the displayed daily values multiplied by
-  the documented average month or year, subject to rounding.
+- `FreeGBPerDay` equals the lower of `EligibleGBPerDay` and `CapGBPerDay`.
+- `UnusedCapGBPerDay` is the non-negative difference between `CapGBPerDay`
+  and `FreeGBPerDay`.
+- `OverCapGBPerDay` is the non-negative difference between `EligibleGBPerDay`
+  and `CapGBPerDay`.
+- The `Summary` row is calculated from unrounded workspace values. Do not add
+  Summary rows to workspace rows when combining batches.
 
 If these relationships do not hold, re-copy the current query and check that
-the CSV header and data row were not mixed together. Do not attempt to repair
+the CSV header, Summary row, and workspace rows were not mixed together. Do not attempt to repair
 the output by manually editing values.
 
 Small differences (thousandths of a GB/day) between these checks and the
@@ -868,7 +820,7 @@ authoritative places to validate protection, entitlement, and billed cost.
 - [Azure Arc overview](https://learn.microsoft.com/en-us/azure/azure-arc/overview) — confirms Arc projects non-Azure servers into Azure management, while Arc control-plane capabilities and Azure Monitor/Defender for Cloud usage have separate pricing and data-flow implications.
 - [Custom data collection in Microsoft Defender for Endpoint](https://learn.microsoft.com/en-us/defender-endpoint/custom-data-collection) — confirms targeted custom endpoint events are routed to a connected Sentinel workspace and lists `DeviceCustomFileEvents` among the supported tables; this query counts that table as core-eligible.
 
-> **Validated:** as of this writing, all 13 tables in `coreEligible`
+> **Validated:** as of this writing, all 10 tables in `coreEligible`
 > (`SecurityAlert`, `SecurityBaseline`, `SecurityBaselineSummary`,
 > `SecurityDetection`, `SecurityEvent`, `WindowsFirewall`, `ProtectionStatus`,
 > `MDCFileIntegrityMonitoringEvents`, `DeviceCustomFileEvents`,

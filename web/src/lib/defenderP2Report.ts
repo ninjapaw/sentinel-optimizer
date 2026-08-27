@@ -149,10 +149,9 @@ export async function exportDefenderP2Pdf(data: DefenderP2ReportData): Promise<v
   heading("Executive summary");
   paragraph(data.summary);
   paragraph(
-    `The analysis observed ${fieldValue("Nodes")} nodes across ${fieldValue("Workspaces")} workspaces. ` +
-      `The conservative estimated benefit is ${fieldValue("RecommendedFreeGBPerDay")} GB/day ` +
-      `(${fieldValue("RecommendedFreeGBPerMonth")} GB/month), with ${fieldValue("ConservativeCoveragePct")}% ` +
-      "of currently eligible ingestion covered by the modeled allowance.",
+    `The analysis observed ${fieldValue("Nodes")} nodes across ${fieldValue("WorkspaceId")} workspaces. ` +
+      `The estimated eligible ingestion is ${fieldValue("EligibleGBPerDay")} GB/day, ` +
+      `of which ${fieldValue("FreeGBPerDay")} GB/day is within the modeled allowance.`,
   );
 
   heading("Key findings");
@@ -160,12 +159,11 @@ export async function exportDefenderP2Pdf(data: DefenderP2ReportData): Promise<v
     ["Measure", "Result"],
     [
       ["Protected nodes observed", fieldValue("Nodes")],
-      ["Workspaces analyzed", fieldValue("Workspaces")],
-      ["Recommended benefit", `${fieldValue("RecommendedFreeGBPerDay")} GB/day`],
-      ["Recommended monthly benefit", `${fieldValue("RecommendedFreeGBPerMonth")} GB/month`],
-      ["Recommended annual benefit", `${fieldValue("RecommendedFreeGBPerYear")} GB/year`],
-      ["Eligible ingestion covered", `${fieldValue("ConservativeCoveragePct")}%`],
-      ["Unused allowance", `${fieldValue("UnusedCapGBPerDay")} GB/day (${fieldValue("UnusedCapPct")}%)`],
+      ["Workspaces analyzed", fieldValue("WorkspaceId")],
+      ["Eligible ingestion", `${fieldValue("EligibleGBPerDay")} GB/day`],
+      ["Estimated free ingestion", `${fieldValue("FreeGBPerDay")} GB/day`],
+      ["Unused allowance", `${fieldValue("UnusedCapGBPerDay")} GB/day`],
+      ["Ingestion over cap", `${fieldValue("OverCapGBPerDay")} GB/day`],
     ],
     [contentWidth * 0.62, contentWidth * 0.38],
   );
