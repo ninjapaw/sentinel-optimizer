@@ -64,6 +64,9 @@ fi
 location="${AZURE_LOCATION:-eastus2}"
 subscription_id="${AZURE_SUBSCRIPTION_ID:-}"
 repository=""
+repository_owner=""
+repository_owner_id=""
+repository_id=""
 deployment_environment="${AZURE_ENVIRONMENT:-development}"
 resource_group="${AZURE_RESOURCE_GROUP:-}"
 static_web_app_name="${AZURE_STATIC_WEB_APP_NAME:-}"
@@ -288,6 +291,10 @@ if [[ "$configure_github" == true ]]; then
   fi
   [[ "$repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail "Invalid GitHub repository '$repository'."
   gh repo view "$repository" >/dev/null 2>&1 || fail "GitHub repository '$repository' is unavailable to the current gh account."
+  read -r repository_owner repository_owner_id repository_id < <(
+    gh api "repos/$repository" --jq '[.owner.login, .owner.id, .id] | @tsv'
+  )
+  [[ -n "$repository_owner" && -n "$repository_owner_id" && -n "$repository_id" ]] || fail "Unable to resolve GitHub repository identity for '$repository'."
 fi
 
 openai_account_name="${openai_account_name:-sentinel-optimizer-${deployment_environment}-openai}"
@@ -458,11 +465,11 @@ if [[ "$configure_github" == true ]]; then
   ensure_federated_credential \
     "$infrastructure_application_object_id" \
     "github-$github_environment-infrastructure" \
-    "repo:$repository:environment:$github_environment"
+    "repo:${repository_owner}@${repository_owner_id}/${repository##*/}@${repository_id}:environment:$github_environment"
   ensure_federated_credential \
     "$api_application_object_id" \
     "github-$github_environment-api" \
-    "repo:$repository:environment:$github_environment"
+    "repo:${repository_owner}@${repository_owner_id}/${repository##*/}@${repository_id}:environment:$github_environment"
 fi
 
 ensure_role_assignment "$infrastructure_principal_object_id" Contributor "$resource_group_scope"
