@@ -4,7 +4,7 @@
  * See LICENSE in the repository root.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 
 export interface TabItem {
@@ -22,13 +22,36 @@ interface TabsContainerProps {
 }
 
 export function TabsContainer({ tabs, defaultTabId, verticalLayout = false }: TabsContainerProps) {
-  const [activeTab, setActiveTab] = useState(defaultTabId || tabs[0]?.id || "");
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== "undefined") {
+      const hashTab = window.location.hash.replace(/^#tool-/, "");
+      if (tabs.some((tab) => tab.id === hashTab)) return hashTab;
+    }
+    return defaultTabId || tabs[0]?.id || "";
+  });
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const hashTab = window.location.hash.replace(/^#tool-/, "");
+      if (tabs.some((tab) => tab.id === hashTab)) setActiveTab(hashTab);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [tabs]);
+
+  function activateTab(tabId: string) {
+    setActiveTab(tabId);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `#tool-${tabId}`);
+    }
+  }
 
   const activeTabContent = tabs.find((tab) => tab.id === activeTab)?.content;
 
   return (
     <div className="tabs-container" style={{ display: "flex", gap: "1.5rem", flexDirection: verticalLayout ? "column" : "row" }}>
       <div
+        id="tools"
         className="tabs-nav"
         style={{
           display: "flex",
@@ -43,7 +66,7 @@ export function TabsContainer({ tabs, defaultTabId, verticalLayout = false }: Ta
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => activateTab(tab.id)}
             className={`tab-button ${activeTab === tab.id ? "active" : ""}`}
             style={{
               padding: "0.75rem 1rem",
@@ -69,9 +92,11 @@ export function TabsContainer({ tabs, defaultTabId, verticalLayout = false }: Ta
       </div>
 
       <div
+        id={`tool-${activeTab}`}
         className="tabs-content"
         style={{
           flex: 1,
+          minWidth: 0,
           minHeight: "300px",
           animation: "fadeIn 0.2s ease",
         }}
@@ -98,6 +123,23 @@ export function TabsContainer({ tabs, defaultTabId, verticalLayout = false }: Ta
 
         .tabs-container .tab-button.active:hover {
           background-color: var(--color-primary-dark, #005a9e);
+        }
+
+        @media (max-width: 700px) {
+          .tabs-container {
+            flex-direction: column !important;
+          }
+
+          .tabs-container .tabs-nav {
+            flex-direction: row !important;
+            min-width: 0 !important;
+            width: 100%;
+            overflow-x: auto;
+          }
+
+          .tabs-container .tabs-content {
+            width: 100%;
+          }
         }
       `}</style>
     </div>

@@ -11,10 +11,12 @@ export {
   isAiTextResponse,
   isApiErrorResponse,
   isExampleRequest,
+  isExplainKqlRequest,
   type AggregatedSummary,
   type AiTextResponse,
   type ApiErrorResponse,
   type ExampleRequest,
+  type ExplainKqlRequest,
   type SummaryStyle,
 } from "./contracts/ai.js";
 export {
@@ -26,7 +28,7 @@ export {
 } from "./utils/config.js";
 export { isFiniteNumber, isRecord } from "./utils/guards.js";
 export { apiResponseHeaders } from "./utils/http.js";
-export { roundTo } from "./utils/number.js";
+export { parseOptionalNumber, roundTo } from "./utils/number.js";
 export {
   rankSourcesWithoutNames,
   redactSourceNames,

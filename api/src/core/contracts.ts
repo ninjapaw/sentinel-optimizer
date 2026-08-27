@@ -4,9 +4,21 @@
  * See LICENSE in the repository root.
  */
 
+export interface ChatTextPart {
+  type: "text";
+  text: string;
+}
+
+export interface ChatImagePart {
+  type: "image_url";
+  image_url: { url: string };
+}
+
+export type ChatContent = string | Array<ChatTextPart | ChatImagePart>;
+
 export interface ChatMessage {
   role: "system" | "user";
-  content: string;
+  content: ChatContent;
 }
 
 export interface ChatRequest {
@@ -21,6 +33,7 @@ export interface ChatResult {
 }
 
 export interface AiProvider {
+  supportsImages?: boolean;
   complete(request: ChatRequest): Promise<ChatResult>;
 }
 

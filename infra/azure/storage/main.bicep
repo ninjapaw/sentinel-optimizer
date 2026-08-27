@@ -16,17 +16,28 @@ param databaseName string = 'sentinel-optimizer'
 @description('Container name for sessions.')
 param sessionsContainerName string = 'sessions'
 
-@description('Enable public network access (default: false for security).')
-param publicNetworkAccess bool = false
+@description('Enable public network access. Flex Consumption requires public data-plane access until private networking is introduced.')
+param publicNetworkAccess bool = true
+
+@description('Resource tags applied to the Cosmos resources.')
+param tags object = {}
+
+var resourceTags = union({
+  application: 'sentinel-optimizer'
+  component: 'storage'
+  managedBy: 'bicep'
+}, tags)
 
 var accountName = '${toLower(replace(namePrefix, '-', ''))}db${uniqueString(resourceGroup().id)}'
 
 resource cosmosAccount 'Microsoft.DocumentDB/databaseAccounts@2024-05-15' = {
   name: accountName
   location: location
+  tags: resourceTags
   kind: 'GlobalDocumentDB'
   properties: {
     databaseAccountOfferType: 'Standard'
+    disableLocalAuth: true
     consistencyPolicy: {
       defaultConsistencyLevel: 'Session'
     }
@@ -73,16 +84,11 @@ resource sessionsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/c
   }
 }
 
-// Output the connection string as a secure reference for Function App settings
-resource cosmosKeys 'Microsoft.DocumentDB/databaseAccounts/listKeys@2024-05-15' = {
-  name: '${cosmosAccount.name}/default'
-}
-
 @description('Cosmos DB account name.')
 output accountName string = cosmosAccount.name
 
-@description('Cosmos DB connection string (primary).')
-output connectionString string = cosmosKeys.properties.primaryConnectionString
+@description('Cosmos DB endpoint for managed-identity clients.')
+output endpoint string = cosmosAccount.properties.documentEndpoint
 
 @description('Cosmos DB database name.')
 output databaseName string = databaseName

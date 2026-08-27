@@ -5,35 +5,9 @@
  */
 
 import type { HttpHandler, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import { authorizeAdmin } from "../../../../auth/entra.js";
 import { handleAdminUserList, handleAdminSessionDelete } from "../../../../core/session.js";
 import { apiResponseHeaders, getSessionStorage } from "../../../../../../shared/index.js";
-
-function extractUserIdentity(request: HttpRequest): {
-  userId: string | undefined;
-  role: string | undefined;
-} {
-  const token = request.headers.get("authorization")?.replace("Bearer ", "") || "";
-  if (!token) {
-    return { userId: undefined, role: undefined };
-  }
-
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3 || !parts[1]) {
-      return { userId: undefined, role: undefined };
-    }
-    const encoded = parts[1];
-    const decoded = JSON.parse(atob(encoded));
-    const roles = decoded.roles as string[] | undefined;
-    const role = roles?.[0];
-    return {
-      userId: (decoded.sub as string | undefined) || (decoded.oid as string | undefined),
-      role: role as string | undefined,
-    };
-  } catch {
-    return { userId: undefined, role: undefined };
-  }
-}
 
 function parseAdminSessionPath(pathname: string): {
   operation: "users" | "delete" | "unknown";
@@ -60,7 +34,16 @@ export const adminSessions: HttpHandler = async (
   context: InvocationContext,
 ): Promise<HttpResponseInit> => {
   try {
-    const { userId, role } = extractUserIdentity(request);
+    const authorization = await authorizeAdmin(request);
+    if (!authorization.ok) {
+      return {
+        status: authorization.status,
+        body: JSON.stringify({ error: authorization.error }),
+        headers: apiResponseHeaders(),
+      };
+    }
+    const userId = authorization.claims.sub || authorization.claims.oid;
+    const role = "admin";
     const { operation, userId: targetUserId, sessionId } = parseAdminSessionPath(
       new URL(request.url).pathname,
     );

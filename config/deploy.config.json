@@ -1,0 +1,59 @@
+{
+  "configVersion": "1.0.0",
+  "project": {
+    "name": "Sentinel Optimizer",
+    "slug": "sentinel-optimizer",
+    "repository": "ninjapaw/sentinel-optimizer"
+  },
+  "defaults": {
+    "deploymentTarget": "azure-static-web-app",
+    "aiApiKeySecretName": "ai-api-key",
+    "location": "centralus",
+    "siteSku": "Free",
+    "functionMemoryMB": 512,
+    "functionMaximumInstances": 40,
+    "functionAlwaysReadyInstances": 0,
+    "functionStorageSku": "Standard_LRS",
+    "deployApi": true,
+    "useApi": true,
+    "enableAnonymousAiRoutes": false,
+    "deployKeyVault": true,
+    "deployOpenAi": false,
+    "openAiModelName": "gpt-4.1-mini",
+    "openAiModelDeployment": "sentinel-optimizer-model",
+    "openAiDeploymentSku": "GlobalStandard",
+    "openAiModelCapacity": 1,
+    "secretExpirationDays": 365,
+    "secretWarningDays": 30
+  },
+  "environments": {
+    "dev": {
+      "branch": "dev",
+      "githubEnvironment": "dev",
+      "azureEnvironment": "development",
+      "subscriptionId": "",
+      "location": "centralus",
+      "resourceGroup": "NP-SentinelOptimizer-Dev-CentralUS",
+      "staticWebAppName": "np-sentineloptimizer-dev-centralus",
+      "functionAppName": "np-sentineloptimizer-api-dev-centralus",
+      "keyVaultName": "sentinel-opt-dev-kv",
+      "openAiAccountName": "sentinel-opt-dev-openai",
+      "customDomain": "dev.sentineloptimizer.com",
+      "publicSiteUrl": "https://dev.sentineloptimizer.com"
+    },
+    "prod": {
+      "branch": "main",
+      "githubEnvironment": "prod",
+      "azureEnvironment": "production",
+      "subscriptionId": "",
+      "location": "centralus",
+      "resourceGroup": "NP-SentinelOptimizer-CentralUS",
+      "staticWebAppName": "np-sentineloptimizer-centralus",
+      "functionAppName": "np-sentineloptimizer-api-centralus",
+      "keyVaultName": "sentinel-opt-prod-kv",
+      "openAiAccountName": "sentinel-opt-openai",
+      "customDomain": "sentineloptimizer.com",
+      "publicSiteUrl": "https://sentineloptimizer.com"
+    }
+  }
+}

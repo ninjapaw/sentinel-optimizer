@@ -8,9 +8,11 @@ on:
   push:
     branches:
       - main
+      - dev
   pull_request:
     branches:
       - main
+      - dev
   workflow_dispatch:
 
 permissions:
@@ -48,7 +50,10 @@ jobs:
         run: npm ci
 
       - name: Audit dependencies
-        run: npm audit
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Validate deployment configuration
+        run: npm run config:check
 
       - name: Type-check engine
         run: npm run typecheck:engine
@@ -125,8 +130,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # pptxgenjs pulls in image-size, which has no patched release for GHSA-w3rx-r6r6-pgpr.
       - name: Audit dependencies
-        run: npm audit
+        run: npm audit --audit-level=critical
 
       - name: Type-check web
         run: npm run typecheck

@@ -1,0 +1,105 @@
+# MIT License
+# Copyright (c) 2026 Microsoft Corporation
+# See LICENSE in the repository root.
+
+name: Promote Dev to Main
+
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: Pull request title
+        required: true
+        default: Promote dev to main
+      require-ci:
+        description: Require a successful Continuous Integration run on the dev head commit
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-dev-to-main
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare dev against main
+        id: compare
+        run: |
+          git fetch origin main dev --quiet
+
+          ahead="$(git rev-list --count origin/main..origin/dev)"
+          behind="$(git rev-list --count origin/dev..origin/main)"
+          head_sha="$(git rev-parse origin/dev)"
+
+          echo "ahead=$ahead" >> "$GITHUB_OUTPUT"
+          echo "head-sha=$head_sha" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Promotion candidate"
+            echo ""
+            echo "- dev head: \`$head_sha\`"
+            echo "- Commits ahead of main: $ahead"
+            echo "- Commits behind main: $behind"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$ahead" -eq 0 ]]; then
+            echo "::error title=Nothing to promote::origin/dev has no commits beyond origin/main."
+            exit 1
+          fi
+
+      - name: Verify Continuous Integration passed on dev
+        if: inputs.require-ci == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ steps.compare.outputs.head-sha }}
+        run: |
+          conclusion="$(gh run list \
+            --workflow ci.yml \
+            --branch dev \
+            --commit "$HEAD_SHA" \
+            --limit 1 \
+            --json conclusion \
+            --jq '.[0].conclusion // empty')"
+
+          if [[ "$conclusion" != "success" ]]; then
+            echo "::error title=Continuous Integration not green::Expected a successful ci.yml run for $HEAD_SHA; found '${conclusion:-none}'."
+            exit 1
+          fi
+
+      - name: Open or update the promotion pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TITLE: ${{ inputs.title }}
+          AHEAD: ${{ steps.compare.outputs.ahead }}
+          HEAD_SHA: ${{ steps.compare.outputs.head-sha }}
+        run: |
+          existing="$(gh pr list --base main --head dev --state open --json number --jq '.[0].number // empty')"
+
+          body="$(printf 'Promotes %s commit(s) from \`dev\` to \`main\`.\n\n- dev head: `%s`\n- Opened by the Promote Dev to Main workflow.\n\nDeploy production from `main` after this pull request merges.' "$AHEAD" "$HEAD_SHA")"
+
+          if [[ -n "$existing" ]]; then
+            gh pr edit "$existing" --title "$PR_TITLE" --body "$body"
+            url="$(gh pr view "$existing" --json url --jq .url)"
+          else
+            url="$(gh pr create --base main --head dev --title "$PR_TITLE" --body "$body")"
+          fi
+
+          echo "Promotion pull request: $url" >> "$GITHUB_STEP_SUMMARY"

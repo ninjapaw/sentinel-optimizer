@@ -8,14 +8,20 @@ on:
   push:
     branches:
       - main
+      - dev
     paths:
       - .github/workflows/deploy-azure-infrastructure.yml
+      - config/deploy.config.json
+      - scripts/deploy-config.mjs
       - infra/azure/**
   pull_request:
     branches:
       - main
+      - dev
     paths:
       - .github/workflows/deploy-azure-infrastructure.yml
+      - config/deploy.config.json
+      - scripts/deploy-config.mjs
       - infra/azure/**
   workflow_dispatch:
     inputs:
@@ -24,18 +30,20 @@ on:
         required: true
         type: choice
         options:
+          - all
           - site
           - api
           - keyvault
           - ai
       environment:
-        description: GitHub Environment and Azure naming scope
-        required: true
-        default: development
+        description: GitHub Environment and Azure naming scope (leave as auto-detect to infer from the branch)
+        required: false
+        default: auto-detect
         type: choice
         options:
-          - development
-          - production
+          - auto-detect
+          - dev
+          - prod
       operation:
         description: Run a safe preview or apply the selected stack
         required: true
@@ -44,63 +52,13 @@ on:
         options:
           - what-if
           - deploy
-      site-sku:
-        description: Static Web Apps plan (site only)
-        required: true
-        default: Free
-        type: choice
-        options:
-          - Free
-          - Standard
-      function-memory-mb:
-        description: Flex Consumption memory per instance (API only)
-        required: true
-        default: "512"
-        type: choice
-        options:
-          - "512"
-          - "2048"
-          - "4096"
-      storage-sku:
-        description: Functions storage redundancy (API only)
-        required: true
-        default: Standard_LRS
-        type: choice
-        options:
-          - Standard_LRS
-          - Standard_ZRS
-          - Standard_GRS
-          - Standard_GZRS
-      always-ready-instances:
-        description: Warm HTTP instances; zero scales to zero (API only)
-        required: true
-        default: 0
-        type: number
-      function-maximum-instances:
-        description: Maximum burst instances, from 40 through 1000 (API only)
-        required: true
-        default: 40
-        type: number
-      openai-deployment-sku:
-        description: Azure OpenAI processing geography (AI only)
-        required: true
-        default: GlobalStandard
-        type: choice
-        options:
-          - GlobalStandard
-          - DataZoneStandard
-          - Standard
-      openai-model-capacity:
-        description: Model capacity in thousands of tokens per minute (AI only)
-        required: true
-        default: 1
-        type: number
 
 permissions:
   contents: read
 
+# Branch dev uses the dev environment, branch main uses the prod environment.
 concurrency:
-  group: azure-infrastructure-${{ inputs.environment || 'validation' }}-${{ inputs.component || 'all' }}-${{ github.ref }}
+  group: azure-infrastructure-${{ github.event_name == 'workflow_dispatch' && ((inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev')) || 'validation' }}-${{ inputs.component || 'all' }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -130,6 +88,13 @@ jobs:
           "$RUNNER_TEMP/bicep" build-params \
             infra/azure/bootstrap/main.bicepparam \
             --outfile "$RUNNER_TEMP/bootstrap.parameters.json"
+          "$RUNNER_TEMP/bicep" build infra/azure/main.bicep \
+            --outfile "$RUNNER_TEMP/all.azuredeploy.json"
+          for environment in dev prod; do
+            "$RUNNER_TEMP/bicep" build-params \
+              "infra/azure/main.${environment}.bicepparam" \
+              --outfile "$RUNNER_TEMP/all.${environment}.parameters.json"
+          done
 
           for component in site api keyvault ai; do
             "$RUNNER_TEMP/bicep" build "infra/azure/$component/main.bicep" \
@@ -146,38 +111,44 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: deployment-${{ inputs.environment }}
+    environment: ${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev') }}
     permissions:
       contents: read
       id-token: write
     env:
-      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
-      AZURE_ENVIRONMENT: ${{ inputs.environment }}
-      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
-      AZURE_STATIC_WEB_APP_NAME: ${{ vars.AZURE_STATIC_WEB_APP_NAME }}
-      AZURE_FUNCTIONAPP_NAME: ${{ vars.AZURE_FUNCTIONAPP_NAME }}
-      AZURE_PUBLIC_SITE_URL: ${{ vars.AZURE_PUBLIC_SITE_URL }}
-      AZURE_DEPLOY_API: ${{ vars.AZURE_DEPLOY_API }}
-      AZURE_USE_API: ${{ vars.AZURE_USE_API }}
-      AZURE_ENABLE_ANONYMOUS_AI_ROUTES: ${{ vars.AZURE_ENABLE_ANONYMOUS_AI_ROUTES }}
       ENTRA_EXTERNAL_ID_ISSUER: ${{ vars.ENTRA_EXTERNAL_ID_ISSUER }}
       ENTRA_EXTERNAL_ID_JWKS_URI: ${{ vars.ENTRA_EXTERNAL_ID_JWKS_URI }}
       ENTRA_EXTERNAL_ID_AUDIENCE: ${{ vars.ENTRA_EXTERNAL_ID_AUDIENCE }}
       ENTRA_EXTERNAL_ID_ADMIN_ROLE: ${{ vars.ENTRA_EXTERNAL_ID_ADMIN_ROLE }}
-      AZURE_OPENAI_ACCOUNT_NAME: ${{ vars.AZURE_OPENAI_ACCOUNT_NAME }}
-      AZURE_OPENAI_MODEL_NAME: ${{ vars.AZURE_OPENAI_MODEL_NAME }}
-      AZURE_OPENAI_MODEL_DEPLOYMENT: ${{ vars.AZURE_OPENAI_MODEL_DEPLOYMENT }}
-      AZURE_KEY_VAULT_NAME: ${{ vars.AZURE_KEY_VAULT_NAME }}
-      AZURE_SITE_SKU: ${{ inputs.site-sku }}
-      AZURE_FUNCTION_INSTANCE_MEMORY_MB: ${{ inputs.function-memory-mb }}
-      AZURE_FUNCTION_MAXIMUM_INSTANCE_COUNT: ${{ inputs.function-maximum-instances }}
-      AZURE_FUNCTION_ALWAYS_READY_INSTANCES: ${{ inputs.always-ready-instances }}
-      AZURE_FUNCTION_STORAGE_SKU: ${{ inputs.storage-sku }}
-      AZURE_OPENAI_DEPLOYMENT_SKU: ${{ inputs.openai-deployment-sku }}
-      AZURE_OPENAI_MODEL_CAPACITY: ${{ inputs.openai-model-capacity }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Load deployment configuration
+        id: deployment_config
+        env:
+          TARGET_ENVIRONMENT: ${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev') }}
+        run: node scripts/deploy-config.mjs --environment "$TARGET_ENVIRONMENT" --github-env --github-output --require-subscription
+
+      - name: Verify branch matches environment
+        env:
+          SOURCE_REF: ${{ github.ref_name }}
+        run: |
+          case "$SOURCE_REF" in
+            main) detected=production ;;
+            dev) detected=development ;;
+            *)
+              echo "::error title=Unsupported branch::Deploy from 'dev' (development) or 'main' (production), not '$SOURCE_REF'."
+              exit 1
+              ;;
+          esac
+
+          if [[ "$AZURE_ENVIRONMENT" != "$detected" ]]; then
+            echo "::error title=Branch and environment mismatch::Branch '$SOURCE_REF' maps to $detected, not $AZURE_ENVIRONMENT."
+            exit 1
+          fi
+
+          echo "Targeting the $AZURE_ENVIRONMENT environment from '$SOURCE_REF'." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate GitHub Environment configuration
         env:
@@ -185,7 +156,7 @@ jobs:
         run: |
           bash infra/azure/validate-environment.sh
           case "$COMPONENT" in
-            site|api) ;;
+            all|site|api) ;;
             keyvault)
               : "${AZURE_KEY_VAULT_NAME:?Set AZURE_KEY_VAULT_NAME as an Environment variable}"
               ;;
@@ -198,10 +169,9 @@ jobs:
 
       - name: Verify OIDC bootstrap configuration
         env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          AZURE_API_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_API_PRINCIPAL_OBJECT_ID }}
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_API_PRINCIPAL_OBJECT_ID: ${{ vars.AZURE_API_PRINCIPAL_OBJECT_ID }}
           COMPONENT: ${{ inputs.component }}
         run: |
           : "${AZURE_CLIENT_ID:?Run infra/azure/bootstrap.sh to configure AZURE_CLIENT_ID}"
@@ -213,9 +183,9 @@ jobs:
       - name: Sign in to Azure
         uses: azure/login@8216e11d8cd9b42fe925c852af8e76311ff067ac # v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ steps.deployment_config.outputs.AZURE_SUBSCRIPTION_ID }}
 
       - name: Verify Azure resource prerequisites
         env:
@@ -251,8 +221,8 @@ jobs:
 
       - name: Evaluate or deploy selected stack
         env:
-          AZURE_API_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_API_PRINCIPAL_OBJECT_ID }}
-          AZURE_INFRA_PRINCIPAL_OBJECT_ID: ${{ secrets.AZURE_INFRA_PRINCIPAL_OBJECT_ID }}
+          AZURE_API_PRINCIPAL_OBJECT_ID: ${{ vars.AZURE_API_PRINCIPAL_OBJECT_ID }}
+          AZURE_INFRA_PRINCIPAL_OBJECT_ID: ${{ vars.AZURE_INFRA_PRINCIPAL_OBJECT_ID }}
           COMPONENT: ${{ inputs.component }}
           OPERATION: ${{ inputs.operation }}
         run: |
@@ -266,6 +236,29 @@ jobs:
 
           parameters=(location="$AZURE_LOCATION")
           case "$COMPONENT" in
+            all)
+              environment_file="infra/azure/main.${DEPLOY_ENVIRONMENT}.bicepparam"
+              [[ -f "$environment_file" ]] || {
+                echo "::error title=Missing environment parameters::Cannot find $environment_file."
+                exit 1
+              }
+              az deployment group "$command_name" \
+                --name "sentinel-optimizer-all-${GITHUB_RUN_NUMBER}" \
+                --resource-group "$AZURE_RESOURCE_GROUP" \
+                --template-file infra/azure/main.bicep \
+                --parameters \
+                  "$environment_file" \
+                  deployOpenAi="$AZURE_DEPLOY_OPENAI" \
+                  keyVaultName="$AZURE_KEY_VAULT_NAME" \
+                  aiApiKeySecretName="${AZURE_AI_API_KEY_SECRET_NAME:-ai-api-key}" \
+                  apiDeploymentPrincipalId="$AZURE_API_PRINCIPAL_OBJECT_ID" \
+                  infrastructurePrincipalId="$AZURE_INFRA_PRINCIPAL_OBJECT_ID" \
+                  enableAnonymousAiRoutes="$AZURE_ENABLE_ANONYMOUS_AI_ROUTES" \
+                  entraExternalIdIssuer="$ENTRA_EXTERNAL_ID_ISSUER" \
+                  entraExternalIdJwksUri="$ENTRA_EXTERNAL_ID_JWKS_URI" \
+                  entraExternalIdAudience="$ENTRA_EXTERNAL_ID_AUDIENCE" \
+                  entraExternalIdAdminRole="${ENTRA_EXTERNAL_ID_ADMIN_ROLE:-SentinelOptimizer.Admin}"
+              ;;
             site)
               : "${AZURE_STATIC_WEB_APP_NAME:?Set AZURE_STATIC_WEB_APP_NAME as an Environment variable}"
               parameters+=(
@@ -329,8 +322,10 @@ jobs:
               ;;
           esac
 
-          az deployment group "$command_name" \
-            --name "sentinel-optimizer-$COMPONENT-${GITHUB_RUN_NUMBER}" \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --template-file "infra/azure/$COMPONENT/azuredeploy.json" \
-            --parameters "${parameters[@]}"
+          if [[ "$COMPONENT" != all ]]; then
+            az deployment group "$command_name" \
+              --name "sentinel-optimizer-$COMPONENT-${GITHUB_RUN_NUMBER}" \
+              --resource-group "$AZURE_RESOURCE_GROUP" \
+              --template-file "infra/azure/$COMPONENT/azuredeploy.json" \
+              --parameters "${parameters[@]}"
+          fi

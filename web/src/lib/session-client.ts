@@ -5,6 +5,7 @@
  */
 
 import { getAccessToken } from "./auth.js";
+import { API_BASE, IDENTITY_CONFIG } from "./identityConfig.js";
 import type {
   UserSession,
   SessionListItem,
@@ -15,8 +16,7 @@ import type {
 // Re-export types for convenience
 export type { UserSession, SessionListItem, SessionSaveRequest, SessionSaveResponse };
 
-const API_BASE = import.meta.env.PUBLIC_API_URL || "/api";
-const SCOPES = [`api://${import.meta.env.PUBLIC_ENTRA_CLIENT_ID}/user-api`];
+const SCOPES = [IDENTITY_CONFIG.apiScope];
 
 async function getApiHeaders(): Promise<Record<string, string>> {
   const token = await getAccessToken(SCOPES);

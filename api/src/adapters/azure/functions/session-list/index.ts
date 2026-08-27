@@ -5,29 +5,9 @@
  */
 
 import type { HttpHandler, HttpRequest, HttpResponseInit, InvocationContext } from "@azure/functions";
+import { authorizeUser } from "../../../../auth/entra.js";
 import { handleSessionList } from "../../../../core/session.js";
 import { apiResponseHeaders, getSessionStorage } from "../../../../../../shared/index.js";
-
-function extractUserIdentity(request: HttpRequest): {
-  userId: string | undefined;
-} {
-  const token = request.headers.get("authorization")?.replace("Bearer ", "") || "";
-  if (!token) {
-    return { userId: undefined };
-  }
-
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3 || !parts[1]) {
-      return { userId: undefined };
-    }
-    const encoded = parts[1];
-    const decoded = JSON.parse(atob(encoded));
-    return { userId: (decoded.sub as string | undefined) || (decoded.oid as string | undefined) };
-  } catch {
-    return { userId: undefined };
-  }
-}
 
 export const sessionList: HttpHandler = async (
   request: HttpRequest,
@@ -42,7 +22,15 @@ export const sessionList: HttpHandler = async (
       };
     }
 
-    const { userId } = extractUserIdentity(request);
+    const authorization = await authorizeUser(request);
+    if (!authorization.ok) {
+      return {
+        status: authorization.status,
+        body: JSON.stringify({ error: authorization.error }),
+        headers: apiResponseHeaders(),
+      };
+    }
+    const userId = authorization.claims.sub || authorization.claims.oid;
     const url = new URL(request.url);
     const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50", 10), 10), offset = Math.max(parseInt(url.searchParams.get("offset") ?? "0", 10), 0);
 

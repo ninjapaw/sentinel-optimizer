@@ -27,6 +27,8 @@ export interface AiEnvironment {
 }
 
 class OpenAiProvider implements AiProvider {
+  readonly supportsImages = true;
+
   constructor(
     private readonly client: OpenAI,
     private readonly model: string,
@@ -40,7 +42,10 @@ class OpenAiProvider implements AiProvider {
         : { max_completion_tokens: request.maxTokens };
     const completion = await this.client.chat.completions.create({
       model: this.model,
-      messages: request.messages,
+      // Cast: our ChatMessage union is structurally compatible with the SDK's
+      // per-role param types (text-only system messages, text-or-image user
+      // messages) but isn't discriminated by role the same way the SDK types it.
+      messages: request.messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
       ...tokenLimit,
       ...(request.temperature !== undefined
         ? { temperature: request.temperature }

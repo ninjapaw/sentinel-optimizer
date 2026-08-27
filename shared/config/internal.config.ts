@@ -19,6 +19,7 @@ export const INTERNAL_CONFIG = Object.freeze({
       health: "/api/health",
       recommend: "/api/recommend",
       example: "/api/example",
+      explainKql: "/api/explain-kql",
     }),
     headers: Object.freeze({
       cacheControl: "no-store",
@@ -61,6 +62,13 @@ export const INTERNAL_CONFIG = Object.freeze({
       maxTemplateCharacters: 4000,
       maxTokens: 1200,
       temperature: 0.5,
+    }),
+    explainKql: Object.freeze({
+      maxBodyBytes: 4 * 1024 * 1024,
+      maxResultCharacters: 6000,
+      maxImageDataUrlCharacters: Math.ceil((4 * 1024 * 1024 * 4) / 3),
+      maxTokens: 500,
+      temperature: 0.3,
     }),
     session: Object.freeze({
       maxBodyBytes: 256 * 1024,

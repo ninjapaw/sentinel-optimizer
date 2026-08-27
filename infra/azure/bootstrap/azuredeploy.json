@@ -5,13 +5,13 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "16890803878158955788"
+      "templateHash": "13753816938005559004"
     }
   },
   "parameters": {
     "resourceGroupName": {
       "type": "string",
-      "defaultValue": "NP-StaticSite-SentinelOptimizer-CentralUS",
+      "defaultValue": "NP-SentinelOptimizer-CentralUS",
       "minLength": 1,
       "maxLength": 90,
       "metadata": {
