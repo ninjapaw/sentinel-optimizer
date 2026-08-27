@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "1241761839429896892"
+      "templateHash": "3431504760037318385"
     }
   },
   "parameters": {
@@ -276,7 +276,7 @@
           }
         },
         "siteConfig": {
-          "appSettings": "[concat(createArray(createObject('name', 'AzureWebJobsStorage__accountName', 'value', variables('storageAccountName')), createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_NODE_BLOCK_ON_ENTRY_POINT_ERROR', 'value', 'true'), createObject('name', 'FUNCTIONS_WORKER_RUNTIME', 'value', 'node'), createObject('name', 'AI_API_ENABLED', 'value', string(parameters('enableAnonymousAiRoutes'))), createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('applicationInsightsConnectionString')), createObject('name', 'ENTRA_EXTERNAL_ID_ISSUER', 'value', parameters('entraExternalIdIssuer')), createObject('name', 'ENTRA_EXTERNAL_ID_JWKS_URI', 'value', parameters('entraExternalIdJwksUri')), createObject('name', 'ENTRA_EXTERNAL_ID_AUDIENCE', 'value', parameters('entraExternalIdAudience')), createObject('name', 'ENTRA_EXTERNAL_ID_ADMIN_ROLE', 'value', parameters('entraExternalIdAdminRole')), createObject('name', 'COSMOS_ENDPOINT', 'value', parameters('cosmosEndpoint')), createObject('name', 'COSMOS_DATABASE', 'value', parameters('cosmosDatabaseName')), createObject('name', 'COSMOS_SESSIONS_CONTAINER', 'value', parameters('cosmosSessionsContainerName'))), variables('aiApiKeySettings'))]",
+          "appSettings": "[concat(createArray(createObject('name', 'AzureWebJobsStorage__accountName', 'value', variables('storageAccountName')), createObject('name', 'FUNCTIONS_EXTENSION_VERSION', 'value', '~4'), createObject('name', 'FUNCTIONS_NODE_BLOCK_ON_ENTRY_POINT_ERROR', 'value', 'true'), createObject('name', 'AI_API_ENABLED', 'value', string(parameters('enableAnonymousAiRoutes'))), createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('applicationInsightsConnectionString')), createObject('name', 'ENTRA_EXTERNAL_ID_ISSUER', 'value', parameters('entraExternalIdIssuer')), createObject('name', 'ENTRA_EXTERNAL_ID_JWKS_URI', 'value', parameters('entraExternalIdJwksUri')), createObject('name', 'ENTRA_EXTERNAL_ID_AUDIENCE', 'value', parameters('entraExternalIdAudience')), createObject('name', 'ENTRA_EXTERNAL_ID_ADMIN_ROLE', 'value', parameters('entraExternalIdAdminRole')), createObject('name', 'COSMOS_ENDPOINT', 'value', parameters('cosmosEndpoint')), createObject('name', 'COSMOS_DATABASE', 'value', parameters('cosmosDatabaseName')), createObject('name', 'COSMOS_SESSIONS_CONTAINER', 'value', parameters('cosmosSessionsContainerName'))), variables('aiApiKeySettings'))]",
           "cors": {
             "allowedOrigins": "[parameters('allowedOrigins')]",
             "supportCredentials": false
