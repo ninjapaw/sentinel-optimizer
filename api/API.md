@@ -1,9 +1,9 @@
-/**
+/\*\*
 
-* MIT License
-* Copyright (c) 2026 Microsoft Corporation
-* See LICENSE in the repository root.
- */
+- MIT License
+- Copyright (c) 2026 Microsoft Corporation
+- See LICENSE in the repository root.
+  \*/
 
 # Sentinel Optimizer Admin APIs
 
@@ -13,15 +13,15 @@ Complete REST API reference for admin operations and session management in Senti
 
 The Sentinel Optimizer uses a **static website with admin backend APIs** architecture:
 
-* **Frontend**: Static website (built with Astro + React)
-  * Hosted on Azure Static Web Apps or CDN
-  * No server-side rendering required
-  * Client-side authentication with MSAL
+- **Frontend**: Static website (built with Astro + React)
+  - Hosted on Azure Static Web Apps or CDN
+  - No server-side rendering required
+  - Client-side authentication with MSAL
 
-* **Backend APIs**: Azure Functions
-  * RESTful HTTP endpoints for session management
-  * Role-based access control via JWT claims
-  * Cosmos DB for persistent storage
+- **Backend APIs**: Azure Functions
+  - RESTful HTTP endpoints for session management
+  - Role-based access control via JWT claims
+  - Cosmos DB for persistent storage
 
 ## Authentication
 
@@ -37,17 +37,17 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 **User Token Claims:**
 
-* `sub` or `oid`: User ID (GUID)
-* `preferred_username` or `email`: User email
-* `name`: Display name
-* No `roles` claim (or empty roles array)
+- `sub` or `oid`: User ID (GUID)
+- `preferred_username` or `email`: User email
+- `name`: Display name
+- No `roles` claim (or empty roles array)
 
 **Admin Token Claims:**
 
-* `sub` or `oid`: Admin user ID
-* `preferred_username` or `email`: Admin email
-* `name`: Display name
-* `roles`: Array containing `"SentinelOptimizer.Admin"`
+- `sub` or `oid`: Admin user ID
+- `preferred_username` or `email`: Admin email
+- `name`: Display name
+- `roles`: Array containing `"SentinelOptimizer.Admin"`
 
 ## Session Management APIs
 
@@ -63,10 +63,16 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 {
   "name": "Q3 2024 Projection",
   "description": "Quarterly cost analysis",
-  "optimizerState": { /* optimizer state object */ },
-  "costBreakdown": { /* optional cost details */ },
-  "recommendations": [ /* optional recommendations */ ],
-  "exportFormats": ["pdf", "pptx"]  // optional
+  "optimizerState": {
+    /* optimizer state object */
+  },
+  "costBreakdown": {
+    /* optional cost details */
+  },
+  "recommendations": [
+    /* optional recommendations */
+  ],
+  "exportFormats": ["pdf", "pptx"] // optional
 }
 ```
 
@@ -82,10 +88,10 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 **Errors:**
 
-* `401`: Unauthorized - Missing or invalid token
-* `400`: Invalid request format
-* `413`: Payload too large (>5MB)
-* `500`: Server error
+- `401`: Unauthorized - Missing or invalid token
+- `400`: Invalid request format
+- `413`: Payload too large (>5MB)
+- `500`: Server error
 
 ---
 
@@ -97,8 +103,8 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 **Query Parameters:**
 
-* `limit` (optional, default: 50, max: 100): Number of sessions per page
-* `offset` (optional, default: 0): Pagination offset
+- `limit` (optional, default: 50, max: 100): Number of sessions per page
+- `offset` (optional, default: 0): Pagination offset
 
 **Example:** `GET /api/session/list?limit=20&offset=0`
 
@@ -129,9 +135,9 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 **Errors:**
 
-* `401`: Unauthorized
-* `400`: Invalid parameters
-* `500`: Server error
+- `401`: Unauthorized
+- `400`: Invalid parameters
+- `500`: Server error
 
 ---
 
@@ -143,7 +149,7 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 **Path Parameters:**
 
-* `sessionId`: The session UUID
+- `sessionId`: The session UUID
 
 **Response (200):**
 
@@ -158,19 +164,25 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
     "description": "Quarterly cost analysis",
     "createdAt": "2026-08-10T10:00:00.000Z",
     "updatedAt": "2026-08-11T15:30:00.000Z",
-    "optimizerState": { /* optimizer state object */ },
-    "costBreakdown": { /* cost details */ },
-    "recommendations": [ /* recommendations */ ]
+    "optimizerState": {
+      /* optimizer state object */
+    },
+    "costBreakdown": {
+      /* cost details */
+    },
+    "recommendations": [
+      /* recommendations */
+    ]
   }
 }
 ```
 
 **Errors:**
 
-* `401`: Unauthorized
-* `400`: Invalid session ID
-* `404`: Session not found
-* `500`: Server error
+- `401`: Unauthorized
+- `400`: Invalid session ID
+- `404`: Session not found
+- `500`: Server error
 
 ---
 
@@ -182,7 +194,7 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 **Path Parameters:**
 
-* `sessionId`: The session UUID
+- `sessionId`: The session UUID
 
 **Response (200):**
 
@@ -194,10 +206,10 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 **Errors:**
 
-* `401`: Unauthorized
-* `404`: Session not found
-* `405`: Invalid method
-* `500`: Server error
+- `401`: Unauthorized
+- `404`: Session not found
+- `405`: Invalid method
+- `500`: Server error
 
 ---
 
@@ -221,10 +233,10 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 **Errors:**
 
-* `401`: Unauthorized - Missing or invalid token
-* `403`: Forbidden - Admin role required
-* `503`: Admin authentication not configured
-* `500`: Server error
+- `401`: Unauthorized - Missing or invalid token
+- `403`: Forbidden - Admin role required
+- `503`: Admin authentication not configured
+- `500`: Server error
 
 ---
 
@@ -236,8 +248,8 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 **Query Parameters:**
 
-* `limit` (optional, default: 50, max: 100): Number of users per page
-* `offset` (optional, default: 0): Pagination offset
+- `limit` (optional, default: 50, max: 100): Number of users per page
+- `offset` (optional, default: 0): Pagination offset
 
 **Example:** `GET /api/admin/users?limit=20&offset=0`
 
@@ -273,10 +285,10 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 **Errors:**
 
-* `401`: Unauthorized
-* `403`: Admin role required
-* `400`: Invalid parameters
-* `500`: Server error
+- `401`: Unauthorized
+- `403`: Admin role required
+- `400`: Invalid parameters
+- `500`: Server error
 
 ---
 
@@ -306,7 +318,7 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
       "totalStorageBytes": 2097152,
       "lastActiveAt": "2026-08-11T19:30:00.000Z",
       "createdAt": "2026-07-01T10:00:00.000Z"
-    },
+    }
     /* ... more users ... */
   ]
 }
@@ -314,17 +326,17 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 **Fields:**
 
-* `summary.totalUsers`: Total number of registered users
-* `summary.totalSessions`: Total number of saved sessions
-* `summary.totalStorageBytes`: Total storage used across all users
-* `summary.storageGB`: Storage in gigabytes (rounded to 2 decimals)
-* `users`: Array of user statistics
+- `summary.totalUsers`: Total number of registered users
+- `summary.totalSessions`: Total number of saved sessions
+- `summary.totalStorageBytes`: Total storage used across all users
+- `summary.storageGB`: Storage in gigabytes (rounded to 2 decimals)
+- `users`: Array of user statistics
 
 **Errors:**
 
-* `401`: Unauthorized
-* `403`: Admin role required
-* `500`: Server error
+- `401`: Unauthorized
+- `403`: Admin role required
+- `500`: Server error
 
 ---
 
@@ -336,8 +348,8 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 **Path Parameters:**
 
-* `userId`: The target user's ID (GUID)
-* `sessionId`: The session UUID to delete
+- `userId`: The target user's ID (GUID)
+- `sessionId`: The session UUID to delete
 
 **Response (200):**
 
@@ -349,12 +361,12 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 **Errors:**
 
-* `400`: Invalid parameters
-* `401`: Unauthorized
-* `403`: Admin role required
-* `404`: Session not found
-* `405`: Invalid method
-* `500`: Server error
+- `400`: Invalid parameters
+- `401`: Unauthorized
+- `403`: Admin role required
+- `404`: Session not found
+- `405`: Invalid method
+- `500`: Server error
 
 ---
 
@@ -370,9 +382,11 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 ```json
 {
-  "provider": "openai",  // or other configured provider
+  "provider": "openai", // or other configured provider
   "context": "Your analysis context",
-  "data": { /* analysis data */ }
+  "data": {
+    /* analysis data */
+  }
 }
 ```
 
@@ -380,10 +394,7 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 ```json
 {
-  "recommendations": [
-    "Recommendation 1",
-    "Recommendation 2"
-  ]
+  "recommendations": ["Recommendation 1", "Recommendation 2"]
 }
 ```
 
@@ -399,7 +410,9 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 
 ```json
 {
-  "example": { /* example data */ }
+  "example": {
+    /* example data */
+  }
 }
 ```
 
@@ -436,15 +449,15 @@ All error responses follow this format:
 
 **Common HTTP Status Codes:**
 
-* `200`: Success
-* `400`: Bad Request - Invalid parameters or request format
-* `401`: Unauthorized - Missing or invalid authentication token
-* `403`: Forbidden - Authenticated but lacking required permissions
-* `404`: Not Found - Resource doesn't exist
-* `405`: Method Not Allowed - Wrong HTTP method
-* `413`: Payload Too Large - Request body exceeds size limit
-* `500`: Internal Server Error - Server-side error
-* `503`: Service Unavailable - Feature not configured
+- `200`: Success
+- `400`: Bad Request - Invalid parameters or request format
+- `401`: Unauthorized - Missing or invalid authentication token
+- `403`: Forbidden - Authenticated but lacking required permissions
+- `404`: Not Found - Resource doesn't exist
+- `405`: Method Not Allowed - Wrong HTTP method
+- `413`: Payload Too Large - Request body exceeds size limit
+- `500`: Internal Server Error - Server-side error
+- `503`: Service Unavailable - Feature not configured
 
 ---
 
@@ -465,17 +478,17 @@ Access-Control-Allow-Headers: Content-Type, Authorization
 
 Currently no rate limiting is enforced. Future versions may implement:
 
-* Per-user rate limits
-* Per-IP rate limits
-* Admin dashboard access throttling
+- Per-user rate limits
+- Per-IP rate limits
+- Admin dashboard access throttling
 
 ---
 
 ## Data Retention
 
-* **Sessions**: Retained indefinitely until deleted by user or admin
-* **User metadata**: Retained for 2 years after last activity
-* **Audit logs**: Retained for 90 days
+- **Sessions**: Retained indefinitely until deleted by user or admin
+- **User metadata**: Retained for 2 years after last activity
+- **Audit logs**: Retained for 90 days
 
 ---
 
