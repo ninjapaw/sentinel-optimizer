@@ -1,7 +1,8 @@
 /**
- * MIT License
- * Copyright (c) 2026 Microsoft Corporation
- * See LICENSE in the repository root.
+
+* MIT License
+* Copyright (c) 2026 Microsoft Corporation
+* See LICENSE in the repository root.
  */
 
 # Sentinel Optimizer Admin APIs
@@ -12,21 +13,21 @@ Complete REST API reference for admin operations and session management in Senti
 
 The Sentinel Optimizer uses a **static website with admin backend APIs** architecture:
 
-- **Frontend**: Static website (built with Astro + React)
-  - Hosted on Azure Static Web Apps or CDN
-  - No server-side rendering required
-  - Client-side authentication with MSAL
+* **Frontend**: Static website (built with Astro + React)
+  * Hosted on Azure Static Web Apps or CDN
+  * No server-side rendering required
+  * Client-side authentication with MSAL
 
-- **Backend APIs**: Azure Functions 
-  - RESTful HTTP endpoints for session management
-  - Role-based access control via JWT claims
-  - Cosmos DB for persistent storage
+* **Backend APIs**: Azure Functions
+  * RESTful HTTP endpoints for session management
+  * Role-based access control via JWT claims
+  * Cosmos DB for persistent storage
 
 ## Authentication
 
 All API endpoints require Bearer token authentication (except public health checks):
 
-```
+```http
 Authorization: Bearer <JWT_TOKEN>
 ```
 
@@ -35,25 +36,29 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 ### User vs Admin Tokens
 
 **User Token Claims:**
-- `sub` or `oid`: User ID (GUID)
-- `preferred_username` or `email`: User email
-- `name`: Display name
-- No `roles` claim (or empty roles array)
+
+* `sub` or `oid`: User ID (GUID)
+* `preferred_username` or `email`: User email
+* `name`: Display name
+* No `roles` claim (or empty roles array)
 
 **Admin Token Claims:**
-- `sub` or `oid`: Admin user ID
-- `preferred_username` or `email`: Admin email
-- `name`: Display name
-- `roles`: Array containing `"SentinelOptimizer.Admin"`
+
+* `sub` or `oid`: Admin user ID
+* `preferred_username` or `email`: Admin email
+* `name`: Display name
+* `roles`: Array containing `"SentinelOptimizer.Admin"`
 
 ## Session Management APIs
 
 ### Save Session
+
 **Endpoint:** `POST /api/session/save`
 
 **Authentication:** Required (user token)
 
 **Request:**
+
 ```json
 {
   "name": "Q3 2024 Projection",
@@ -66,6 +71,7 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 ```
 
 **Response (200):**
+
 ```json
 {
   "sessionId": "session-uuid",
@@ -75,25 +81,29 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 ```
 
 **Errors:**
-- `401`: Unauthorized - Missing or invalid token
-- `400`: Invalid request format
-- `413`: Payload too large (>5MB)
-- `500`: Server error
+
+* `401`: Unauthorized - Missing or invalid token
+* `400`: Invalid request format
+* `413`: Payload too large (>5MB)
+* `500`: Server error
 
 ---
 
 ### List User Sessions
+
 **Endpoint:** `GET /api/session/list`
 
 **Authentication:** Required (user token)
 
 **Query Parameters:**
-- `limit` (optional, default: 50, max: 100): Number of sessions per page
-- `offset` (optional, default: 0): Pagination offset
+
+* `limit` (optional, default: 50, max: 100): Number of sessions per page
+* `offset` (optional, default: 0): Pagination offset
 
 **Example:** `GET /api/session/list?limit=20&offset=0`
 
 **Response (200):**
+
 ```json
 {
   "sessions": [
@@ -118,21 +128,25 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 ```
 
 **Errors:**
-- `401`: Unauthorized
-- `400`: Invalid parameters
-- `500`: Server error
+
+* `401`: Unauthorized
+* `400`: Invalid parameters
+* `500`: Server error
 
 ---
 
 ### Load Session
+
 **Endpoint:** `GET /api/session/{sessionId}`
 
 **Authentication:** Required (user token)
 
 **Path Parameters:**
-- `sessionId`: The session UUID
+
+* `sessionId`: The session UUID
 
 **Response (200):**
+
 ```json
 {
   "session": {
@@ -152,22 +166,26 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 ```
 
 **Errors:**
-- `401`: Unauthorized
-- `400`: Invalid session ID
-- `404`: Session not found
-- `500`: Server error
+
+* `401`: Unauthorized
+* `400`: Invalid session ID
+* `404`: Session not found
+* `500`: Server error
 
 ---
 
 ### Delete Session
+
 **Endpoint:** `DELETE /api/session/{sessionId}`
 
 **Authentication:** Required (user token)
 
 **Path Parameters:**
-- `sessionId`: The session UUID
+
+* `sessionId`: The session UUID
 
 **Response (200):**
+
 ```json
 {
   "deleted": true
@@ -175,21 +193,24 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 ```
 
 **Errors:**
-- `401`: Unauthorized
-- `404`: Session not found
-- `405`: Invalid method
-- `500`: Server error
+
+* `401`: Unauthorized
+* `404`: Session not found
+* `405`: Invalid method
+* `500`: Server error
 
 ---
 
 ## Admin APIs
 
 ### Health Check (Admin)
+
 **Endpoint:** `GET /api/admin/health`
 
 **Authentication:** Required (admin token only)
 
 **Response (200):**
+
 ```json
 {
   "status": "ok",
@@ -199,25 +220,29 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 ```
 
 **Errors:**
-- `401`: Unauthorized - Missing or invalid token
-- `403`: Forbidden - Admin role required
-- `503`: Admin authentication not configured
-- `500`: Server error
+
+* `401`: Unauthorized - Missing or invalid token
+* `403`: Forbidden - Admin role required
+* `503`: Admin authentication not configured
+* `500`: Server error
 
 ---
 
 ### List All Users
+
 **Endpoint:** `GET /api/admin/users`
 
 **Authentication:** Required (admin token only)
 
 **Query Parameters:**
-- `limit` (optional, default: 50, max: 100): Number of users per page
-- `offset` (optional, default: 0): Pagination offset
+
+* `limit` (optional, default: 50, max: 100): Number of users per page
+* `offset` (optional, default: 0): Pagination offset
 
 **Example:** `GET /api/admin/users?limit=20&offset=0`
 
 **Response (200):**
+
 ```json
 {
   "users": [
@@ -247,19 +272,22 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 ```
 
 **Errors:**
-- `401`: Unauthorized
-- `403`: Admin role required
-- `400`: Invalid parameters
-- `500`: Server error
+
+* `401`: Unauthorized
+* `403`: Admin role required
+* `400`: Invalid parameters
+* `500`: Server error
 
 ---
 
 ### Admin Statistics
+
 **Endpoint:** `GET /api/admin/stats`
 
 **Authentication:** Required (admin token only)
 
 **Response (200):**
+
 ```json
 {
   "summary": {
@@ -285,29 +313,34 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 ```
 
 **Fields:**
-- `summary.totalUsers`: Total number of registered users
-- `summary.totalSessions`: Total number of saved sessions
-- `summary.totalStorageBytes`: Total storage used across all users
-- `summary.storageGB`: Storage in gigabytes (rounded to 2 decimals)
-- `users`: Array of user statistics
+
+* `summary.totalUsers`: Total number of registered users
+* `summary.totalSessions`: Total number of saved sessions
+* `summary.totalStorageBytes`: Total storage used across all users
+* `summary.storageGB`: Storage in gigabytes (rounded to 2 decimals)
+* `users`: Array of user statistics
 
 **Errors:**
-- `401`: Unauthorized
-- `403`: Admin role required
-- `500`: Server error
+
+* `401`: Unauthorized
+* `403`: Admin role required
+* `500`: Server error
 
 ---
 
 ### Delete User Session (Admin)
+
 **Endpoint:** `DELETE /api/admin/session/{userId}/{sessionId}`
 
 **Authentication:** Required (admin token only)
 
 **Path Parameters:**
-- `userId`: The target user's ID (GUID)
-- `sessionId`: The session UUID to delete
+
+* `userId`: The target user's ID (GUID)
+* `sessionId`: The session UUID to delete
 
 **Response (200):**
+
 ```json
 {
   "deleted": true
@@ -315,23 +348,26 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 ```
 
 **Errors:**
-- `400`: Invalid parameters
-- `401`: Unauthorized
-- `403`: Admin role required
-- `404`: Session not found
-- `405`: Invalid method
-- `500`: Server error
+
+* `400`: Invalid parameters
+* `401`: Unauthorized
+* `403`: Admin role required
+* `404`: Session not found
+* `405`: Invalid method
+* `500`: Server error
 
 ---
 
 ## Recommendation & Analysis APIs
 
 ### Generate Recommendations
+
 **Endpoint:** `POST /api/recommend`
 
 **Authentication:** Optional (public endpoint)
 
 **Request:**
+
 ```json
 {
   "provider": "openai",  // or other configured provider
@@ -341,6 +377,7 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 ```
 
 **Response (200):**
+
 ```json
 {
   "recommendations": [
@@ -353,11 +390,13 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 ---
 
 ### Example Request
+
 **Endpoint:** `POST /api/example`
 
 **Authentication:** Optional (public endpoint)
 
 **Response (200):**
+
 ```json
 {
   "example": { /* example data */ }
@@ -369,11 +408,13 @@ The JWT token is obtained from Microsoft Entra ID External ID after user login.
 ## Public APIs
 
 ### Health Check (Public)
+
 **Endpoint:** `GET /api/health`
 
 **Authentication:** Not required
 
 **Response (200):**
+
 ```json
 {
   "status": "ok",
@@ -394,15 +435,16 @@ All error responses follow this format:
 ```
 
 **Common HTTP Status Codes:**
-- `200`: Success
-- `400`: Bad Request - Invalid parameters or request format
-- `401`: Unauthorized - Missing or invalid authentication token
-- `403`: Forbidden - Authenticated but lacking required permissions
-- `404`: Not Found - Resource doesn't exist
-- `405`: Method Not Allowed - Wrong HTTP method
-- `413`: Payload Too Large - Request body exceeds size limit
-- `500`: Internal Server Error - Server-side error
-- `503`: Service Unavailable - Feature not configured
+
+* `200`: Success
+* `400`: Bad Request - Invalid parameters or request format
+* `401`: Unauthorized - Missing or invalid authentication token
+* `403`: Forbidden - Authenticated but lacking required permissions
+* `404`: Not Found - Resource doesn't exist
+* `405`: Method Not Allowed - Wrong HTTP method
+* `413`: Payload Too Large - Request body exceeds size limit
+* `500`: Internal Server Error - Server-side error
+* `503`: Service Unavailable - Feature not configured
 
 ---
 
@@ -410,7 +452,7 @@ All error responses follow this format:
 
 All API responses include:
 
-```
+```http
 Content-Type: application/json
 Access-Control-Allow-Origin: *
 Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
@@ -422,17 +464,18 @@ Access-Control-Allow-Headers: Content-Type, Authorization
 ## Rate Limiting
 
 Currently no rate limiting is enforced. Future versions may implement:
-- Per-user rate limits
-- Per-IP rate limits
-- Admin dashboard access throttling
+
+* Per-user rate limits
+* Per-IP rate limits
+* Admin dashboard access throttling
 
 ---
 
 ## Data Retention
 
-- **Sessions**: Retained indefinitely until deleted by user or admin
-- **User metadata**: Retained for 2 years after last activity
-- **Audit logs**: Retained for 90 days
+* **Sessions**: Retained indefinitely until deleted by user or admin
+* **User metadata**: Retained for 2 years after last activity
+* **Audit logs**: Retained for 90 days
 
 ---
 

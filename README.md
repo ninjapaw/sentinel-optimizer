@@ -403,13 +403,13 @@ configuration files.
 
 The repository has one shared configuration boundary:
 
-| Location                           | Ownership                       | What belongs there                                                                                                                                                  |
-| ---------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Location                           | Ownership                       | What belongs there                                                                                                                                                                             |
+| ---------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `config/deploy.config.json`        | Source-controlled deploy config | Non-secret branches, domains, resource names, SKUs, feature flags, and cost limits. Subscription ids are deliberately absent; they come from the `AZURE_SUBSCRIPTION_ID` Environment variable. |
-| `shared/config/user.config.ts`     | Source-controlled fallback      | Browser-safe identity and branding defaults used locally or when an Environment variable is deliberately unset.                                                     |
-| `shared/config/internal.config.ts` | Source-controlled invariant     | API route contracts, payload limits, timeout/retry limits, CORS fallback, and UI input size limits. Change these only with tests and a security/performance review. |
-| GitHub Environment variables       | Deployment operator             | Tenant/client/principal identifiers and External ID settings that cannot be inferred from the repository. `PUBLIC_*` values are browser-visible.                    |
-| GitHub Environment secrets         | Deployment operator             | Deployment tokens and third-party API keys only.                                                                                                                    |
+| `shared/config/user.config.ts`     | Source-controlled fallback      | Browser-safe identity and branding defaults used locally or when an Environment variable is deliberately unset.                                                                                |
+| `shared/config/internal.config.ts` | Source-controlled invariant     | API route contracts, payload limits, timeout/retry limits, CORS fallback, and UI input size limits. Change these only with tests and a security/performance review.                            |
+| GitHub Environment variables       | Deployment operator             | Tenant/client/principal identifiers and External ID settings that cannot be inferred from the repository. `PUBLIC_*` values are browser-visible.                                               |
+| GitHub Environment secrets         | Deployment operator             | Deployment tokens and third-party API keys only.                                                                                                                                               |
 
 The **Deploy Application** workflow consumes these values from its selected
 GitHub Environment. Do not use repository-wide variables for production
@@ -492,10 +492,28 @@ Sentinel-specific Functions, Cosmos DB, Key Vault, and Static Web Apps settings
 remain owned by this repository; Pawprint supplies the cross-repository IaC
 validation contract rather than replacing those application resources.
 
-Set the subscription ID in the selected GitHub Environment with bootstrap, or
-set `environments.dev.subscriptionId` and `environments.prod.subscriptionId`
-in `config/deploy.config.json`; they must identify different subscriptions.
-Then run:
+Shared scripts are vendored under `vendor/pawprint/` with paths mirroring the
+Pawprint repository:
+
+| Vendored path                     | Owns                                                           |
+| --------------------------------- | -------------------------------------------------------------- |
+| `scripts/deploy-config.mjs`       | Resolving `config/deploy.config.json` to environment variables |
+| `scripts/validate-environment.sh` | Refusing malformed deployment variables                        |
+| `scripts/audit-secrets.sh`        | Reporting expired, expiring and unexpiring vault secrets       |
+
+Do not edit these copies; the validator fails the build when one drifts from
+its source. Change the file in Pawprint and re-vendor with
+`node scripts/vendor-sync.mjs --target ../sentinel-optimizer` from a Pawprint
+checkout. What this repository emits is declared in `config/deploy.config.json`
+under `defaults.resolver`, so repository-specific output stays in configuration
+rather than in a fork of the shared resolver.
+
+Set the subscription ID as the `AZURE_SUBSCRIPTION_ID` variable in the selected
+GitHub Environment, with bootstrap or by hand. It is deliberately not settable
+in `config/deploy.config.json`: a subscription id in a committed file is one
+fork away from being deployed into by someone who never intended it, and the
+resolver refuses a populated value there. Dev and production must identify
+different subscriptions. Then run:
 
 ```bash
 bash infra/azure/bootstrap.sh --environment dev

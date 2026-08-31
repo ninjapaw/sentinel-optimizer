@@ -16,7 +16,7 @@
     "build": "npm run build:api && npm run build:web",
     "build:api": "npm --prefix api run build",
     "build:web": "npm --prefix web run build",
-    "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#web/dist\" \"#api/dist\" \"#.astro\"",
+    "lint:md": "markdownlint-cli2 \"**/*.md\" \"#**/node_modules\" \"#web/dist\" \"#api/dist\" \"#.astro\"",
     "config:check": "node scripts/deploy-config.mjs --environment dev --check && node scripts/deploy-config.mjs --environment prod --check",
     "test": "npm run validate:kql && npm run test:engine && npm run test:api",
     "validate:kql": "node scripts/validate-kql-library.mjs",
