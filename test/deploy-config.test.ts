@@ -36,6 +36,21 @@ describe("deploy-config", () => {
               openAiModelCapacity: 1,
               secretExpirationDays: 365,
               secretWarningDays: 30,
+              resolver: {
+                required: [
+                  "azureEnvironment",
+                  "staticWebAppName",
+                  "functionAppName",
+                  "customDomain",
+                  "publicSiteUrl",
+                ],
+                envOverridable: ["PUBLIC_SITE_URL", "PUBLIC_SITE_BASE"],
+                env: {
+                  DEPLOYMENT_TARGET: "deploymentTarget",
+                  PUBLIC_SITE_URL: "publicSiteUrl",
+                  PUBLIC_SITE_BASE: "siteBase",
+                },
+              },
             },
             environments: {
               dev: {
@@ -61,7 +76,13 @@ describe("deploy-config", () => {
 
       const output = execFileSync(
         "node",
-        ["scripts/deploy-config.mjs", "--config", configPath, "--environment", "dev"],
+        [
+          "scripts/deploy-config.mjs",
+          "--config",
+          configPath,
+          "--environment",
+          "dev",
+        ],
         {
           cwd: fileURLToPath(new URL("..", import.meta.url)),
           env: {
@@ -74,7 +95,9 @@ describe("deploy-config", () => {
       );
 
       expect(output).toContain("DEPLOYMENT_TARGET=github-pages");
-      expect(output).toContain("PUBLIC_SITE_URL=https://example.github.io/sentinel-optimizer");
+      expect(output).toContain(
+        "PUBLIC_SITE_URL=https://example.github.io/sentinel-optimizer",
+      );
       expect(output).toContain("PUBLIC_SITE_BASE=/sentinel-optimizer/");
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
