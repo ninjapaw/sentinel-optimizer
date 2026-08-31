@@ -9,3 +9,7 @@
 *.webp binary
 *.ico  binary
 *.pdf  binary
+
+# Vendored copies are compared byte-for-byte against ninjapaw/pawprint, so they
+# must not pick up this machine's line endings.
+vendor/pawprint/** text eol=lf

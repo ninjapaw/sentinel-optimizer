@@ -403,13 +403,13 @@ configuration files.
 
 The repository has one shared configuration boundary:
 
-| Location                           | Ownership                   | What belongs there                                                                                                                                                  |
-| ---------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `config/deploy.config.json`        | Source-controlled deploy config | Non-secret dev/prod subscriptions, branches, domains, resource names, SKUs, feature flags, and cost limits.                                                       |
-| `shared/config/user.config.ts`     | Source-controlled fallback  | Browser-safe identity and branding defaults used locally or when an Environment variable is deliberately unset.                                                     |
-| `shared/config/internal.config.ts` | Source-controlled invariant | API route contracts, payload limits, timeout/retry limits, CORS fallback, and UI input size limits. Change these only with tests and a security/performance review. |
-| GitHub Environment variables       | Deployment operator         | Tenant/client/principal identifiers and External ID settings that cannot be inferred from the repository. `PUBLIC_*` values are browser-visible.                    |
-| GitHub Environment secrets         | Deployment operator         | Deployment tokens and third-party API keys only.                                                                                                                    |
+| Location                           | Ownership                       | What belongs there                                                                                                                                                  |
+| ---------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config/deploy.config.json`        | Source-controlled deploy config | Non-secret branches, domains, resource names, SKUs, feature flags, and cost limits. Subscription ids are deliberately absent; they come from the `AZURE_SUBSCRIPTION_ID` Environment variable. |
+| `shared/config/user.config.ts`     | Source-controlled fallback      | Browser-safe identity and branding defaults used locally or when an Environment variable is deliberately unset.                                                     |
+| `shared/config/internal.config.ts` | Source-controlled invariant     | API route contracts, payload limits, timeout/retry limits, CORS fallback, and UI input size limits. Change these only with tests and a security/performance review. |
+| GitHub Environment variables       | Deployment operator             | Tenant/client/principal identifiers and External ID settings that cannot be inferred from the repository. `PUBLIC_*` values are browser-visible.                    |
+| GitHub Environment secrets         | Deployment operator             | Deployment tokens and third-party API keys only.                                                                                                                    |
 
 The **Deploy Application** workflow consumes these values from its selected
 GitHub Environment. Do not use repository-wide variables for production
@@ -463,8 +463,8 @@ The static browser site must not receive a secret. GitHub Pages needs no
 provider secret; use the following Environment secrets only in their matching
 provider jobs:
 
-| Environment                                       | Secret                            | Required by target         | Purpose and recommendation                                                                                  |
-| ------------------------------------------------- | --------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Environment   | Secret                            | Required by target         | Purpose and recommendation                                                                                  |
+| ------------- | --------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `dev`, `prod` | `CLOUDFLARE_API_TOKEN`            | `cloudflare-worker-api`    | Scoped Cloudflare deployment token. Pair it with non-secret `CLOUDFLARE_ACCOUNT_ID` and rotate on exposure. |
 | `dev`, `prod` | `AZURE_STATIC_WEB_APPS_API_TOKEN` | Azure Static Web Apps site | Long-lived Static Web Apps deployment token. Rotate it immediately if exposed.                              |
 
@@ -543,10 +543,10 @@ zone, or certificate settings.
 
 ### Branching and promotion
 
-| Branch | GitHub Environment | Domain                          | Resource group                              |
-| ------ | ------------------ | ------------------------------- | ------------------------------------------- |
-| `dev`  | `dev`              | `dev.sentineloptimizer.com`     | `NP-SentinelOptimizer-Dev-CentralUS`        |
-| `main` | `prod`             | `sentineloptimizer.com`         | `NP-SentinelOptimizer-CentralUS`            |
+| Branch | GitHub Environment | Domain                      | Resource group                       |
+| ------ | ------------------ | --------------------------- | ------------------------------------ |
+| `dev`  | `dev`              | `dev.sentineloptimizer.com` | `NP-SentinelOptimizer-Dev-CentralUS` |
+| `main` | `prod`             | `sentineloptimizer.com`     | `NP-SentinelOptimizer-CentralUS`     |
 
 Each row targets the subscription configured for that environment. Do not use
 the same subscription ID for both environments.
@@ -560,7 +560,7 @@ To ship a change:
 3. Run **Promote Dev to Main**, which opens a `dev` → `main` pull request after confirming Continuous Integration passed on the `dev` head commit.
 4. Merge the pull request, then run **Deploy Application** from `main` with the `prod` environment.
 
-**Promote Dev to Main** needs *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests* enabled.
+**Promote Dev to Main** needs _Settings → Actions → General → Allow GitHub Actions to create and approve pull requests_ enabled.
 
 ### Environment variables
 
@@ -569,22 +569,22 @@ domains, SKUs, feature flags, and secret-expiration policy from
 `config/deploy.config.json`. Bootstrap supplies these remaining non-secret
 GitHub Environment variables:
 
-| Variable                              | Purpose |
-| ------------------------------------- | ------- |
-| `AZURE_CLIENT_ID`                     | Infrastructure OIDC application client ID. |
-| `AZURE_API_CLIENT_ID`                 | Separate Functions deployment OIDC client ID. |
-| `AZURE_TENANT_ID`                     | Tenant containing the OIDC applications. |
-| `AZURE_API_PRINCIPAL_OBJECT_ID`       | Principal receiving scoped Function App deployment access. |
-| `AZURE_INFRA_PRINCIPAL_OBJECT_ID`     | Principal receiving scoped infrastructure and secret-management access. |
-| `ENTRA_EXTERNAL_ID_ISSUER`            | Exact JWT issuer accepted by the API. |
-| `ENTRA_EXTERNAL_ID_JWKS_URI`          | Signing-key endpoint used for token validation. |
-| `ENTRA_EXTERNAL_ID_AUDIENCE`          | Expected API access-token audience. |
-| `ENTRA_EXTERNAL_ID_ADMIN_ROLE`        | Required administrator app-role claim. |
-| `PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID`  | Public SPA application identifier. |
-| `PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY`  | MSAL authority for the SPA. |
-| `PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE`  | Delegated API scope requested by the SPA. |
-| `PUBLIC_ADMIN_API_BASE`               | Authenticated administration API origin. |
-| `CLOUDFLARE_ZONE_ID`                   | Cloudflare zone identifier used by the optional Static Web Apps DNS connector. |
+| Variable                             | Purpose                                                                        |
+| ------------------------------------ | ------------------------------------------------------------------------------ |
+| `AZURE_CLIENT_ID`                    | Infrastructure OIDC application client ID.                                     |
+| `AZURE_API_CLIENT_ID`                | Separate Functions deployment OIDC client ID.                                  |
+| `AZURE_TENANT_ID`                    | Tenant containing the OIDC applications.                                       |
+| `AZURE_API_PRINCIPAL_OBJECT_ID`      | Principal receiving scoped Function App deployment access.                     |
+| `AZURE_INFRA_PRINCIPAL_OBJECT_ID`    | Principal receiving scoped infrastructure and secret-management access.        |
+| `ENTRA_EXTERNAL_ID_ISSUER`           | Exact JWT issuer accepted by the API.                                          |
+| `ENTRA_EXTERNAL_ID_JWKS_URI`         | Signing-key endpoint used for token validation.                                |
+| `ENTRA_EXTERNAL_ID_AUDIENCE`         | Expected API access-token audience.                                            |
+| `ENTRA_EXTERNAL_ID_ADMIN_ROLE`       | Required administrator app-role claim.                                         |
+| `PUBLIC_ENTRA_EXTERNAL_ID_CLIENT_ID` | Public SPA application identifier.                                             |
+| `PUBLIC_ENTRA_EXTERNAL_ID_AUTHORITY` | MSAL authority for the SPA.                                                    |
+| `PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE` | Delegated API scope requested by the SPA.                                      |
+| `PUBLIC_ADMIN_API_BASE`              | Authenticated administration API origin.                                       |
+| `CLOUDFLARE_ZONE_ID`                 | Cloudflare zone identifier used by the optional Static Web Apps DNS connector. |
 
 The API receives `COSMOS_ENDPOINT` from the consolidated Bicep deployment and
 uses the Function App managed identity for Cosmos data access.
@@ -593,10 +593,10 @@ uses the Function App managed identity for Cosmos data access.
 
 Create only true credentials as secrets in `dev` and `prod`:
 
-| Secret                            | Purpose |
-| --------------------------------- | ------- |
-| `AZURE_STATIC_WEB_APPS_API_TOKEN` | Static Web Apps deployment credential, scoped to one site. |
-| `AI_API_KEY`                      | Optional third-party model credential synchronized to Key Vault. |
+| Secret                            | Purpose                                                                                            |
+| --------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `AZURE_STATIC_WEB_APPS_API_TOKEN` | Static Web Apps deployment credential, scoped to one site.                                         |
+| `AI_API_KEY`                      | Optional third-party model credential synchronized to Key Vault.                                   |
 | `CLOUDFLARE_API_TOKEN`            | Optional Cloudflare DNS-edit or Worker deployment credential, scoped to the required zone/account. |
 
 Azure client, tenant, subscription, and principal IDs are identifiers, not
@@ -613,11 +613,11 @@ Static Web Apps pull-request integration. Do not create or copy it manually.
 The **Validate and Deploy Azure Infrastructure** workflow also has manual
 inputs. These are not stored as Environment variables or secrets:
 
-| Input                        | Recommended default | Applies to | Guidance                                                           |
-| ---------------------------- | ------------------- | ---------- | ------------------------------------------------------------------ |
-| `environment`                | Auto-detect         | All stacks | Branch `dev` selects `dev`; branch `main` selects `prod`.           |
-| `component`                  | `all`               | All stacks | Deploy the consolidated subscription-scope stack; component mode remains available for recovery. |
-| `operation`                  | `what-if`           | All stacks | Review the preview before selecting `deploy`.                      |
+| Input         | Recommended default | Applies to | Guidance                                                                                         |
+| ------------- | ------------------- | ---------- | ------------------------------------------------------------------------------------------------ |
+| `environment` | Auto-detect         | All stacks | Branch `dev` selects `dev`; branch `main` selects `prod`.                                        |
+| `component`   | `all`               | All stacks | Deploy the consolidated subscription-scope stack; component mode remains available for recovery. |
+| `operation`   | `what-if`           | All stacks | Review the preview before selecting `deploy`.                                                    |
 
 SKUs and capacity settings come from `config/deploy.config.json`, so reviews see
 cost changes in source control. Use `what-if` before applying infrastructure
@@ -631,20 +631,20 @@ Bicep templates, or in the browser bundle.
 
 ### Design
 
-| Control             | Choice                                              | Why                                                                                                                         |
-| ------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Authorization       | Azure RBAC, not access policies                     | Roles are auditable, scoped, and managed the same way as the rest of the subscription.                                      |
-| Function App access | `Key Vault Secrets User` on the vault               | Read-only data-plane access for unavoidable third-party secrets.      |
-| Pipeline access     | `Key Vault Secrets Officer` on the vault            | Lets the deployment identity rotate secrets without granting read access to other resources.                                |
-| Deletion protection | Soft delete plus purge protection                   | Prevents irreversible secret loss. Purge protection cannot be turned off once enabled.                                      |
-| App settings        | `@Microsoft.KeyVault(VaultName=...;SecretName=...)` | Versionless references pick up a rotated secret without redeploying the API.                                                |
-| Audit               | Optional `AuditEvent` diagnostic setting            | Sends vault access logs to Log Analytics when a workspace is supplied.                                                      |
+| Control             | Choice                                              | Why                                                                                          |
+| ------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Authorization       | Azure RBAC, not access policies                     | Roles are auditable, scoped, and managed the same way as the rest of the subscription.       |
+| Function App access | `Key Vault Secrets User` on the vault               | Read-only data-plane access for unavoidable third-party secrets.                             |
+| Pipeline access     | `Key Vault Secrets Officer` on the vault            | Lets the deployment identity rotate secrets without granting read access to other resources. |
+| Deletion protection | Soft delete plus purge protection                   | Prevents irreversible secret loss. Purge protection cannot be turned off once enabled.       |
+| App settings        | `@Microsoft.KeyVault(VaultName=...;SecretName=...)` | Versionless references pick up a rotated secret without redeploying the API.                 |
+| Audit               | Optional `AuditEvent` diagnostic setting            | Sends vault access logs to Log Analytics when a workspace is supplied.                       |
 
 ### Secrets stored in the vault
 
-| Secret name                | Consumed as                | Required when                                                                                      |
-| -------------------------- | -------------------------- | -------------------------------------------------------------------------------------------------- |
-| `ai-api-key`               | `AI_API_KEY`               | The API calls a third-party AI provider. Not needed for Azure OpenAI, which uses managed identity. |
+| Secret name  | Consumed as  | Required when                                                                                      |
+| ------------ | ------------ | -------------------------------------------------------------------------------------------------- |
+| `ai-api-key` | `AI_API_KEY` | The API calls a third-party AI provider. Not needed for Azure OpenAI, which uses managed identity. |
 
 Non-secret settings such as `AI_BASE_URL`, `AI_MODEL`, `COSMOS_DATABASE`, and
 the `ENTRA_EXTERNAL_ID_*` values stay as plain Function App settings.
@@ -656,7 +656,7 @@ the secrets must exist before the API references them:
 
 1. Run the infrastructure workflow with `component: all` and `operation: what-if`.
 2. After review, run it with `operation: deploy`. This creates monitoring,
-  Static Web Apps, Functions, Cosmos RBAC, and Key Vault in dependency order.
+   Static Web Apps, Functions, Cosmos RBAC, and Key Vault in dependency order.
 3. Run the **Manage Key Vault Secrets** workflow with `operation: sync`. Leave
    `dry_run: true` for a preview, then rerun with `dry_run: false`.
 
