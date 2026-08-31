@@ -22,84 +22,18 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 concurrency:
   group: promote-dev-to-main
   cancel-in-progress: false
 
 jobs:
-  promote:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - name: Compare dev against main
-        id: compare
-        run: |
-          git fetch origin main dev --quiet
-
-          ahead="$(git rev-list --count origin/main..origin/dev)"
-          behind="$(git rev-list --count origin/dev..origin/main)"
-          head_sha="$(git rev-parse origin/dev)"
-
-          echo "ahead=$ahead" >> "$GITHUB_OUTPUT"
-          echo "head-sha=$head_sha" >> "$GITHUB_OUTPUT"
-
-          {
-            echo "### Promotion candidate"
-            echo ""
-            echo "- dev head: \`$head_sha\`"
-            echo "- Commits ahead of main: $ahead"
-            echo "- Commits behind main: $behind"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [[ "$ahead" -eq 0 ]]; then
-            echo "::error title=Nothing to promote::origin/dev has no commits beyond origin/main."
-            exit 1
-          fi
-
-      - name: Verify Continuous Integration passed on dev
-        if: inputs.require-ci == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HEAD_SHA: ${{ steps.compare.outputs.head-sha }}
-        run: |
-          conclusion="$(gh run list \
-            --workflow ci.yml \
-            --branch dev \
-            --commit "$HEAD_SHA" \
-            --limit 1 \
-            --json conclusion \
-            --jq '.[0].conclusion // empty')"
-
-          if [[ "$conclusion" != "success" ]]; then
-            echo "::error title=Continuous Integration not green::Expected a successful ci.yml run for $HEAD_SHA; found '${conclusion:-none}'."
-            exit 1
-          fi
-
-      - name: Open or update the promotion pull request
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_TITLE: ${{ inputs.title }}
-          AHEAD: ${{ steps.compare.outputs.ahead }}
-          HEAD_SHA: ${{ steps.compare.outputs.head-sha }}
-        run: |
-          existing="$(gh pr list --base main --head dev --state open --json number --jq '.[0].number // empty')"
-
-          body="$(printf 'Promotes %s commit(s) from \`dev\` to \`main\`.\n\n- dev head: `%s`\n- Opened by the Promote Dev to Main workflow.\n\nDeploy production from `main` after this pull request merges.' "$AHEAD" "$HEAD_SHA")"
-
-          if [[ -n "$existing" ]]; then
-            gh pr edit "$existing" --title "$PR_TITLE" --body "$body"
-            url="$(gh pr view "$existing" --json url --jq .url)"
-          else
-            url="$(gh pr create --base main --head dev --title "$PR_TITLE" --body "$body")"
-          fi
-
-          echo "Promotion pull request: $url" >> "$GITHUB_STEP_SUMMARY"
+  open-promotion-pr:
+    uses: ninjapaw/pawprint/.github/workflows/kit-promote.yml@de65a5017f51b2ca9213ec07b5fbfc889262fee2
+    with:
+      source-branch: dev
+      target-branch: main
+      require-ci: ${{ inputs.require-ci == 'true' }}
+      ci-workflow: ci.yml
+      pr-title: ${{ inputs.title }}

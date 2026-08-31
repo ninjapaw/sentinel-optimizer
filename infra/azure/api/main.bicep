@@ -106,7 +106,7 @@ var aiApiKeySettings = (!empty(keyVaultName) && !empty(aiApiKeySecretName)) ? [
   }
 ] : []
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' = {
   name: storageAccountName
   location: location
   tags: resourceTags
@@ -124,12 +124,12 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   }
 }
 
-resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-01-01' = {
   parent: storageAccount
   name: 'default'
 }
 
-resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-01-01' = {
   parent: blobService
   name: deploymentContainerName
   properties: {
@@ -137,7 +137,7 @@ resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/con
   }
 }
 
-resource flexPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
+resource flexPlan 'Microsoft.Web/serverfarms@2025-03-01' = {
   name: '${functionAppName}-plan'
   location: location
   tags: resourceTags
@@ -151,7 +151,7 @@ resource flexPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   }
 }
 
-resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
+resource functionApp 'Microsoft.Web/sites@2025-03-01' = {
   name: functionAppName
   location: location
   tags: resourceTags
@@ -310,6 +310,8 @@ resource apiDeploymentRoleAssignment 'Microsoft.Authorization/roleAssignments@20
   }
 }
 
+// Azure ships no stable diagnosticSettings API newer than 2016-09-01.
+#disable-next-line use-recent-api-versions
 resource functionDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (!empty(logAnalyticsWorkspaceId)) {
   name: 'sentinel-optimizer-function-diagnostics'
   scope: functionApp

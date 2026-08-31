@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "9606901986912162175"
+      "templateHash": "11244101518191943721"
     }
   },
   "parameters": {
@@ -131,7 +131,7 @@
       "scope": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiAccountName'))]",
       "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiAccountName')), resourceId('Microsoft.Web/sites', parameters('functionAppName')), subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'))]",
       "properties": {
-        "principalId": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2024-04-01', 'full').identity.principalId]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2025-03-01', 'full').identity.principalId]",
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd')]"
       },
@@ -141,9 +141,9 @@
     },
     {
       "type": "Microsoft.Web/sites/config",
-      "apiVersion": "2024-04-01",
+      "apiVersion": "2025-03-01",
       "name": "[format('{0}/{1}', parameters('functionAppName'), 'appsettings')]",
-      "properties": "[union(listApplicationSettings(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2024-04-01').properties, createObject('AZURE_OPENAI_DEPLOYMENT', parameters('modelDeploymentName'), 'AZURE_OPENAI_ENDPOINT', reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiAccountName')), '2025-06-01').endpoint))]",
+      "properties": "[union(listApplicationSettings(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2025-03-01').properties, createObject('AZURE_OPENAI_DEPLOYMENT', parameters('modelDeploymentName'), 'AZURE_OPENAI_ENDPOINT', reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiAccountName')), '2025-06-01').endpoint))]",
       "dependsOn": [
         "[resourceId('Microsoft.CognitiveServices/accounts/deployments', parameters('openAiAccountName'), parameters('modelDeploymentName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', parameters('openAiAccountName'))]"

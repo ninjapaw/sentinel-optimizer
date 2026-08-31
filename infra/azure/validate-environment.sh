@@ -3,46 +3,27 @@
 # See LICENSE in the repository root.
 
 #!/usr/bin/env bash
+# Shared checks live in the vendored pawprint script; only the workload-specific
+# requirements and outputs stay here.
 set -euo pipefail
 
-require_value() {
-  local name="$1"
-  if [[ -z "${!name:-}" ]]; then
-    printf 'Missing required environment variable: %s\n' "$name" >&2
-    exit 1
-  fi
-}
-
-require_value AZURE_LOCATION
-require_value AZURE_RESOURCE_GROUP
-require_value AZURE_STATIC_WEB_APP_NAME
-require_value AZURE_PUBLIC_SITE_URL
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "${script_dir}/../.." && pwd)"
 
 AZURE_DEPLOY_API="${AZURE_DEPLOY_API:-false}"
 AZURE_USE_API="${AZURE_USE_API:-false}"
 AZURE_ENABLE_ANONYMOUS_AI_ROUTES="${AZURE_ENABLE_ANONYMOUS_AI_ROUTES:-false}"
 
+required="AZURE_STATIC_WEB_APP_NAME AZURE_PUBLIC_SITE_URL"
 if [[ "$AZURE_DEPLOY_API" == true || "$AZURE_USE_API" == true ]]; then
-  require_value AZURE_FUNCTIONAPP_NAME
+  required="$required AZURE_FUNCTIONAPP_NAME"
 fi
 
-if [[ ! "$AZURE_RESOURCE_GROUP" =~ ^[A-Za-z0-9._()\-]{1,90}$ ]]; then
-  printf 'Invalid AZURE_RESOURCE_GROUP.\n' >&2
-  exit 1
-fi
-if [[ ! "$AZURE_STATIC_WEB_APP_NAME" =~ ^[A-Za-z0-9-]{2,40}$ ]]; then
-  printf 'Invalid AZURE_STATIC_WEB_APP_NAME.\n' >&2
-  exit 1
-fi
-if [[ -n "${AZURE_FUNCTIONAPP_NAME:-}" && ! "$AZURE_FUNCTIONAPP_NAME" =~ ^[A-Za-z0-9-]{2,60}$ ]]; then
-  printf 'Invalid AZURE_FUNCTIONAPP_NAME.\n' >&2
-  exit 1
-fi
-if [[ ! "$AZURE_PUBLIC_SITE_URL" =~ ^https://[^[:space:]]+$ ]]; then
-  printf 'Invalid AZURE_PUBLIC_SITE_URL.\n' >&2
-  exit 1
-fi
+PAWPRINT_REQUIRE="$required" \
+  bash "${repo_root}/vendor/pawprint/scripts/validate-environment.sh"
 
+# Anonymous AI routes without a deployed API would expose a route that cannot
+# authenticate, so the valid combinations are enumerated rather than checked loosely.
 case "$AZURE_DEPLOY_API:$AZURE_USE_API:$AZURE_ENABLE_ANONYMOUS_AI_ROUTES" in
   true:true:false|true:true:true|true:false:false|true:false:true|false:false:false) ;;
   *)

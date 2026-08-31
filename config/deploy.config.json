@@ -10,6 +10,7 @@
     "aiApiKeySecretName": "ai-api-key",
     "location": "centralus",
     "siteSku": "Free",
+    "siteBase": "/",
     "functionMemoryMB": 512,
     "functionMaximumInstances": 40,
     "functionAlwaysReadyInstances": 0,
@@ -24,14 +25,51 @@
     "openAiDeploymentSku": "GlobalStandard",
     "openAiModelCapacity": 1,
     "secretExpirationDays": 365,
-    "secretWarningDays": 30
+    "secretWarningDays": 30,
+    "resolver": {
+      "required": [
+        "azureEnvironment",
+        "staticWebAppName",
+        "functionAppName",
+        "customDomain",
+        "publicSiteUrl"
+      ],
+      "env": {
+        "DEPLOYMENT_TARGET": "deploymentTarget",
+        "AZURE_AI_API_KEY_SECRET_NAME": "aiApiKeySecretName",
+        "AZURE_STATIC_WEB_APP_NAME": "staticWebAppName",
+        "AZURE_FUNCTIONAPP_NAME": "functionAppName",
+        "AZURE_KEY_VAULT_NAME": "keyVaultName",
+        "AZURE_OPENAI_ACCOUNT_NAME": "openAiAccountName",
+        "AZURE_OPENAI_MODEL_NAME": "openAiModelName",
+        "AZURE_OPENAI_MODEL_DEPLOYMENT": "openAiModelDeployment",
+        "AZURE_OPENAI_DEPLOYMENT_SKU": "openAiDeploymentSku",
+        "AZURE_OPENAI_MODEL_CAPACITY": "openAiModelCapacity",
+        "AZURE_SITE_SKU": "siteSku",
+        "AZURE_FUNCTION_INSTANCE_MEMORY_MB": "functionMemoryMB",
+        "AZURE_FUNCTION_MAXIMUM_INSTANCE_COUNT": "functionMaximumInstances",
+        "AZURE_FUNCTION_ALWAYS_READY_INSTANCES": "functionAlwaysReadyInstances",
+        "AZURE_FUNCTION_STORAGE_SKU": "functionStorageSku",
+        "AZURE_DEPLOY_API": "deployApi",
+        "AZURE_USE_API": "useApi",
+        "AZURE_ENABLE_ANONYMOUS_AI_ROUTES": "enableAnonymousAiRoutes",
+        "AZURE_DEPLOY_KEY_VAULT": "deployKeyVault",
+        "AZURE_DEPLOY_OPENAI": "deployOpenAi",
+        "AZURE_CUSTOM_DOMAIN": "customDomain",
+        "AZURE_PUBLIC_SITE_URL": "publicSiteUrl",
+        "PUBLIC_SITE_URL": "publicSiteUrl",
+        "PUBLIC_SITE_BASE": "siteBase",
+        "AZURE_SECRET_EXPIRES_IN_DAYS": "secretExpirationDays",
+        "AZURE_SECRET_WARN_DAYS": "secretWarningDays"
+      }
+    }
   },
   "environments": {
     "dev": {
       "branch": "dev",
       "githubEnvironment": "dev",
       "azureEnvironment": "development",
-      "subscriptionId": "16037566-d4df-4c7c-b484-346d8472b4c4",
+      "subscriptionId": "",
       "location": "centralus",
       "resourceGroup": "NP-SentinelOptimizer-Dev-CentralUS",
       "staticWebAppName": "np-sentineloptimizer-dev-centralus",
@@ -39,13 +77,20 @@
       "keyVaultName": "sentinel-opt-dev-kv",
       "openAiAccountName": "sentinel-opt-dev-openai",
       "customDomain": "dev.sentineloptimizer.com",
-      "publicSiteUrl": "https://dev.sentineloptimizer.com"
+      "publicSiteUrl": "https://dev.sentineloptimizer.com",
+      "secrets": {
+        "mode": "workload",
+        "vaultName": "sentinel-opt-dev-kv",
+        "purgeProtection": true,
+        "expirationDays": 365,
+        "warningDays": 30
+      }
     },
     "prod": {
       "branch": "main",
       "githubEnvironment": "prod",
       "azureEnvironment": "production",
-      "subscriptionId": "aae23697-a987-4b94-95b9-382230c0cce6",
+      "subscriptionId": "",
       "location": "centralus",
       "resourceGroup": "NP-SentinelOptimizer-CentralUS",
       "staticWebAppName": "np-sentineloptimizer-centralus",
@@ -53,7 +98,14 @@
       "keyVaultName": "sentinel-opt-prod-kv",
       "openAiAccountName": "sentinel-opt-openai",
       "customDomain": "sentineloptimizer.com",
-      "publicSiteUrl": "https://sentineloptimizer.com"
+      "publicSiteUrl": "https://sentineloptimizer.com",
+      "secrets": {
+        "mode": "workload",
+        "vaultName": "sentinel-opt-prod-kv",
+        "purgeProtection": true,
+        "expirationDays": 365,
+        "warningDays": 30
+      }
     }
   }
 }

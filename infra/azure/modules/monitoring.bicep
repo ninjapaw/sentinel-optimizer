@@ -35,7 +35,7 @@ var resourceTags = union({
   managedBy: 'bicep'
 }, tags)
 
-resource workspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+resource workspace 'Microsoft.OperationalInsights/workspaces@2025-02-01' = {
   name: workspaceName
   location: location
   tags: resourceTags

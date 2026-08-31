@@ -14,7 +14,7 @@ resource staticSite 'Microsoft.Web/staticSites@2025-03-01' existing = {
   name: siteName
 }
 
-resource customDomain 'Microsoft.Web/staticSites/customDomains@2022-09-01' = if (!empty(customDomainName)) {
+resource customDomain 'Microsoft.Web/staticSites/customDomains@2025-03-01' = if (!empty(customDomainName)) {
   parent: staticSite
   name: customDomainName
   properties: {

@@ -49,7 +49,7 @@ var resourceTags = union({
   managedBy: 'bicep'
 }, tags)
 
-resource functionApp 'Microsoft.Web/sites@2024-04-01' existing = {
+resource functionApp 'Microsoft.Web/sites@2025-03-01' existing = {
   name: functionAppName
 }
 
@@ -104,7 +104,7 @@ resource openAiUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-
   }
 }
 
-resource functionAppSettings 'Microsoft.Web/sites/config@2024-04-01' = {
+resource functionAppSettings 'Microsoft.Web/sites/config@2025-03-01' = {
   parent: functionApp
   name: 'appsettings'
   properties: union(functionApp.listApplicationSettings().properties, {

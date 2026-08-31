@@ -11,9 +11,9 @@ fail_on_expiring=false
 
 usage() {
   cat <<'EOF'
-Audit Azure Key Vault secret expiration for Sentinel Optimizer.
+Audit Azure Key Vault secret expiration.
 
-Usage: infra/azure/keyvault/audit-secrets.sh [options]
+Usage: scripts/audit-secrets.sh [options]
 
 Options:
   --vault <name>          Key Vault name (default: AZURE_KEY_VAULT_NAME)
@@ -27,6 +27,8 @@ Exit codes:
 
 Secrets without an expiration date are reported because they cannot be tracked
 for rotation. Secret values are never read or printed.
+
+Vendored copy. Edit it in ninjapaw/pawprint and re-vendor; CI fails on drift.
 EOF
 }
 

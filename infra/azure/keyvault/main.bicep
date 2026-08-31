@@ -49,7 +49,7 @@ var resourceTags = union({
   managedBy: 'bicep'
 }, tags)
 
-resource functionApp 'Microsoft.Web/sites@2024-04-01' existing = if (!empty(functionAppName)) {
+resource functionApp 'Microsoft.Web/sites@2025-03-01' existing = if (!empty(functionAppName)) {
   name: functionAppName
 }
 
@@ -112,6 +112,8 @@ resource deploymentSecretsOfficer 'Microsoft.Authorization/roleAssignments@2022-
   }
 }
 
+// Azure ships no stable diagnosticSettings API newer than 2016-09-01.
+#disable-next-line use-recent-api-versions
 resource auditLogs 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (!empty(logAnalyticsWorkspaceId)) {
   name: 'sentinel-optimizer-keyvault-audit'
   scope: keyVault
