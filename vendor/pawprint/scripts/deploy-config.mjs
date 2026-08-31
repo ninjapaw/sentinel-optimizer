@@ -214,11 +214,7 @@ function assertNoSecretShapedKeys(node, path) {
   for (const [key, value] of Object.entries(node)) {
     const here = path ? `${path}.${key}` : key;
     const holdsAValue = typeof value === "string" && value.trim() !== "";
-    if (
-      holdsAValue &&
-      SECRET_SHAPED.test(key) &&
-      !SECRET_METADATA.test(key)
-    ) {
+    if (holdsAValue && SECRET_SHAPED.test(key) && !SECRET_METADATA.test(key)) {
       fail(
         `${here} looks like a secret. Committed configuration must not carry secrets; use Key Vault or a GitHub Environment secret.`,
       );

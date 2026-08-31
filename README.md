@@ -671,8 +671,10 @@ without a version, the API picks up a rotated value without a redeployment.
 Cosmos credentials are not synchronized: the Function App uses its managed
 identity and `COSMOS_ENDPOINT`.
 
-[`audit-secrets.sh`](infra/azure/keyvault/audit-secrets.sh) runs after every
-sync and on a weekly schedule. It fails the run when a secret has expired, warns
+[`audit-secrets.sh`](vendor/pawprint/scripts/audit-secrets.sh) runs after every
+sync and on a weekly schedule. It is shared: the script is owned by
+`ninjapaw/pawprint` and vendored here, so every repository that gains a vault
+audits it the same way. It fails the run when a secret has expired, warns
 when one expires within `AZURE_SECRET_WARN_DAYS`, and reports secrets that have
 no expiration date. If the production Environment requires reviewers, the
 scheduled audit waits for an approval; point the schedule at a different
@@ -683,7 +685,7 @@ Both scripts run locally too:
 ```bash
 az login
 bash infra/azure/keyvault/sync-secrets.sh --vault <vault-name> --dry-run
-bash infra/azure/keyvault/audit-secrets.sh --vault <vault-name>
+bash vendor/pawprint/scripts/audit-secrets.sh --vault <vault-name>
 ```
 
 ### Further hardening
