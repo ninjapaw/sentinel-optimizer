@@ -21,7 +21,11 @@ interface TabsContainerProps {
   verticalLayout?: boolean;
 }
 
-export function TabsContainer({ tabs, defaultTabId, verticalLayout = false }: TabsContainerProps) {
+export function TabsContainer({
+  tabs,
+  defaultTabId,
+  verticalLayout = false,
+}: TabsContainerProps) {
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
       const hashTab = window.location.hash.replace(/^#tool-/, "");
@@ -49,7 +53,14 @@ export function TabsContainer({ tabs, defaultTabId, verticalLayout = false }: Ta
   const activeTabContent = tabs.find((tab) => tab.id === activeTab)?.content;
 
   return (
-    <div className="tabs-container" style={{ display: "flex", gap: "1.5rem", flexDirection: verticalLayout ? "column" : "row" }}>
+    <div
+      className="tabs-container"
+      style={{
+        display: "flex",
+        gap: "1.5rem",
+        flexDirection: verticalLayout ? "column" : "row",
+      }}
+    >
       <div
         id="tools"
         className="tabs-nav"
@@ -70,8 +81,14 @@ export function TabsContainer({ tabs, defaultTabId, verticalLayout = false }: Ta
             className={`tab-button ${activeTab === tab.id ? "active" : ""}`}
             style={{
               padding: "0.75rem 1rem",
-              backgroundColor: activeTab === tab.id ? "var(--color-primary, #0078D4)" : "transparent",
-              color: activeTab === tab.id ? "white" : "var(--color-text, #333)",
+              backgroundColor:
+                activeTab === tab.id
+                  ? "var(--color-primary, #0078D4)"
+                  : "transparent",
+              color:
+                activeTab === tab.id
+                  ? "var(--color-primary-foreground, #172126)"
+                  : "var(--color-text, #333)",
               border: "none",
               borderRadius: "6px",
               cursor: "pointer",

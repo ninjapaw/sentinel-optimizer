@@ -12,7 +12,11 @@ export type TelemetryRole =
   | "Operational, health, metric, or diagnostic telemetry"
   | "Unknown or requires validation";
 export type SecurityValue =
-  "High" | "Medium" | "Contextual" | "Operational" | "Unknown";
+  | "High"
+  | "Medium"
+  | "Contextual"
+  | "Operational"
+  | "Unknown";
 export type DetectionReadiness =
   | "Native alert"
   | "Direct detection input"
@@ -252,7 +256,7 @@ function volumeGB(
   const n = numberValue(value);
   if (n === undefined) return undefined;
   // Keep missing values missing instead of silently converting them to zero.
-  const h = key(typeof unit === "string" && unit ? unit : header ?? "");
+  const h = key(typeof unit === "string" && unit ? unit : (header ?? ""));
   if (h.includes("byte")) return n / 1_000_000_000;
   if (h === "mb" || h.includes("mb")) return n / 1_000;
   if (h === "tb" || h.includes("tb")) return n * 1_000;
@@ -281,7 +285,11 @@ export function parseMapperRows(
     });
   const parsed = rows.map((row) => {
     const source = cell(row, mapping.sourceName);
-    const volume = volumeGB(cell(row, mapping.volume), mapping.volume, cell(row, mapping.unit));
+    const volume = volumeGB(
+      cell(row, mapping.volume),
+      mapping.volume,
+      cell(row, mapping.unit),
+    );
     const events = numberValue(cell(row, mapping.eventCount));
     return {
       sourceName:
@@ -531,9 +539,10 @@ function classify(row: MapperRow, sharePct: number): MappedSource {
   // Unknown sources stay conservative instead of inheriting meaning from a keyword.
   const family = catalog?.family ?? "Unknown source";
   const catalogMatches = PROTECTION_CATALOG.entries.filter((entry) =>
-    entry.normalizedSourceFamilies.some((sourceFamily) =>
-      family.toLowerCase().includes(sourceFamily.toLowerCase()) ||
-      sourceFamily.toLowerCase().includes(family.toLowerCase()),
+    entry.normalizedSourceFamilies.some(
+      (sourceFamily) =>
+        family.toLowerCase().includes(sourceFamily.toLowerCase()) ||
+        sourceFamily.toLowerCase().includes(family.toLowerCase()),
     ),
   );
   const workloadFamily =
@@ -566,46 +575,62 @@ function classify(row: MapperRow, sharePct: number): MappedSource {
       ? "High"
       : "Medium"
     : "Low";
-  const plans: DefenderCandidate[] = (catalogMatches.length > 0
-    ? catalogMatches
-    : (catalog?.plans ?? []).map((plan) => ({
-        planOrProtection: plan,
-        alertCategory: "Unknown",
-        alertName: "Representative protection opportunity",
-        alertDescription: "Validate the current public alert reference before use.",
-        severityValues: [],
-        previewStatus: "Unknown" as const,
-        telemetryPlanes: [],
-        signalSources: [normalized],
-        mappingBasis: "Deterministic source-family mapping; catalog entry requires review.",
-        evidenceClass: "unknown" as EvidenceClass,
-        sourceUrl: "https://learn.microsoft.com/en-us/azure/defender-for-cloud/alerts-reference",
-        sourceTitle: "Defender for Cloud alerts reference",
-        sourceTypes: ["Microsoft Learn"],
-        sourceLastReviewed: PROTECTION_CATALOG.snapshotDate,
-        confidence: "Unknown" as CatalogConfidence,
-        caveat: "This is a candidate, not proof of plan status or alert availability.",
-        normalizedWorkloadFamilies: [workloadFamily],
-        normalizedSourceFamilies: [family],
-        applicableClouds: ["Azure"],
-      }))).map((entry) => ({
-        plan: entry.planOrProtection,
-        rationale: `The ${family} source suggests a possible ${entry.planOrProtection} workload protection conversation.`,
-        provides: "Workload-aware posture, detection, or findings may complement the observed telemetry.",
-        doesNotProve: "Telemetry collection does not prove that this plan is enabled or disabled, nor that a finding exists.",
-        validate: "Verify protected resources, plan status, coverage, and existing detections with the customer.",
-        confidence: (entry.confidence === "Unknown" ? "Low" : entry.confidence === "High" ? "High" : entry.confidence) as "High" | "Medium" | "Low",
-        workloadFamily: entry.normalizedWorkloadFamilies[0] ?? workloadFamily,
-        observedTelemetry: entry.signalSources.join(", "),
-        telemetryPlanes: entry.telemetryPlanes,
-        mappingBasis: entry.mappingBasis,
-        evidenceClass: entry.evidenceClass,
-        previewStatus: entry.previewStatus,
-        planStatusQuestion: "Is this protection plan enabled for the in-scope resources?",
-        resourceScopeQuestion: "Which subscriptions, resource groups, and workload resources are in scope?",
-        configurationQuestion: "Which required connectors, agents, runtime settings, or policies are configured?",
-        sourceUrl: entry.sourceUrl,
-      }));
+  const plans: DefenderCandidate[] = (
+    catalogMatches.length > 0
+      ? catalogMatches
+      : (catalog?.plans ?? []).map((plan) => ({
+          planOrProtection: plan,
+          alertCategory: "Unknown",
+          alertName: "Representative protection opportunity",
+          alertDescription:
+            "Validate the current public alert reference before use.",
+          severityValues: [],
+          previewStatus: "Unknown" as const,
+          telemetryPlanes: [],
+          signalSources: [normalized],
+          mappingBasis:
+            "Deterministic source-family mapping; catalog entry requires review.",
+          evidenceClass: "unknown" as EvidenceClass,
+          sourceUrl:
+            "https://learn.microsoft.com/en-us/azure/defender-for-cloud/alerts-reference",
+          sourceTitle: "Defender for Cloud alerts reference",
+          sourceTypes: ["Microsoft Learn"],
+          sourceLastReviewed: PROTECTION_CATALOG.snapshotDate,
+          confidence: "Unknown" as CatalogConfidence,
+          caveat:
+            "This is a candidate, not proof of plan status or alert availability.",
+          normalizedWorkloadFamilies: [workloadFamily],
+          normalizedSourceFamilies: [family],
+          applicableClouds: ["Azure"],
+        }))
+  ).map((entry) => ({
+    plan: entry.planOrProtection,
+    rationale: `The ${family} source suggests a possible ${entry.planOrProtection} workload protection conversation.`,
+    provides:
+      "Workload-aware posture, detection, or findings may complement the observed telemetry.",
+    doesNotProve:
+      "Telemetry collection does not prove that this plan is enabled or disabled, nor that a finding exists.",
+    validate:
+      "Verify protected resources, plan status, coverage, and existing detections with the customer.",
+    confidence: (entry.confidence === "Unknown"
+      ? "Low"
+      : entry.confidence === "High"
+        ? "High"
+        : entry.confidence) as "High" | "Medium" | "Low",
+    workloadFamily: entry.normalizedWorkloadFamilies[0] ?? workloadFamily,
+    observedTelemetry: entry.signalSources.join(", "),
+    telemetryPlanes: entry.telemetryPlanes,
+    mappingBasis: entry.mappingBasis,
+    evidenceClass: entry.evidenceClass,
+    previewStatus: entry.previewStatus,
+    planStatusQuestion:
+      "Is this protection plan enabled for the in-scope resources?",
+    resourceScopeQuestion:
+      "Which subscriptions, resource groups, and workload resources are in scope?",
+    configurationQuestion:
+      "Which required connectors, agents, runtime settings, or policies are configured?",
+    sourceUrl: entry.sourceUrl,
+  }));
   return {
     ...row,
     normalizedSourceName: normalized,
@@ -646,8 +671,10 @@ function classify(row: MapperRow, sharePct: number): MappedSource {
           : "Correlate a representative telemetry event with a documented or customer-owned finding and record the dependency.",
     ],
     validationState: catalogMatches.length > 0 ? "Requires review" : "Unknown",
-    existingDetectionDependency: "Validate which analytic rules, incidents, hunting queries, or native findings consume this telemetry.",
-    rollbackConsideration: "Review the treatment with the customer and preserve the current path until detection coverage and workload scope are verified.",
+    existingDetectionDependency:
+      "Validate which analytic rules, incidents, hunting queries, or native findings consume this telemetry.",
+    rollbackConsideration:
+      "Review the treatment with the customer and preserve the current path until detection coverage and workload scope are verified.",
   };
 }
 export function analyzeMapper(

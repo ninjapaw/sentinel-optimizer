@@ -22,6 +22,17 @@ const repositoryUrl = `https://github.com/${BRAND.repo}`;
         {BRAND.name}
       </a>
       <div class="header-actions">
+        <details class="tools-menu">
+          <summary>Tools</summary>
+          <nav class="tools-menu-panel" aria-label="Tools">
+            <a href="#tool-sentinel">Price Microsoft Sentinel</a>
+            <a href="#tool-competitor-compare">Compare SIEM Providers</a>
+            <a href="#tool-cloud-security-value-mapper">Cloud Security Value Mapper</a>
+            <a href="#tool-defender-p2">Defender P2 Ingestion Benefit</a>
+            <a href="#tool-defender">Defender for Cloud Plans</a>
+            <a href="#tool-quota">Usage Health</a>
+          </nav>
+        </details>
         <a class="btn btn-ghost btn-sm" href={repositoryUrl} rel="noopener">
           GitHub
         </a>
@@ -120,6 +131,12 @@ const repositoryUrl = `https://github.com/${BRAND.repo}`;
       </div>
     </section>
   </main>
+
+  <script>
+    document.querySelectorAll<HTMLAnchorElement>(".tools-menu-panel a").forEach((link) => {
+      link.addEventListener("click", () => link.closest("details")?.removeAttribute("open"));
+    });
+  </script>
 
   <Footer />
 </Base>

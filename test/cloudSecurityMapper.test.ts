@@ -13,8 +13,16 @@ describe("Cloud Security Value Mapper", () => {
   it("exposes reviewed catalog provenance and conservative evidence classes", () => {
     expect(PROTECTION_CATALOG.entries.length).toBeGreaterThanOrEqual(9);
     expect(PROTECTION_CATALOG.notice).toContain("planning aid");
-    expect(PROTECTION_CATALOG.entries.every((entry) => entry.sourceUrl.startsWith("https://learn.microsoft.com/"))).toBe(true);
-    expect(PROTECTION_CATALOG.entries.filter((entry) => entry.evidenceClass !== "explicit-alert-description").every((entry) => entry.confidence !== "High")).toBe(true);
+    expect(
+      PROTECTION_CATALOG.entries.every((entry) =>
+        entry.sourceUrl.startsWith("https://learn.microsoft.com/"),
+      ),
+    ).toBe(true);
+    expect(
+      PROTECTION_CATALOG.entries
+        .filter((entry) => entry.evidenceClass !== "explicit-alert-description")
+        .every((entry) => entry.confidence !== "High"),
+    ).toBe(true);
   });
   it("parses CSV, TSV, JSON, and normalizes a window without treating missing volume as zero", () => {
     const csv = parseMapperText(
@@ -86,7 +94,10 @@ describe("Cloud Security Value Mapper", () => {
         (source) => source.sourceName === "App Gateway access",
       )?.evidence,
     ).toContain("GB/day after window normalization");
-    expect(analysis.sources.find((source) => source.sourceName === "AKS audit")?.candidateProtectionMapping[0]?.evidenceClass).toBe("public-category-guidance");
+    expect(
+      analysis.sources.find((source) => source.sourceName === "AKS audit")
+        ?.candidateProtectionMapping[0]?.evidenceClass,
+    ).toBe("public-category-guidance");
     const unknown = analyzeMapper(
       [{ sourceName: "Mystery feed", volumeGB: 2 }],
       1,

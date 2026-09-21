@@ -10,7 +10,10 @@ import {
   type ParsedMapperInput,
   type FieldMapping,
 } from "../lib/cloudSecurityMapper.js";
-import { exportCloudSecurityReport, type MapperReportAudience } from "../lib/cloudSecurityMapperReports.js";
+import {
+  exportCloudSecurityReport,
+  type MapperReportAudience,
+} from "../lib/cloudSecurityMapperReports.js";
 import { PROTECTION_CATALOG } from "../../../schema/cloudSecurityMapper.js";
 
 function buildQuery(windowDays: number): string {
@@ -160,7 +163,8 @@ export default function CloudSecurityValueMapper() {
     await exportCloudSecurityReport(analysis, "CISO", customerLabel);
   }
   async function exportAudienceReport(audience: MapperReportAudience) {
-    if (analysis) await exportCloudSecurityReport(analysis, audience, customerLabel);
+    if (analysis)
+      await exportCloudSecurityReport(analysis, audience, customerLabel);
   }
 
   return (
@@ -174,7 +178,11 @@ export default function CloudSecurityValueMapper() {
             findings, Sentinel treatment, and complementary Defender for Cloud
             workload opportunities.
           </p>
-          <p className="ai-note">{PROTECTION_CATALOG.notice} Public alert references may omit recently added alerts; validate protected resources, configuration, preview status, and current availability.</p>
+          <p className="ai-note">
+            {PROTECTION_CATALOG.notice} Public alert references may omit
+            recently added alerts; validate protected resources, configuration,
+            preview status, and current availability.
+          </p>
         </div>
         <button type="button" className="btn btn-secondary" onClick={clear}>
           Clear analysis
@@ -223,7 +231,14 @@ export default function CloudSecurityValueMapper() {
           />
         </div>
         <label htmlFor="mapper-customer-label">Optional report label</label>
-        <input id="mapper-customer-label" type="text" maxLength={120} value={customerLabel} onChange={(event) => setCustomerLabel(event.target.value)} placeholder="Use a non-sensitive label" />
+        <input
+          id="mapper-customer-label"
+          type="text"
+          maxLength={120}
+          value={customerLabel}
+          onChange={(event) => setCustomerLabel(event.target.value)}
+          placeholder="Use a non-sensitive label"
+        />
         <label htmlFor="mapper-paste">Paste JSON, CSV, or TSV results</label>
         <textarea
           id="mapper-paste"
@@ -306,9 +321,19 @@ export default function CloudSecurityValueMapper() {
                   <tr key={field}>
                     <th scope="row">{field}</th>
                     <td>
-                      <select aria-label={`Map ${field} field`} value={parsed.mapping[field] ?? ""} onChange={(event) => updateMapping(field, event.target.value)}>
+                      <select
+                        aria-label={`Map ${field} field`}
+                        value={parsed.mapping[field] ?? ""}
+                        onChange={(event) =>
+                          updateMapping(field, event.target.value)
+                        }
+                      >
                         <option value="">Missing</option>
-                        {parsed.headers.map((header) => <option key={header} value={header}>{header}</option>)}
+                        {parsed.headers.map((header) => (
+                          <option key={header} value={header}>
+                            {header}
+                          </option>
+                        ))}
                       </select>
                     </td>
                   </tr>
@@ -349,18 +374,33 @@ export default function CloudSecurityValueMapper() {
                 </p>
               </div>
               <div className="row">
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={exportPdf}
-              >
-                Download executive PDF
-              </button>
-              <button type="button" className="btn btn-secondary" onClick={() => exportAudienceReport("SOC leader")}>Download SOC report</button>
-              <button type="button" className="btn btn-secondary" onClick={() => exportAudienceReport("Technical architecture")}>Download architecture report</button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={exportPdf}
+                >
+                  Download executive PDF
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => exportAudienceReport("SOC leader")}
+                >
+                  Download SOC report
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => exportAudienceReport("Technical architecture")}
+                >
+                  Download architecture report
+                </button>
               </div>
             </div>
-            <p className="ai-note">Catalog {PROTECTION_CATALOG.catalogVersion} from {PROTECTION_CATALOG.snapshotDate}. {PROTECTION_CATALOG.notice}</p>
+            <p className="ai-note">
+              Catalog {PROTECTION_CATALOG.catalogVersion} from{" "}
+              {PROTECTION_CATALOG.snapshotDate}. {PROTECTION_CATALOG.notice}
+            </p>
             <div className="metric-grid">
               <div>
                 <strong>{format(analysis.totalGBPerDay)}</strong>
@@ -461,7 +501,11 @@ export default function CloudSecurityValueMapper() {
           <p>
             <strong>POC scenario:</strong> {selected.pocScenario}
           </p>
-          <p><strong>Validation state:</strong> {selected.validationState}. <strong>Existing detection dependency:</strong> {selected.existingDetectionDependency}</p>
+          <p>
+            <strong>Validation state:</strong> {selected.validationState}.{" "}
+            <strong>Existing detection dependency:</strong>{" "}
+            {selected.existingDetectionDependency}
+          </p>
           <h4>Candidate Defender for Cloud plans</h4>
           {selected.candidateDefenderPlans.length ? (
             selected.candidateDefenderPlans.map((candidate) => (
@@ -473,8 +517,25 @@ export default function CloudSecurityValueMapper() {
                 <p>
                   {candidate.doesNotProve} {candidate.validate}
                 </p>
-                {candidate.evidenceClass && <p>Evidence: {candidate.evidenceClass}; {candidate.previewStatus}; planes: {candidate.telemetryPlanes?.join(", ") || "not specified"}. <a href={candidate.sourceUrl} target="_blank" rel="noreferrer">Source</a></p>}
-                <p>Plan status: {candidate.planStatusQuestion} Resource scope: {candidate.resourceScopeQuestion} Configuration: {candidate.configurationQuestion}</p>
+                {candidate.evidenceClass && (
+                  <p>
+                    Evidence: {candidate.evidenceClass};{" "}
+                    {candidate.previewStatus}; planes:{" "}
+                    {candidate.telemetryPlanes?.join(", ") || "not specified"}.{" "}
+                    <a
+                      href={candidate.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Source
+                    </a>
+                  </p>
+                )}
+                <p>
+                  Plan status: {candidate.planStatusQuestion} Resource scope:{" "}
+                  {candidate.resourceScopeQuestion} Configuration:{" "}
+                  {candidate.configurationQuestion}
+                </p>
               </div>
             ))
           ) : (
