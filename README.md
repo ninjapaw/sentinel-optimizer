@@ -36,6 +36,7 @@ Optional AI features are disabled by default. When enabled, only the bounded API
 - **Defender for Cloud Cost Estimator**: Calculate monthly costs for various Azure Defender protection plans (Servers, Databases, Storage, App Service, Containers, Key Vault).
 - **Usage & Quota Tracker**: Monitor resource usage and quotas with real-time progress indicators and status alerts.
 - **Cloud Security Value Mapper**: Locally parse XLSX, CSV, TSV, and JSON aggregate usage exports; map telemetry to evidence, detection readiness, candidate Sentinel treatments, and complementary Defender for Cloud workload-protection opportunities.
+- The mapper also provides reviewed, versioned Defender for Cloud candidate mappings with evidence class, source URL, confidence, caveat, discovery questions, POC scenarios, and CISO/SOC/technical architecture PDF modes.
 - Export results for planning and review.
 - Run without an API, credentials, database, or cloud account.
 - Optionally deploy a static site and a separate Azure Functions API.
@@ -74,6 +75,15 @@ statement that a control or plan is enabled. Defender for Cloud mappings are
 candidate complementary controls and do not replace WAF, SIEM, EDR, audit logs,
 or third-party controls. Validate detections, coverage, plan status, pricing,
 and licensing with the customer and official Microsoft sources.
+
+The product catalog lives in
+[`config/cloud-security-mapper/catalog.json`](config/cloud-security-mapper/catalog.json).
+It is a reviewed planning aid based on public documentation and analyst mappings,
+not a description of private Defender detection implementation. Run
+`npm run validate:cloud-security-catalog` before publishing catalog changes. The
+validator checks required fields, Microsoft Learn URLs, evidence classes,
+confidence rules, duplicates, mapping basis, repeated-word quality, and the
+catalog notice. Do not commit customer workbooks or the source MDC workbook.
 
 ## Query and export examples
 

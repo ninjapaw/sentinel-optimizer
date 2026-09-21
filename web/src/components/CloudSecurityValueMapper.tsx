@@ -2,12 +2,16 @@ import { useMemo, useRef, useState } from "react";
 import {
   analyzeMapper,
   buildBoundedAiPayload,
+  parseMapperRows,
   parseMapperText,
   parseMapperWorkbook,
   SYNTHETIC_MAPPER_EXAMPLE,
   type MappedSource,
   type ParsedMapperInput,
+  type FieldMapping,
 } from "../lib/cloudSecurityMapper.js";
+import { exportCloudSecurityReport, type MapperReportAudience } from "../lib/cloudSecurityMapperReports.js";
+import { PROTECTION_CATALOG } from "../../../schema/cloudSecurityMapper.js";
 
 function buildQuery(windowDays: number): string {
   return `Usage\n| where TimeGenerated > ago(${windowDays}d)\n| where IsBillable == true\n| summarize QuantityMB = sum(Quantity) by DataType\n| order by QuantityMB desc`;
@@ -16,6 +20,18 @@ function buildQuery(windowDays: number): string {
 function format(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
+
+const mappingFields: (keyof FieldMapping)[] = [
+  "sourceName",
+  "date",
+  "volume",
+  "unit",
+  "eventCount",
+  "notes",
+  "currentRecommendation",
+  "workspace",
+  "currentTier",
+];
 
 export default function CloudSecurityValueMapper() {
   const [parsed, setParsed] = useState<ParsedMapperInput | null>(null);
@@ -28,6 +44,7 @@ export default function CloudSecurityValueMapper() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [customerLabel, setCustomerLabel] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const payloadPreview = useMemo(
@@ -73,6 +90,15 @@ export default function CloudSecurityValueMapper() {
     setNotice(
       "Deterministic analysis complete. Recommendations are candidates for customer validation, not production changes.",
     );
+  }
+  function updateMapping(field: keyof FieldMapping, value: string) {
+    if (!parsed) return;
+    const nextMapping = { ...parsed.mapping };
+    if (value) nextMapping[field] = value;
+    else delete nextMapping[field];
+    setParsed(parseMapperRows(parsed.rawRows, parsed.headers, nextMapping));
+    setAnalysis(null);
+    setSelected(null);
   }
   function clear() {
     // Discard every mapper-owned value; analysis never uses browser persistence.
@@ -131,51 +157,10 @@ export default function CloudSecurityValueMapper() {
   }
   async function exportPdf() {
     if (!analysis) return;
-    // jsPDF runs locally, so the report does not need a server payload.
-    const { jsPDF } = await import("jspdf");
-    const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.text("Cloud Security Value Assessment", 20, 24);
-    doc.setFontSize(9);
-    doc.text(
-      "Independent community planning tool. Not a Microsoft assessment, quote, licensing determination, or guarantee.",
-      20,
-      32,
-    );
-    doc.setFontSize(12);
-    doc.text("Executive summary", 20, 48);
-    doc.setFontSize(10);
-    doc.text(
-      `Observed scale: ${format(analysis.totalGBPerDay)} GB/day across ${analysis.sources.length} sources.`,
-      20,
-      58,
-    );
-    doc.text(
-      `Top-three concentration: ${format(analysis.concentrationPct)}%. Unknown sources requiring validation: ${analysis.unknownCount}.`,
-      20,
-      66,
-    );
-    doc.text("Leading sources", 20, 82);
-    let y = 92;
-    for (const source of analysis.sources.slice(0, 12)) {
-      doc.text(
-        `${source.normalizedSourceName}: ${format(source.observedGBPerDay)} GB/day | ${source.recommendedSentinelTreatment} | ${source.confidence} confidence`,
-        20,
-        y,
-      );
-      y += 7;
-      if (y > 275) {
-        doc.addPage();
-        y = 20;
-      }
-    }
-    doc.setFontSize(8);
-    doc.text(
-      "Methodology: local deterministic mappings from user-supplied aggregate data; all recommendations and workload mappings require customer validation.",
-      20,
-      285,
-    );
-    doc.save("cloud-security-value-assessment.pdf");
+    await exportCloudSecurityReport(analysis, "CISO", customerLabel);
+  }
+  async function exportAudienceReport(audience: MapperReportAudience) {
+    if (analysis) await exportCloudSecurityReport(analysis, audience, customerLabel);
   }
 
   return (
@@ -189,6 +174,7 @@ export default function CloudSecurityValueMapper() {
             findings, Sentinel treatment, and complementary Defender for Cloud
             workload opportunities.
           </p>
+          <p className="ai-note">{PROTECTION_CATALOG.notice} Public alert references may omit recently added alerts; validate protected resources, configuration, preview status, and current availability.</p>
         </div>
         <button type="button" className="btn btn-secondary" onClick={clear}>
           Clear analysis
@@ -236,6 +222,8 @@ export default function CloudSecurityValueMapper() {
             onChange={onFile}
           />
         </div>
+        <label htmlFor="mapper-customer-label">Optional report label</label>
+        <input id="mapper-customer-label" type="text" maxLength={120} value={customerLabel} onChange={(event) => setCustomerLabel(event.target.value)} placeholder="Use a non-sensitive label" />
         <label htmlFor="mapper-paste">Paste JSON, CSV, or TSV results</label>
         <textarea
           id="mapper-paste"
@@ -269,7 +257,7 @@ export default function CloudSecurityValueMapper() {
         </div>
       </section>
       <section className="card">
-        <h3>3. Sentinel customer query workflow</h3>
+        <h3>Sentinel customer query workflow</h3>
         <p>
           Run this bounded query for aggregate usage by data type, then paste
           the exported result above. It does not connect to Azure from this
@@ -314,10 +302,15 @@ export default function CloudSecurityValueMapper() {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(parsed.mapping).map(([field, value]) => (
+                {mappingFields.map((field) => (
                   <tr key={field}>
                     <th scope="row">{field}</th>
-                    <td>{value ?? "Missing"}</td>
+                    <td>
+                      <select aria-label={`Map ${field} field`} value={parsed.mapping[field] ?? ""} onChange={(event) => updateMapping(field, event.target.value)}>
+                        <option value="">Missing</option>
+                        {parsed.headers.map((header) => <option key={header} value={header}>{header}</option>)}
+                      </select>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -350,11 +343,12 @@ export default function CloudSecurityValueMapper() {
               <div>
                 <h3>3-4. Telemetry value and protection opportunities</h3>
                 <p>
-                  These are deterministic candidate mappings. Collection alone
-                  does not prove that an alert, detection, or Defender plan
-                  exists.
+                  These are deterministic candidate mappings. Collection does
+                  not by itself prove that a detection, alert, or incident
+                  exists, and it does not prove that a Defender plan is enabled.
                 </p>
               </div>
+              <div className="row">
               <button
                 type="button"
                 className="btn btn-primary"
@@ -362,7 +356,11 @@ export default function CloudSecurityValueMapper() {
               >
                 Download executive PDF
               </button>
+              <button type="button" className="btn btn-secondary" onClick={() => exportAudienceReport("SOC leader")}>Download SOC report</button>
+              <button type="button" className="btn btn-secondary" onClick={() => exportAudienceReport("Technical architecture")}>Download architecture report</button>
+              </div>
             </div>
+            <p className="ai-note">Catalog {PROTECTION_CATALOG.catalogVersion} from {PROTECTION_CATALOG.snapshotDate}. {PROTECTION_CATALOG.notice}</p>
             <div className="metric-grid">
               <div>
                 <strong>{format(analysis.totalGBPerDay)}</strong>
@@ -463,6 +461,7 @@ export default function CloudSecurityValueMapper() {
           <p>
             <strong>POC scenario:</strong> {selected.pocScenario}
           </p>
+          <p><strong>Validation state:</strong> {selected.validationState}. <strong>Existing detection dependency:</strong> {selected.existingDetectionDependency}</p>
           <h4>Candidate Defender for Cloud plans</h4>
           {selected.candidateDefenderPlans.length ? (
             selected.candidateDefenderPlans.map((candidate) => (
@@ -474,6 +473,8 @@ export default function CloudSecurityValueMapper() {
                 <p>
                   {candidate.doesNotProve} {candidate.validate}
                 </p>
+                {candidate.evidenceClass && <p>Evidence: {candidate.evidenceClass}; {candidate.previewStatus}; planes: {candidate.telemetryPlanes?.join(", ") || "not specified"}. <a href={candidate.sourceUrl} target="_blank" rel="noreferrer">Source</a></p>}
+                <p>Plan status: {candidate.planStatusQuestion} Resource scope: {candidate.resourceScopeQuestion} Configuration: {candidate.configurationQuestion}</p>
               </div>
             ))
           ) : (

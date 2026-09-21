@@ -1,0 +1,14 @@
+{
+  "workbook": "synthetic-cloud-security-usage",
+  "sheets": [
+    {
+      "name": "Usage summary",
+      "rows": [["Synthetic telemetry export"], [], ["Date", "Source", "Volume", "Unit", "Event Count", "Notes", "Current Recommendation"], ["2026-09-01", "App Gateway access", 18, "GB", 240000, "Synthetic only", "Validate Analytics candidate"], ["2026-09-01", "AKS audit", 12000, "MB", 110000, "", "Validate detections"]]
+    },
+    {
+      "name": "Repeated headers",
+      "rows": [["Source", "Volume", "Unit", "Event Count"], ["Source", "Volume", "Unit", "Event Count"], ["Key Vault audit", 3, "GB", 17000]]
+    }
+  ],
+  "notice": "Synthetic fixture only. No customer names, identifiers, notes, or copied figures are included."
+}
