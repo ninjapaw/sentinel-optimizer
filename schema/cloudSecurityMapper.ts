@@ -327,12 +327,15 @@ export function parseMapperText(
   return parseMapperRows(rows, headers);
 }
 
-export async function parseMapperWorkbook(
-  data: ArrayBuffer,
+export interface MapperWorkbookSheet {
+  sheet: string;
+  data: unknown[][];
+}
+
+export function parseMapperWorkbookSheets(
+  sheets: MapperWorkbookSheet[],
   sheetName?: string,
-): Promise<ParsedMapperInput> {
-  const { default: readXlsxFile } = await import("read-excel-file/browser");
-  const sheets = await readXlsxFile(data);
+): ParsedMapperInput {
   const sheetNames = sheets.map((sheet) => sheet.sheet);
   const selected = sheetName ?? sheetNames[0];
   if (!selected) throw new Error("The workbook has no worksheets.");

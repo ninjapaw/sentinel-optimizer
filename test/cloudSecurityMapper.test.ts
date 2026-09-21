@@ -3,7 +3,7 @@ import {
   analyzeMapper,
   buildBoundedAiPayload,
   parseMapperText,
-  parseMapperWorkbook,
+  parseMapperWorkbookSheets,
   SYNTHETIC_MAPPER_EXAMPLE,
 } from "../schema/cloudSecurityMapper.js";
 
@@ -28,9 +28,25 @@ describe("Cloud Security Value Mapper", () => {
     expect(quoted.rows[0]?.sourceName).toBe("App Gateway access");
     expect(quoted.rows[0]?.notes).toBe("edge, WAF evidence");
   });
-  it("exposes an asynchronous workbook parser for blank-title and repeated-header exports", async () => {
-    expect(parseMapperWorkbook).toBeTypeOf("function");
-    expect(parseMapperWorkbook(new ArrayBuffer(0))).rejects.toThrow();
+  it("handles a blank workbook title row and repeated headers", () => {
+    const parsed = parseMapperWorkbookSheets([
+      {
+        sheet: "Usage",
+        data: [
+          ["Synthetic export"],
+          [],
+          ["Source", "Volume GB"],
+          ["AKS audit", 3],
+          ["Source", "Volume GB"],
+          ["App Gateway access", 2],
+        ],
+      },
+    ]);
+    expect(parsed.selectedSheet).toBe("Usage");
+    expect(parsed.rows.map((row) => row.sourceName)).toEqual([
+      "AKS audit",
+      "App Gateway access",
+    ]);
   });
   it("maps App Gateway, AKS, identity, and unknown sources deterministically", () => {
     const analysis = analyzeMapper(
