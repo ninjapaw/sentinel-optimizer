@@ -176,7 +176,7 @@ resource functionApp 'Microsoft.Web/sites@2025-03-01' = {
       }
       runtime: {
         name: 'node'
-        version: '22'
+        version: '24'
       }
       scaleAndConcurrency: {
         instanceMemoryMB: instanceMemoryMB

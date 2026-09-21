@@ -1,4 +1,4 @@
-ARG NODE_VERSION=22.19.0
+ARG NODE_VERSION=24.19.0
 FROM node:${NODE_VERSION}-bookworm-slim AS build
 WORKDIR /app
 COPY package.json ./

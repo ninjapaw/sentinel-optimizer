@@ -423,7 +423,7 @@ Run `npm install` with the repository’s declared Node and npm versions, then u
 `npm run build`, `npm run typecheck`, and `npm test`. The web app can be started
 with `npm run dev:web`; the API is optional for the deterministic mapper.
 
-Requirements: Node.js `22.19.0` and npm `11.9.0`.
+Requirements: Node.js `24.19.0` and npm `11.17.0`.
 
 ```bash
 npm ci
