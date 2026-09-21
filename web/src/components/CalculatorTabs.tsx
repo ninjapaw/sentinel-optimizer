@@ -13,6 +13,7 @@ const CompetitorComparisonTool = lazy(() => import("./CompetitorComparisonTool.j
 const DefenderForCloudCalculator = lazy(() => import("./DefenderForCloudCalculator.js"));
 const UserQuotaCalculator = lazy(() => import("./UserQuotaCalculator.js"));
 const DefenderP2Tool = lazy(() => import("./DefenderP2Tool.js"));
+const CloudSecurityValueMapper = lazy(() => import("./CloudSecurityValueMapper.js"));
 
 function LoadingSpinner() {
   return (
@@ -25,6 +26,17 @@ function LoadingSpinner() {
 
 export function CalculatorTabs() {
   const tabs: TabItem[] = [
+    {
+      id: "cloud-security-value-mapper",
+      label: "Cloud Security Value Mapper",
+      icon: "🧭",
+      description: "Map telemetry value and candidate workload protection opportunities",
+      content: (
+        <Suspense fallback={<LoadingSpinner />}>
+          <CloudSecurityValueMapper />
+        </Suspense>
+      ),
+    },
     {
       id: "sentinel",
       label: "Price Sentinel",

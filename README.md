@@ -35,10 +35,45 @@ Optional AI features are disabled by default. When enabled, only the bounded API
 - **Sentinel Cost Calculator**: Parse Sentinel, Splunk, and Elastic exports into one normalized model. Estimate data volume from infrastructure inventory. Model ingestion, retention, search, SOAR, and related costs.
 - **Defender for Cloud Cost Estimator**: Calculate monthly costs for various Azure Defender protection plans (Servers, Databases, Storage, App Service, Containers, Key Vault).
 - **Usage & Quota Tracker**: Monitor resource usage and quotas with real-time progress indicators and status alerts.
+- **Cloud Security Value Mapper**: Locally parse XLSX, CSV, TSV, and JSON aggregate usage exports; map telemetry to evidence, detection readiness, candidate Sentinel treatments, and complementary Defender for Cloud workload-protection opportunities.
 - Export results for planning and review.
 - Run without an API, credentials, database, or cloud account.
 - Optionally deploy a static site and a separate Azure Functions API.
 - All processing runs client-side in the browser—no data sent externally unless AI features are enabled.
+
+### Cloud Security Value Mapper
+
+The mapper is an independent community planning tool, not a Microsoft assessment,
+quote, licensing determination, or savings guarantee. It accepts aggregate usage
+data from an XLSX/CSV/TSV/JSON file, pasted query output, or the clearly labeled
+synthetic example. XLSX sheets are selected and parsed in the browser; blank and
+missing values remain missing and are reported as validation issues. The built-in
+Sentinel workflow uses:
+
+```kusto
+Usage
+| where TimeGenerated > ago(30d)
+| where IsBillable == true
+| summarize QuantityMB = sum(Quantity) by DataType
+| order by QuantityMB desc
+```
+
+Raw files and rows remain in memory for the active page only. The mapper does not
+upload, log, or persist them in browser storage, URLs, cookies, analytics, or an
+API. **Clear analysis** removes the parsed rows, derived values, narratives, and
+report state from the active UI. This is in-memory processing; it is not a claim
+of cryptographic deletion. The optional AI preview is bounded to rounded
+aggregates, standard source display names, role aggregates, deterministic
+recommendations, evidence summaries, confidence, assumptions, audience, and
+tone. It excludes raw rows, event content, identifiers, notes, workspaces,
+hostnames, and credentials. The executive PDF is generated in the browser and
+contains the independent-community disclaimer and methodology.
+
+Limitations: source classification is a versioned deterministic catalog, not a
+statement that a control or plan is enabled. Defender for Cloud mappings are
+candidate complementary controls and do not replace WAF, SIEM, EDR, audit logs,
+or third-party controls. Validate detections, coverage, plan status, pricing,
+and licensing with the customer and official Microsoft sources.
 
 ## Query and export examples
 
@@ -373,6 +408,10 @@ Example result:
 | `test/`               | Engine tests                                                                                                                                 |
 
 ## Development
+
+Run `npm install` with the repository’s declared Node and npm versions, then use
+`npm run build`, `npm run typecheck`, and `npm test`. The web app can be started
+with `npm run dev:web`; the API is optional for the deterministic mapper.
 
 Requirements: Node.js `22.12.0` and npm `11.9.0`.
 
