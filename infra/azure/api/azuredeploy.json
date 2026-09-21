@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "2702247926436966373"
+      "templateHash": "14219348484624995573"
     }
   },
   "parameters": {
@@ -267,7 +267,7 @@
           },
           "runtime": {
             "name": "node",
-            "version": "22"
+            "version": "24"
           },
           "scaleAndConcurrency": {
             "instanceMemoryMB": "[parameters('instanceMemoryMB')]",
