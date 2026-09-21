@@ -49,7 +49,7 @@ to the values supplied by the user and is not a claim about deployment state.
 ## Maintaining the catalog
 
 To add a source family, add a complete `sourceCatalog` entry in
-`web/src/lib/cloudSecurityMapper.ts`, select conservative roles, list candidate
+`schema/cloudSecurityMapper.ts`, select conservative roles, list candidate
 plans only when the workload relationship is defensible, and add validation
 questions plus a POC scenario. Add a synthetic unit test for the source and an
 unknown-source regression test. Review the entry against current public product

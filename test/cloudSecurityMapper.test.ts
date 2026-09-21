@@ -5,7 +5,7 @@ import {
   parseMapperText,
   parseMapperWorkbook,
   SYNTHETIC_MAPPER_EXAMPLE,
-} from "../web/src/lib/cloudSecurityMapper.js";
+} from "../schema/cloudSecurityMapper.js";
 
 describe("Cloud Security Value Mapper", () => {
   it("parses CSV, TSV, JSON, and normalizes a window without treating missing volume as zero", () => {

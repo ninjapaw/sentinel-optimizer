@@ -1,4 +1,3 @@
-export * from "../../../schema/cloudSecurityMapper.js";
 export type TelemetryRole =
   | "Native security alert or finding"
   | "Detection-ready security telemetry"

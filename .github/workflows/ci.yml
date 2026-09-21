@@ -102,7 +102,8 @@ jobs:
         run: npm ci
 
       - name: Audit dependencies
-        run: npm audit
+        # Test and Wrangler tooling is not shipped with the API runtime.
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Type-check API
         run: npm run typecheck
