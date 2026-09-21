@@ -1,29 +1,72 @@
 import { describe, expect, it } from "vitest";
-import { analyzeMapper, buildBoundedAiPayload, parseMapperText, parseMapperWorkbook, SYNTHETIC_MAPPER_EXAMPLE } from "../web/src/lib/cloudSecurityMapper.js";
+import {
+  analyzeMapper,
+  buildBoundedAiPayload,
+  parseMapperText,
+  parseMapperWorkbook,
+  SYNTHETIC_MAPPER_EXAMPLE,
+} from "../web/src/lib/cloudSecurityMapper.js";
 
 describe("Cloud Security Value Mapper", () => {
   it("parses CSV, TSV, JSON, and normalizes a window without treating missing volume as zero", () => {
-    const csv = parseMapperText("Source,Volume MB\nAKS audit,1000\nUnknown source,", "csv");
+    const csv = parseMapperText(
+      "Source,Volume MB\nAKS audit,1000\nUnknown source,",
+      "csv",
+    );
     expect(csv.rows[0]?.volumeGB).toBe(1);
     expect(csv.rows[1]?.volumeGB).toBeUndefined();
-    expect(parseMapperText("Source\tVolume TB\nStorage\t2", "tsv").rows[0]?.volumeGB).toBe(2000);
-    expect(parseMapperText(SYNTHETIC_MAPPER_EXAMPLE, "json").rows).toHaveLength(8);
+    expect(
+      parseMapperText("Source\tVolume TB\nStorage\t2", "tsv").rows[0]?.volumeGB,
+    ).toBe(2000);
+    expect(parseMapperText(SYNTHETIC_MAPPER_EXAMPLE, "json").rows).toHaveLength(
+      8,
+    );
   });
   it("exposes an asynchronous workbook parser for blank-title and repeated-header exports", async () => {
     expect(parseMapperWorkbook).toBeTypeOf("function");
     expect(parseMapperWorkbook(new ArrayBuffer(0))).rejects.toThrow();
   });
   it("maps App Gateway, AKS, identity, and unknown sources deterministically", () => {
-    const analysis = analyzeMapper(parseMapperText(SYNTHETIC_MAPPER_EXAMPLE, "json").rows, 30);
-    expect(analysis.sources.find((source) => source.sourceName === "App Gateway firewall")?.sourceFamily).toBe("Application Gateway / WAF");
-    expect(analysis.sources.find((source) => source.sourceName === "AKS audit")?.candidateDefenderPlans[0]?.plan).toBe("Defender for Containers");
-    expect(analysis.sources.find((source) => source.sourceName === "Microsoft Graph activity")?.roles).toContain("Identity activity");
-    const unknown = analyzeMapper([{ sourceName: "Mystery feed", volumeGB: 2 }], 1).sources[0];
+    const analysis = analyzeMapper(
+      parseMapperText(SYNTHETIC_MAPPER_EXAMPLE, "json").rows,
+      30,
+    );
+    expect(
+      analysis.sources.find(
+        (source) => source.sourceName === "App Gateway firewall",
+      )?.sourceFamily,
+    ).toBe("Application Gateway / WAF");
+    expect(
+      analysis.sources.find((source) => source.sourceName === "AKS audit")
+        ?.candidateDefenderPlans[0]?.plan,
+    ).toBe("Defender for Containers");
+    expect(
+      analysis.sources.find(
+        (source) => source.sourceName === "Microsoft Graph activity",
+      )?.roles,
+    ).toContain("Identity activity");
+    const unknown = analyzeMapper(
+      [{ sourceName: "Mystery feed", volumeGB: 2 }],
+      1,
+    ).sources[0];
     expect(unknown?.detectionReadiness).toBe("Requires validation");
-    expect(unknown?.recommendedSentinelTreatment).toBe("Validate before changing");
+    expect(unknown?.recommendedSentinelTreatment).toBe(
+      "Validate before changing",
+    );
   });
   it("does not include raw rows or customer identifiers in the bounded AI contract", () => {
-    const analysis = analyzeMapper([{ sourceName: "Entra sign-in", volumeGB: 4, notes: "raw secret content", workspace: "customer-workspace" }], 30);
+    // Privacy is part of the contract, so assert that sensitive fields stay out.
+    const analysis = analyzeMapper(
+      [
+        {
+          sourceName: "Entra sign-in",
+          volumeGB: 4,
+          notes: "raw secret content",
+          workspace: "customer-workspace",
+        },
+      ],
+      30,
+    );
     const payload = buildBoundedAiPayload(analysis, "CISO");
     expect(JSON.stringify(payload)).not.toContain("raw secret content");
     expect(JSON.stringify(payload)).not.toContain("customer-workspace");

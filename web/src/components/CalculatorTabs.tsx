@@ -7,17 +7,29 @@
 import { lazy, Suspense } from "react";
 import TabsContainer, { type TabItem } from "./TabsContainer.js";
 
-// Lazy load the heavy components
+// Keep the existing workbench fast by loading each calculator on first use.
 const Optimizer = lazy(() => import("./Optimizer.js"));
-const CompetitorComparisonTool = lazy(() => import("./CompetitorComparisonTool.js"));
-const DefenderForCloudCalculator = lazy(() => import("./DefenderForCloudCalculator.js"));
+const CompetitorComparisonTool = lazy(
+  () => import("./CompetitorComparisonTool.js"),
+);
+const DefenderForCloudCalculator = lazy(
+  () => import("./DefenderForCloudCalculator.js"),
+);
 const UserQuotaCalculator = lazy(() => import("./UserQuotaCalculator.js"));
 const DefenderP2Tool = lazy(() => import("./DefenderP2Tool.js"));
-const CloudSecurityValueMapper = lazy(() => import("./CloudSecurityValueMapper.js"));
+const CloudSecurityValueMapper = lazy(
+  () => import("./CloudSecurityValueMapper.js"),
+);
 
 function LoadingSpinner() {
   return (
-    <div style={{ textAlign: "center", padding: "2rem", color: "var(--color-text-secondary, #666)" }}>
+    <div
+      style={{
+        textAlign: "center",
+        padding: "2rem",
+        color: "var(--color-text-secondary, #666)",
+      }}
+    >
       <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>⏳</div>
       <p>Loading calculator...</p>
     </div>
@@ -30,7 +42,8 @@ export function CalculatorTabs() {
       id: "cloud-security-value-mapper",
       label: "Cloud Security Value Mapper",
       icon: "🧭",
-      description: "Map telemetry value and candidate workload protection opportunities",
+      description:
+        "Map telemetry value and candidate workload protection opportunities",
       content: (
         <Suspense fallback={<LoadingSpinner />}>
           <CloudSecurityValueMapper />
@@ -41,7 +54,8 @@ export function CalculatorTabs() {
       id: "sentinel",
       label: "Price Sentinel",
       icon: "📊",
-      description: "Estimate Microsoft Sentinel cost from an export or simple inventory",
+      description:
+        "Estimate Microsoft Sentinel cost from an export or simple inventory",
       content: (
         <Suspense fallback={<LoadingSpinner />}>
           <Optimizer />
@@ -52,7 +66,8 @@ export function CalculatorTabs() {
       id: "competitor-compare",
       label: "Compare SIEMs",
       icon: "⚖️",
-      description: "Compare Sentinel with common SIEM public list-rate baselines",
+      description:
+        "Compare Sentinel with common SIEM public list-rate baselines",
       content: (
         <Suspense fallback={<LoadingSpinner />}>
           <CompetitorComparisonTool />
@@ -85,7 +100,8 @@ export function CalculatorTabs() {
       id: "defender-p2",
       label: "Defender P2 Ingestion",
       icon: "🧮",
-      description: "Size the Defender for Servers Plan 2 free-ingestion benefit from a KQL query",
+      description:
+        "Size the Defender for Servers Plan 2 free-ingestion benefit from a KQL query",
       content: (
         <Suspense fallback={<LoadingSpinner />}>
           <DefenderP2Tool />
@@ -96,7 +112,11 @@ export function CalculatorTabs() {
 
   return (
     <div>
-      <TabsContainer tabs={tabs} defaultTabId="sentinel" verticalLayout={false} />
+      <TabsContainer
+        tabs={tabs}
+        defaultTabId="sentinel"
+        verticalLayout={false}
+      />
     </div>
   );
 }
