@@ -337,7 +337,7 @@ jobs:
           az functionapp show --resource-group "$RESOURCE_GROUP" --name "$FUNCTION_APP_NAME" --output none
 
       - name: Deploy Azure Functions API
-        uses: Azure/functions-action@c27ade7ab0db7a7005f1ee0c6aed9fae27ca4249 # v1
+        uses: Azure/functions-action@c5060b3b8bb1ebbcb531abd00c822ecbaa8ea656 # v1
         with:
           app-name: ${{ needs.preflight.outputs.function-app-name }}
           package: function-package/function-app.zip
