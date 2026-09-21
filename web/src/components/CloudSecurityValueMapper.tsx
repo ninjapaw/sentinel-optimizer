@@ -9,8 +9,9 @@ import {
   type ParsedMapperInput,
 } from "../lib/cloudSecurityMapper.js";
 
-const QUERY =
-  "Usage\n| where TimeGenerated > ago(30d)\n| where IsBillable == true\n| summarize QuantityMB = sum(Quantity) by DataType\n| order by QuantityMB desc";
+function buildQuery(windowDays: number): string {
+  return `Usage\n| where TimeGenerated > ago(${windowDays}d)\n| where IsBillable == true\n| summarize QuantityMB = sum(Quantity) by DataType\n| order by QuantityMB desc`;
+}
 
 function format(value: number): string {
   return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -84,7 +85,7 @@ export default function CloudSecurityValueMapper() {
   }
   async function copyQuery() {
     try {
-      await navigator.clipboard.writeText(QUERY);
+      await navigator.clipboard.writeText(buildQuery(windowDays));
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -275,7 +276,7 @@ export default function CloudSecurityValueMapper() {
           tool.
         </p>
         <pre className="code-block">
-          <code>{QUERY}</code>
+          <code>{buildQuery(windowDays)}</code>
         </pre>
         <button type="button" className="btn btn-secondary" onClick={copyQuery}>
           {copied ? "Copied" : "Copy KQL"}
@@ -396,8 +397,8 @@ export default function CloudSecurityValueMapper() {
                   </tr>
                 </thead>
                 <tbody>
-                  {analysis.sources.map((source) => (
-                    <tr key={source.normalizedSourceName}>
+                  {analysis.sources.map((source, index) => (
+                    <tr key={`${source.normalizedSourceName}-${index}`}>
                       <th scope="row">
                         <button
                           type="button"

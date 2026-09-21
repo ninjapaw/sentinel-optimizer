@@ -2,7 +2,7 @@
 
 The Cloud Security Value Mapper is an independent community planning aid. Its
 output is not a Microsoft assessment, quote, licensing determination, or
-guaranteed saving.
+guaranteed savings.
 
 ## Classification
 

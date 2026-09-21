@@ -1,5 +1,3 @@
-import readXlsxFile from "read-excel-file/browser";
-
 export type TelemetryRole =
   | "Native security alert or finding"
   | "Detection-ready security telemetry"
@@ -288,8 +286,29 @@ export function parseMapperText(
     .filter((line) => line.trim());
   if (lines.length < 2)
     throw new Error("Expected a header row and at least one data row.");
-  const split = (line: string) =>
-    line.split(separator).map((part) => part.trim().replace(/^"|"$/g, ""));
+  const split = (line: string): string[] => {
+    const values: string[] = [];
+    let value = "";
+    let quoted = false;
+    for (let index = 0; index < line.length; index += 1) {
+      const character = line[index];
+      if (character === '"') {
+        if (quoted && line[index + 1] === '"') {
+          value += '"';
+          index += 1;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (character === separator && !quoted) {
+        values.push(value.trim());
+        value = "";
+      } else {
+        value += character;
+      }
+    }
+    values.push(value.trim());
+    return values;
+  };
   const parts = lines.map(split);
   const start = headerIndex(parts);
   const headers = parts[start] ?? [];
@@ -312,6 +331,7 @@ export async function parseMapperWorkbook(
   data: ArrayBuffer,
   sheetName?: string,
 ): Promise<ParsedMapperInput> {
+  const { default: readXlsxFile } = await import("read-excel-file/browser");
   const sheets = await readXlsxFile(data);
   const sheetNames = sheets.map((sheet) => sheet.sheet);
   const selected = sheetName ?? sheetNames[0];
@@ -484,7 +504,7 @@ function classify(row: MapperRow, sharePct: number): MappedSource {
     detectionReadiness,
     recommendedSentinelTreatment: treatment,
     rationale: `${treatment} is a candidate based on ${family} classification and observed volume; it is not an automatic production change.`,
-    evidence: `${row.volumeGB === undefined ? "No volume was supplied" : `${row.volumeGB.toFixed(2)} GB in the supplied row`} and ${row.eventCount === undefined ? "no event count" : `${row.eventCount} events`}.`,
+    evidence: `${row.volumeGB === undefined ? "No volume was supplied" : `${row.volumeGB.toFixed(2)} GB/day after window normalization`} and ${row.eventCount === undefined ? "no event count" : `${row.eventCount} events`}.`,
     confidence,
     assumptions: [
       "Source name is a usable log-family or table label.",

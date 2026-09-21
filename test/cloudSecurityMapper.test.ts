@@ -21,6 +21,12 @@ describe("Cloud Security Value Mapper", () => {
     expect(parseMapperText(SYNTHETIC_MAPPER_EXAMPLE, "json").rows).toHaveLength(
       8,
     );
+    const quoted = parseMapperText(
+      'Source,Volume GB,Notes\n"App Gateway access",2,"edge, WAF evidence"',
+      "csv",
+    );
+    expect(quoted.rows[0]?.sourceName).toBe("App Gateway access");
+    expect(quoted.rows[0]?.notes).toBe("edge, WAF evidence");
   });
   it("exposes an asynchronous workbook parser for blank-title and repeated-header exports", async () => {
     expect(parseMapperWorkbook).toBeTypeOf("function");
@@ -45,6 +51,11 @@ describe("Cloud Security Value Mapper", () => {
         (source) => source.sourceName === "Microsoft Graph activity",
       )?.roles,
     ).toContain("Identity activity");
+    expect(
+      analysis.sources.find(
+        (source) => source.sourceName === "App Gateway access",
+      )?.evidence,
+    ).toContain("GB/day after window normalization");
     const unknown = analyzeMapper(
       [{ sourceName: "Mystery feed", volumeGB: 2 }],
       1,
