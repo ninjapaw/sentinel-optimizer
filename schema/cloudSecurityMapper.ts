@@ -1,3 +1,5 @@
+import productCatalog from "../config/cloud-security-mapper/catalog.json";
+
 export type TelemetryRole =
   | "Native security alert or finding"
   | "Detection-ready security telemetry"
@@ -26,6 +28,48 @@ export type SentinelTreatment =
   | "Retain outside Sentinel candidate"
   | "Validate before changing"
   | "Unknown";
+export type EvidenceClass =
+  | "explicit-alert-description"
+  | "documented-detection-context"
+  | "public-category-guidance"
+  | "analyst-reasoned"
+  | "prior-guide-reference"
+  | "product-context-reasoned"
+  | "unknown";
+export type ValidationState = "Validated" | "Requires review" | "Unknown";
+export type CatalogConfidence = "High" | "Medium" | "Low" | "Unknown";
+
+export interface ProtectionCatalogEntry {
+  planOrProtection: string;
+  alertCategory: string;
+  alertName: string;
+  alertDescription: string;
+  severityValues: string[];
+  previewStatus: "Documented" | "Preview" | "Deprecated" | "Unknown";
+  telemetryPlanes: string[];
+  signalSources: string[];
+  mappingBasis: string;
+  evidenceClass: EvidenceClass;
+  sourceUrl: string;
+  sourceTitle: string;
+  sourceTypes: string[];
+  sourceLastReviewed: string;
+  confidence: CatalogConfidence;
+  caveat: string;
+  normalizedWorkloadFamilies: string[];
+  normalizedSourceFamilies: string[];
+  applicableClouds: string[];
+}
+
+export interface ProtectionCatalog {
+  schemaVersion: string;
+  catalogVersion: string;
+  snapshotDate: string;
+  notice: string;
+  entries: ProtectionCatalogEntry[];
+}
+
+export const PROTECTION_CATALOG = productCatalog as ProtectionCatalog;
 
 export interface MapperRow {
   sourceName: string;
@@ -36,6 +80,8 @@ export interface MapperRow {
   currentRecommendation?: string;
   workspace?: string;
   currentTier?: string;
+  unit?: string;
+  dataOrigin?: "customer-input" | "synthetic-example" | "query-export";
 }
 export interface MapperIssue {
   message: string;
@@ -51,9 +97,11 @@ export interface FieldMapping {
   currentRecommendation?: string;
   workspace?: string;
   currentTier?: string;
+  unit?: string;
 }
 export interface ParsedMapperInput {
   rows: MapperRow[];
+  rawRows: Record<string, unknown>[];
   headers: string[];
   mapping: FieldMapping;
   issues: MapperIssue[];
@@ -67,6 +115,16 @@ export interface DefenderCandidate {
   doesNotProve: string;
   validate: string;
   confidence: "High" | "Medium" | "Low";
+  workloadFamily?: string;
+  observedTelemetry?: string;
+  telemetryPlanes?: string[];
+  mappingBasis?: string;
+  evidenceClass?: EvidenceClass;
+  previewStatus?: string;
+  planStatusQuestion?: string;
+  resourceScopeQuestion?: string;
+  configurationQuestion?: string;
+  sourceUrl?: string;
 }
 export interface MappedSource extends MapperRow {
   normalizedSourceName: string;
@@ -84,6 +142,15 @@ export interface MappedSource extends MapperRow {
   validationQuestions: string[];
   pocScenario: string;
   candidateDefenderPlans: DefenderCandidate[];
+  workloadFamily: string;
+  observedUnit: "GB/day" | "GB" | "events" | "unknown";
+  dataOrigin: "customer-input" | "synthetic-example" | "query-export";
+  candidateProtectionMapping: ProtectionCatalogEntry[];
+  discoveryQuestions: string[];
+  pocScenarios: string[];
+  validationState: ValidationState;
+  existingDetectionDependency: string;
+  rollbackConsideration: string;
 }
 export interface MapperAnalysis {
   sources: MappedSource[];
@@ -122,6 +189,7 @@ const aliases: Record<keyof FieldMapping, string[]> = {
     "quantitymb",
     "quantity",
   ],
+  unit: ["unit", "volume unit", "units", "measurement"],
   eventCount: ["eventcount", "event count", "events", "count", "records"],
   notes: ["notes", "note", "comment", "comments"],
   currentRecommendation: [
@@ -179,11 +247,12 @@ function cell(
 function volumeGB(
   value: unknown,
   header: string | undefined,
+  unit: unknown,
 ): number | undefined {
   const n = numberValue(value);
   if (n === undefined) return undefined;
   // Keep missing values missing instead of silently converting them to zero.
-  const h = key(header ?? "");
+  const h = key(typeof unit === "string" && unit ? unit : header ?? "");
   if (h.includes("byte")) return n / 1_000_000_000;
   if (h === "mb" || h.includes("mb")) return n / 1_000;
   if (h === "tb" || h.includes("tb")) return n * 1_000;
@@ -193,8 +262,9 @@ function volumeGB(
 export function parseMapperRows(
   rows: Record<string, unknown>[],
   headers = Object.keys(rows[0] ?? {}),
+  mappingOverride?: FieldMapping,
 ): ParsedMapperInput {
-  const mapping = headerMapping(headers);
+  const mapping = mappingOverride ?? headerMapping(headers);
   const issues: MapperIssue[] = [];
   if (!mapping.sourceName)
     issues.push({
@@ -211,7 +281,7 @@ export function parseMapperRows(
     });
   const parsed = rows.map((row) => {
     const source = cell(row, mapping.sourceName);
-    const volume = volumeGB(cell(row, mapping.volume), mapping.volume);
+    const volume = volumeGB(cell(row, mapping.volume), mapping.volume, cell(row, mapping.unit));
     const events = numberValue(cell(row, mapping.eventCount));
     return {
       sourceName:
@@ -237,6 +307,9 @@ export function parseMapperRows(
       ...(cell(row, mapping.currentTier) !== undefined
         ? { currentTier: String(cell(row, mapping.currentTier)) }
         : {}),
+      ...(cell(row, mapping.unit) !== undefined
+        ? { unit: String(cell(row, mapping.unit)) }
+        : {}),
     } satisfies MapperRow;
   });
   const missingSource = parsed.filter((row) => !row.sourceName).length;
@@ -256,7 +329,7 @@ export function parseMapperRows(
       affectedRows: missingVolume,
       field: "volume",
     });
-  return { rows: parsed, headers, mapping, issues };
+  return { rows: parsed, rawRows: rows, headers, mapping, issues };
 }
 
 export function parseMapperText(
@@ -457,6 +530,14 @@ function classify(row: MapperRow, sharePct: number): MappedSource {
   );
   // Unknown sources stay conservative instead of inheriting meaning from a keyword.
   const family = catalog?.family ?? "Unknown source";
+  const catalogMatches = PROTECTION_CATALOG.entries.filter((entry) =>
+    entry.normalizedSourceFamilies.some((sourceFamily) =>
+      family.toLowerCase().includes(sourceFamily.toLowerCase()) ||
+      sourceFamily.toLowerCase().includes(family.toLowerCase()),
+    ),
+  );
+  const workloadFamily =
+    catalogMatches[0]?.normalizedWorkloadFamilies[0] ?? "Unknown workload";
   const roles = catalog?.roles ?? ["Unknown or requires validation"];
   const native = /alert|incident|securityfinding|defender/i.test(normalized);
   const securityValue: SecurityValue = native
@@ -485,17 +566,46 @@ function classify(row: MapperRow, sharePct: number): MappedSource {
       ? "High"
       : "Medium"
     : "Low";
-  const plans = (catalog?.plans ?? []).map((plan) => ({
-    plan,
-    rationale: `The ${family} source suggests a possible workload protection conversation.`,
-    provides:
-      "Workload-aware posture, detection, or findings may complement the observed telemetry.",
-    doesNotProve:
-      "Telemetry collection does not prove that this plan is enabled or disabled, nor that a finding exists.",
-    validate:
-      "Verify protected resources, plan status, coverage, and existing detections with the customer.",
-    confidence,
-  }));
+  const plans: DefenderCandidate[] = (catalogMatches.length > 0
+    ? catalogMatches
+    : (catalog?.plans ?? []).map((plan) => ({
+        planOrProtection: plan,
+        alertCategory: "Unknown",
+        alertName: "Representative protection opportunity",
+        alertDescription: "Validate the current public alert reference before use.",
+        severityValues: [],
+        previewStatus: "Unknown" as const,
+        telemetryPlanes: [],
+        signalSources: [normalized],
+        mappingBasis: "Deterministic source-family mapping; catalog entry requires review.",
+        evidenceClass: "unknown" as EvidenceClass,
+        sourceUrl: "https://learn.microsoft.com/en-us/azure/defender-for-cloud/alerts-reference",
+        sourceTitle: "Defender for Cloud alerts reference",
+        sourceTypes: ["Microsoft Learn"],
+        sourceLastReviewed: PROTECTION_CATALOG.snapshotDate,
+        confidence: "Unknown" as CatalogConfidence,
+        caveat: "This is a candidate, not proof of plan status or alert availability.",
+        normalizedWorkloadFamilies: [workloadFamily],
+        normalizedSourceFamilies: [family],
+        applicableClouds: ["Azure"],
+      }))).map((entry) => ({
+        plan: entry.planOrProtection,
+        rationale: `The ${family} source suggests a possible ${entry.planOrProtection} workload protection conversation.`,
+        provides: "Workload-aware posture, detection, or findings may complement the observed telemetry.",
+        doesNotProve: "Telemetry collection does not prove that this plan is enabled or disabled, nor that a finding exists.",
+        validate: "Verify protected resources, plan status, coverage, and existing detections with the customer.",
+        confidence: (entry.confidence === "Unknown" ? "Low" : entry.confidence === "High" ? "High" : entry.confidence) as "High" | "Medium" | "Low",
+        workloadFamily: entry.normalizedWorkloadFamilies[0] ?? workloadFamily,
+        observedTelemetry: entry.signalSources.join(", "),
+        telemetryPlanes: entry.telemetryPlanes,
+        mappingBasis: entry.mappingBasis,
+        evidenceClass: entry.evidenceClass,
+        previewStatus: entry.previewStatus,
+        planStatusQuestion: "Is this protection plan enabled for the in-scope resources?",
+        resourceScopeQuestion: "Which subscriptions, resource groups, and workload resources are in scope?",
+        configurationQuestion: "Which required connectors, agents, runtime settings, or policies are configured?",
+        sourceUrl: entry.sourceUrl,
+      }));
   return {
     ...row,
     normalizedSourceName: normalized,
@@ -523,6 +633,21 @@ function classify(row: MapperRow, sharePct: number): MappedSource {
             ? "Correlate unusual identity or Graph activity with cloud-resource changes and workload findings."
             : "Select a representative event and verify its correlation with a security finding or incident.",
     candidateDefenderPlans: plans,
+    workloadFamily,
+    observedUnit: row.volumeGB === undefined ? "unknown" : "GB/day",
+    dataOrigin: row.dataOrigin ?? "customer-input",
+    candidateProtectionMapping: catalogMatches,
+    discoveryQuestions: questions(family),
+    pocScenarios: [
+      family === "Application Gateway / WAF"
+        ? "Correlate a WAF event with identity, API, server, container, database, or workload security evidence."
+        : family === "AKS / Kubernetes"
+          ? "Correlate suspicious Kubernetes control-plane behavior with container, identity, vulnerability, and runtime evidence."
+          : "Correlate a representative telemetry event with a documented or customer-owned finding and record the dependency.",
+    ],
+    validationState: catalogMatches.length > 0 ? "Requires review" : "Unknown",
+    existingDetectionDependency: "Validate which analytic rules, incidents, hunting queries, or native findings consume this telemetry.",
+    rollbackConsideration: "Review the treatment with the customer and preserve the current path until detection coverage and workload scope are verified.",
   };
 }
 export function analyzeMapper(

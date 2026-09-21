@@ -4,6 +4,11 @@ The Cloud Security Value Mapper is an independent community planning aid. Its
 output is not a Microsoft assessment, quote, licensing determination, or
 guaranteed savings.
 
+The runtime catalog is `config/cloud-security-mapper/catalog.json`. It is a
+versioned planning aid based on public documentation and reviewed analyst
+mappings. It does not describe private detection implementation, guarantee
+alert availability, or replace current Microsoft documentation.
+
 ## Classification
 
 The browser normalizes source names and checks them against a maintained catalog
@@ -38,6 +43,13 @@ disablement. The intended narrative is complementary: edge or preventive
 control, workload-aware detection and posture, then Sentinel correlation,
 investigation, hunting, and response.
 
+Representative alerts are deliberately sampled rather than treated as a full
+inventory. Public references may omit recently added alerts. Alerts depend on
+protected resources, services, and configuration; a listed source does not
+prove that a plan is enabled, that an alert will fire, or that every customer
+can receive that alert. Analyst-mapped entries display their evidence class,
+source URL, snapshot date, confidence, and caveat.
+
 ## Confidence and evidence
 
 High confidence is reserved for recognizable native alert/finding sources;
@@ -55,5 +67,12 @@ questions plus a POC scenario. Add a synthetic unit test for the source and an
 unknown-source regression test. Review the entry against current public product
 documentation before release, record the catalog change in the pull request,
 and rerun formatting, type-checking, unit tests, end-to-end tests, and the
-production build. Never add customer exports, identifiers, or copied notes to
-examples or snapshots.
+production build. The maintainer validator is
+`npm run validate:cloud-security-catalog`; it checks required columns, supported
+evidence classes, URLs, duplicate rows and names, mapping basis, confidence
+rules, repeated-word quality, and the catalog notice. Review source-page
+validation, preview/deprecated status, severity, plan name, telemetry plane,
+mapping basis, duplicate review, wording quality, and snapshot date before
+publishing. Never add customer exports, identifiers, or copied notes to examples
+or snapshots. The CISO, SOC leader, and technical architecture reports all
+retain the same evidence and confidence record.

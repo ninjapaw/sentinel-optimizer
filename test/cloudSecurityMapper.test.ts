@@ -3,11 +3,19 @@ import {
   analyzeMapper,
   buildBoundedAiPayload,
   parseMapperText,
+  parseMapperRows,
   parseMapperWorkbookSheets,
+  PROTECTION_CATALOG,
   SYNTHETIC_MAPPER_EXAMPLE,
 } from "../schema/cloudSecurityMapper.js";
 
 describe("Cloud Security Value Mapper", () => {
+  it("exposes reviewed catalog provenance and conservative evidence classes", () => {
+    expect(PROTECTION_CATALOG.entries.length).toBeGreaterThanOrEqual(9);
+    expect(PROTECTION_CATALOG.notice).toContain("planning aid");
+    expect(PROTECTION_CATALOG.entries.every((entry) => entry.sourceUrl.startsWith("https://learn.microsoft.com/"))).toBe(true);
+    expect(PROTECTION_CATALOG.entries.filter((entry) => entry.evidenceClass !== "explicit-alert-description").every((entry) => entry.confidence !== "High")).toBe(true);
+  });
   it("parses CSV, TSV, JSON, and normalizes a window without treating missing volume as zero", () => {
     const csv = parseMapperText(
       "Source,Volume MB\nAKS audit,1000\nUnknown source,",
@@ -27,6 +35,12 @@ describe("Cloud Security Value Mapper", () => {
     );
     expect(quoted.rows[0]?.sourceName).toBe("App Gateway access");
     expect(quoted.rows[0]?.notes).toBe("edge, WAF evidence");
+    const remapped = parseMapperRows(
+      [{ Label: "AKS audit", Amount: 1000, Units: "MB" }],
+      ["Label", "Amount", "Units"],
+      { sourceName: "Label", volume: "Amount", unit: "Units" },
+    );
+    expect(remapped.rows[0]?.volumeGB).toBe(1);
   });
   it("handles a blank workbook title row and repeated headers", () => {
     const parsed = parseMapperWorkbookSheets([
@@ -61,7 +75,7 @@ describe("Cloud Security Value Mapper", () => {
     expect(
       analysis.sources.find((source) => source.sourceName === "AKS audit")
         ?.candidateDefenderPlans[0]?.plan,
-    ).toBe("Defender for Containers");
+    ).toBe("Microsoft Defender for Containers");
     expect(
       analysis.sources.find(
         (source) => source.sourceName === "Microsoft Graph activity",
@@ -72,6 +86,7 @@ describe("Cloud Security Value Mapper", () => {
         (source) => source.sourceName === "App Gateway access",
       )?.evidence,
     ).toContain("GB/day after window normalization");
+    expect(analysis.sources.find((source) => source.sourceName === "AKS audit")?.candidateProtectionMapping[0]?.evidenceClass).toBe("public-category-guidance");
     const unknown = analyzeMapper(
       [{ sourceName: "Mystery feed", volumeGB: 2 }],
       1,
