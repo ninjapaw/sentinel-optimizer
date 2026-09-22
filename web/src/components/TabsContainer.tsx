@@ -43,7 +43,10 @@ export function TabsContainer({
       setActiveTab(hashTab);
       // Only the active panel carries the #tool-<id> anchor, so the browser has
       // no target to scroll to when a link selects an inactive tool.
-      containerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      containerRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
