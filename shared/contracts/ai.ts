@@ -6,8 +6,46 @@
 
 import { INTERNAL_CONFIG } from "../config/internal.config.js";
 import { isFiniteNumber, isRecord } from "../utils/guards.js";
+import {
+  findProtectionOpportunities,
+  PROTECTION_SOURCE_FAMILIES,
+  type ProtectionFamilyCount,
+} from "../config/protection.config.js";
 
 export type SummaryStyle = "executive" | "technical" | "board";
+
+export interface ProtectionSummary {
+  kind: "protection";
+  version: "2";
+  audience: "CISO" | "SOC leader" | "Security architect";
+  sourceCount: number;
+  windowDays: number;
+  families: ProtectionFamilyCount[];
+  recommendations: { id: string }[];
+}
+
+export function isProtectionSummary(value: unknown): value is ProtectionSummary {
+  if (!isRecord(value) || value.kind !== "protection" || value.version !== "2") return false;
+  const keys = ["kind", "version", "audience", "sourceCount", "windowDays", "families", "recommendations"];
+  if (Object.keys(value).some((field) => !keys.includes(field)) ||
+    !["CISO", "SOC leader", "Security architect"].includes(String(value.audience)) ||
+    !isFiniteNumber(value.sourceCount) || !Number.isInteger(value.sourceCount) || value.sourceCount < 1 || value.sourceCount > 100000 ||
+    !isFiniteNumber(value.windowDays) || !Number.isInteger(value.windowDays) || value.windowDays < 1 || value.windowDays > 3650 ||
+    !Array.isArray(value.families) || value.families.length < 1 || value.families.length > PROTECTION_SOURCE_FAMILIES.length ||
+    !Array.isArray(value.recommendations)
+  ) return false;
+  if (!value.families.every((entry) => isRecord(entry) &&
+    Object.keys(entry).length === 2 &&
+    PROTECTION_SOURCE_FAMILIES.some((family) => family === entry.family) &&
+    isFiniteNumber(entry.count) && Number.isInteger(entry.count) && entry.count > 0 && entry.count <= 100000
+  )) return false;
+  const families = value.families as ProtectionFamilyCount[];
+  if (new Set(families.map((entry) => entry.family)).size !== families.length ||
+    families.reduce((total, entry) => total + entry.count, 0) !== value.sourceCount) return false;
+  const expected = findProtectionOpportunities(families);
+  return value.recommendations.length === expected.length && value.recommendations.every((entry, index) =>
+    isRecord(entry) && Object.keys(entry).length === 1 && entry.id === expected[index]?.id);
+}
 
 export interface AggregatedSummary {
   vendor: string;

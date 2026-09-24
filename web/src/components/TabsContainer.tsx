@@ -26,13 +26,7 @@ export function TabsContainer({
   defaultTabId,
   verticalLayout = false,
 }: TabsContainerProps) {
-  const [activeTab, setActiveTab] = useState(() => {
-    if (typeof window !== "undefined") {
-      const hashTab = window.location.hash.replace(/^#tool-/, "");
-      if (tabs.some((tab) => tab.id === hashTab)) return hashTab;
-    }
-    return defaultTabId || tabs[0]?.id || "";
-  });
+  const [activeTab, setActiveTab] = useState(defaultTabId || tabs[0]?.id || "");
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -49,6 +43,7 @@ export function TabsContainer({
       });
     };
     window.addEventListener("hashchange", onHashChange);
+    onHashChange();
     return () => window.removeEventListener("hashchange", onHashChange);
   }, [tabs]);
 

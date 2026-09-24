@@ -23,6 +23,7 @@ import {
   type ExampleRequest,
   type ExplainKqlRequest,
   type SummaryStyle,
+  type ProtectionSummary,
 } from "@shared/index.js";
 
 const CONFIGURED_AI_API_BASE = readConfiguredAiApiBase();
@@ -74,7 +75,7 @@ export function buildSummary(args: {
  * a friendly message the UI can surface (e.g. when AI isn't configured for the
  * deployment, in which case the deterministic recommendations still stand).
  */
-export async function requestAiSummary(summary: AggregatedSummary, signal?: AbortSignal): Promise<AiResult> {
+export async function requestAiSummary(summary: AggregatedSummary | ProtectionSummary, signal?: AbortSignal): Promise<AiResult> {
   const endpoints = resolveApiEndpoints("recommend");
   const init: RequestInit = {
     method: "POST",

@@ -1,4 +1,11 @@
 import productCatalog from "../config/cloud-security-mapper/catalog.json";
+import type { ProtectionSummary } from "../shared/contracts/ai.js";
+import {
+  findProtectionOpportunities,
+  type ProtectionFamilyCount,
+  type ProtectionOpportunity,
+  type ProtectionSourceFamily,
+} from "../shared/config/protection.config.js";
 
 export type TelemetryRole =
   | "Native security alert or finding"
@@ -132,7 +139,7 @@ export interface DefenderCandidate {
 }
 export interface MappedSource extends MapperRow {
   normalizedSourceName: string;
-  sourceFamily: string;
+  sourceFamily: ProtectionSourceFamily;
   observedGBPerDay: number;
   sharePct: number;
   roles: TelemetryRole[];
@@ -158,6 +165,7 @@ export interface MappedSource extends MapperRow {
 }
 export interface MapperAnalysis {
   sources: MappedSource[];
+  protectionOpportunities: ProtectionOpportunity[];
   totalGBPerDay: number;
   analysisWindowDays: number;
   concentrationPct: number;
@@ -444,15 +452,69 @@ export function parseMapperWorkbookSheets(
 
 const sourceCatalog: Array<{
   match: RegExp;
-  family: string;
+  family: ProtectionSourceFamily;
   roles: TelemetryRole[];
   plans: string[];
 }> = [
   {
+    match: /^(securityalert|securityincident|alertinfo|alertevidence)$/,
+    family: "Native security findings",
+    roles: ["Native security alert or finding"],
+    plans: [],
+  },
+  {
+    match: /^(device(events|info|networkevents|processevents|fileevents|logonevents|registryevents))$|defender for endpoint/,
+    family: "Endpoint activity",
+    roles: ["Detection-ready security telemetry"],
+    plans: [],
+  },
+  {
+    match: /^officeactivity$|^email(events|urlinfo|attachmentinfo)$|^cloudappevents$|microsoft 365/,
+    family: "Microsoft 365 activity",
+    roles: ["Workload audit telemetry"],
+    plans: [],
+  },
+  {
+    match: /appservice|app service/,
+    family: "App Service",
+    roles: ["Workload audit telemetry"],
+    plans: ["Microsoft Defender for App Service"],
+  },
+  {
+    match: /apimanagement|api management/,
+    family: "API Management",
+    roles: ["Workload audit telemetry"],
+    plans: ["Microsoft Defender for APIs"],
+  },
+  {
+    match: /azureopenai|azure openai|cognitiveservices|ai service/,
+    family: "AI services",
+    roles: ["Workload audit telemetry"],
+    plans: [],
+  },
+  {
+    match: /azureactivity|azure activity|resource manager/,
+    family: "Azure control plane",
+    roles: ["Administrative or control-plane activity"],
+    plans: ["Microsoft Defender for Resource Manager"],
+  },
+  {
+    match: /mysql|postgres|mariadb/,
+    family: "Open-source databases",
+    roles: ["Workload audit telemetry"],
+    plans: ["Microsoft Defender for Open-Source Relational Databases"],
+  },
+  {
+    match: /cosmos|^cdb/,
+    family: "Cosmos DB",
+    roles: ["Workload audit telemetry"],
+    plans: ["Microsoft Defender for Azure Cosmos DB"],
+  },
+  {
     match: /applicationgateway|app gateway|frontdoor|waf/,
     family: "Application Gateway / WAF",
     roles: ["Network or edge security telemetry"],
-    plans: ["Defender for APIs", "Defender for Servers"],
+    plans: [],
   },
   {
     match: /kube|kubernetes|aks/,
@@ -465,7 +527,7 @@ const sourceCatalog: Array<{
       /graph|signin|sign-in|serviceprincipal|managedidentity|auditlogs|entra|aad/,
     family: "Identity and Microsoft Graph",
     roles: ["Identity activity"],
-    plans: ["Defender for Resource Manager", "Defender for APIs"],
+    plans: [],
   },
   {
     match: /keyvault|key vault/,
@@ -474,13 +536,13 @@ const sourceCatalog: Array<{
     plans: ["Defender for Key Vault"],
   },
   {
-    match: /sql|database|mysql|postgres|cosmos/,
+    match: /sql/,
     family: "Database",
     roles: ["Workload audit telemetry"],
     plans: ["Defender for SQL or applicable database plans"],
   },
   {
-    match: /storage|blob|file/,
+    match: /storage|blob|azure files/,
     family: "Storage",
     roles: ["Workload audit telemetry"],
     plans: ["Defender for Storage"],
@@ -495,7 +557,7 @@ const sourceCatalog: Array<{
     match: /policy|compliance|resourcegraph/,
     family: "Policy and compliance",
     roles: ["Policy or compliance activity"],
-    plans: ["Defender for Resource Manager"],
+    plans: [],
   },
   {
     match: /metric|diagnostic|health|performance/,
@@ -539,16 +601,15 @@ function classify(row: MapperRow, sharePct: number): MappedSource {
   // Unknown sources stay conservative instead of inheriting meaning from a keyword.
   const family = catalog?.family ?? "Unknown source";
   const catalogMatches = PROTECTION_CATALOG.entries.filter((entry) =>
-    entry.normalizedSourceFamilies.some(
+    !["Operational diagnostics", "Identity and Microsoft Graph", "Application Gateway / WAF", "Policy and compliance"].includes(family) && entry.normalizedSourceFamilies.some(
       (sourceFamily) =>
-        family.toLowerCase().includes(sourceFamily.toLowerCase()) ||
-        sourceFamily.toLowerCase().includes(family.toLowerCase()),
+        family === sourceFamily,
     ),
   );
   const workloadFamily =
     catalogMatches[0]?.normalizedWorkloadFamilies[0] ?? "Unknown workload";
   const roles = catalog?.roles ?? ["Unknown or requires validation"];
-  const native = /alert|incident|securityfinding|defender/i.test(normalized);
+  const native = /^(securityalert|securityincident|alertinfo|alertevidence)$/i.test(normalized);
   const securityValue: SecurityValue = native
     ? "High"
     : catalog
@@ -578,7 +639,7 @@ function classify(row: MapperRow, sharePct: number): MappedSource {
   const plans: DefenderCandidate[] = (
     catalogMatches.length > 0
       ? catalogMatches
-      : (catalog?.plans ?? []).map((plan) => ({
+      : (catalog?.plans ?? []).filter((plan) => plan !== "Validate before mapping").map((plan) => ({
           planOrProtection: plan,
           alertCategory: "Unknown",
           alertName: "Representative protection opportunity",
@@ -681,7 +742,9 @@ export function analyzeMapper(
   rows: MapperRow[],
   analysisWindowDays: number,
 ): MapperAnalysis {
-  const days = Math.max(1, Math.round(analysisWindowDays));
+  const days = Number.isFinite(analysisWindowDays)
+    ? Math.min(3650, Math.max(1, Math.round(analysisWindowDays)))
+    : 30;
   const total = rows.reduce((sum, row) => sum + (row.volumeGB ?? 0), 0);
   const sources = rows
     .map((row) => {
@@ -697,6 +760,7 @@ export function analyzeMapper(
     .sort((a, b) => b.observedGBPerDay - a.observedGBPerDay);
   return {
     sources,
+    protectionOpportunities: findProtectionOpportunities(mapperFamilyCounts(sources)),
     totalGBPerDay: total / days,
     analysisWindowDays: days,
     concentrationPct: sources
@@ -705,9 +769,7 @@ export function analyzeMapper(
     unknownCount: sources.filter((source) => source.confidence === "Low")
       .length,
     highConfidenceOpportunityCount: sources.filter(
-      (source) =>
-        source.confidence === "High" ||
-        source.candidateDefenderPlans.length > 0,
+      (source) => source.confidence === "High",
     ).length,
     generatedAt: new Date().toISOString(),
   };
@@ -734,33 +796,22 @@ export const SYNTHETIC_MAPPER_EXAMPLE = JSON.stringify(
 export function buildBoundedAiPayload(
   analysis: MapperAnalysis,
   audience: "CISO" | "SOC leader" | "Security architect",
-) {
+): ProtectionSummary {
   // Rebuild the contract from derived fields; never serialize the original rows.
   return {
-    version: "1",
+    kind: "protection",
+    version: "2",
     audience,
-    tone: "clear and cautious",
-    totalGBPerDay: Number(analysis.totalGBPerDay.toFixed(2)),
     sourceCount: analysis.sources.length,
-    telemetryRoleAggregates: Object.fromEntries(
-      [...new Set(analysis.sources.flatMap((source) => source.roles))].map(
-        (role) => [
-          role,
-          analysis.sources.filter((source) => source.roles.includes(role))
-            .length,
-        ],
-      ),
-    ),
-    recommendations: analysis.sources.slice(0, 10).map((source) => ({
-      sourceName: source.normalizedSourceName,
-      treatment: source.recommendedSentinelTreatment,
-      defenderPlans: source.candidateDefenderPlans.map(
-        (candidate) => candidate.plan,
-      ),
-      evidence: source.evidence,
-      confidence: source.confidence,
-      assumptions: source.assumptions,
-    })),
+    families: mapperFamilyCounts(analysis.sources),
+    recommendations: analysis.protectionOpportunities.map((opportunity) => ({ id: opportunity.id })),
     windowDays: analysis.analysisWindowDays,
   };
+}
+
+function mapperFamilyCounts(sources: MappedSource[]): ProtectionFamilyCount[] {
+  return [...new Set(sources.map((source) => source.sourceFamily))].map((family) => ({
+    family,
+    count: sources.filter((source) => source.sourceFamily === family).length,
+  }));
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isProtectionSummary } from "../shared/contracts/ai.js";
 import {
   analyzeMapper,
   buildBoundedAiPayload,
@@ -10,6 +11,52 @@ import {
 } from "../schema/cloudSecurityMapper.js";
 
 describe("Cloud Security Value Mapper", () => {
+  it("does not mistake product names or arbitrary alert labels for native alerts", () => {
+    const analysis = analyzeMapper([
+      { sourceName: "Defender configuration diagnostics" },
+      { sourceName: "customer-alert-backup" },
+      { sourceName: "SecurityAlert" },
+    ], 30);
+    expect(analysis.sources[0]?.detectionReadiness).toBe("Operational only");
+    expect(analysis.sources[0]?.candidateDefenderPlans).toEqual([]);
+    expect(analysis.sources[1]?.detectionReadiness).toBe("Requires validation");
+    expect(analysis.sources[2]?.detectionReadiness).toBe("Native alert");
+    expect(analysis.highConfidenceOpportunityCount).toBe(1);
+  });
+
+  it("finds deduplicated protection opportunities without claiming gaps or using volume as risk", () => {
+    const analysis = analyzeMapper([
+      { sourceName: "SigninLogs", volumeGB: 1 },
+      { sourceName: "AKS audit", volumeGB: 2 },
+      { sourceName: "AKS audit admin", volumeGB: 999 },
+      { sourceName: "AppServiceHTTPLogs" },
+      { sourceName: "ApiManagementGatewayLogs" },
+      { sourceName: "PostgreSQLLogs" },
+      { sourceName: "CDBDataPlaneRequests" },
+      { sourceName: "DeviceProcessEvents" },
+      { sourceName: "OfficeActivity" },
+    ], 30);
+    const opportunities = analysis.protectionOpportunities;
+    expect(opportunities[0]?.id).toBe("identity");
+    expect(opportunities.find((entry) => entry.id === "containers")?.sourceCount).toBe(2);
+    expect(opportunities.map((entry) => entry.id)).toEqual(expect.arrayContaining([
+      "apps", "apis", "databases", "endpoint", "m365", "posture", "correlation",
+    ]));
+    expect(opportunities.every((entry) => entry.coverage === "Not verified")).toBe(true);
+    expect(analysis.sources.filter((source) => ["Open-source databases", "Cosmos DB"].includes(source.sourceFamily))
+      .every((source) => source.candidateDefenderPlans.every((candidate) => !candidate.plan.includes("for SQL")))).toBe(true);
+  });
+
+  it("does not propose workload plans for unknown, generic, or identity-only data", () => {
+    expect(analyzeMapper([], 30).protectionOpportunities).toEqual([]);
+    expect(analyzeMapper([{ sourceName: "Mystery feed" }, { sourceName: "Diagnostics" }], 30).protectionOpportunities).toEqual([]);
+    const identity = analyzeMapper([{ sourceName: "SigninLogs" }], 30);
+    expect(identity.sources[0]?.candidateDefenderPlans).toEqual([]);
+    expect(identity.protectionOpportunities.map((entry) => entry.id)).toEqual(["identity", "correlation"]);
+    const edge = analyzeMapper([{ sourceName: "App Gateway access" }], 30);
+    expect(edge.protectionOpportunities.map((entry) => entry.id)).not.toContain("apis");
+  });
+
   it("exposes reviewed catalog provenance and conservative evidence classes", () => {
     expect(PROTECTION_CATALOG.entries.length).toBeGreaterThanOrEqual(9);
     expect(PROTECTION_CATALOG.notice).toContain("planning aid");
@@ -112,7 +159,7 @@ describe("Cloud Security Value Mapper", () => {
     const analysis = analyzeMapper(
       [
         {
-          sourceName: "Entra sign-in",
+          sourceName: "Entra sign-in customer-secret.example.com",
           volumeGB: 4,
           notes: "raw secret content",
           workspace: "customer-workspace",
@@ -121,8 +168,10 @@ describe("Cloud Security Value Mapper", () => {
       30,
     );
     const payload = buildBoundedAiPayload(analysis, "CISO");
+    expect(isProtectionSummary(payload)).toBe(true);
     expect(JSON.stringify(payload)).not.toContain("raw secret content");
     expect(JSON.stringify(payload)).not.toContain("customer-workspace");
+    expect(JSON.stringify(payload)).not.toContain("customer-secret.example.com");
     expect(payload.recommendations[0]).not.toHaveProperty("notes");
     expect(payload.recommendations[0]).not.toHaveProperty("workspace");
   });

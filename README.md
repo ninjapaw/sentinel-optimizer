@@ -44,10 +44,18 @@ Optional AI features are disabled by default. When enabled, only the bounded API
 
 ### Cloud Security Value Mapper
 
+Upload a supported file, paste aggregate data, or load the synthetic example to
+see a top-three protection shortlist immediately. Expand the list for all
+opportunities, or open the field mapping and telemetry evidence for detail.
+Each opportunity names the Microsoft solution, observed source families,
+potential benefit, next step, and validation requirements. Repeated sources are
+grouped into one opportunity per solution. Review order is not incident severity
+and log volume is not a risk score.
+
 The mapper is an independent community planning tool, not a Microsoft assessment,
 quote, licensing determination, or savings guarantee. It accepts aggregate usage
 data from an XLSX/CSV/TSV/JSON file, pasted query output, or the clearly labeled
-synthetic example. XLSX sheets are selected and parsed in the browser; blank and
+synthetic example. The first XLSX worksheet is parsed in the browser; blank and
 missing values remain missing and are reported as validation issues. The built-in
 Sentinel workflow uses:
 
@@ -63,18 +71,35 @@ Raw files and rows remain in memory for the active page only. The mapper does no
 upload, log, or persist them in browser storage, URLs, cookies, analytics, or an
 API. **Clear analysis** removes the parsed rows, derived values, narratives, and
 report state from the active UI. This is in-memory processing; it is not a claim
-of cryptographic deletion. The optional AI preview is bounded to rounded
-aggregates, standard source display names, role aggregates, deterministic
-recommendations, evidence summaries, confidence, assumptions, audience, and
-tone. It excludes raw rows, event content, identifiers, notes, workspaces,
-hostnames, and credentials. The executive PDF is generated in the browser and
-contains the independent-community disclaimer and methodology.
+of cryptographic deletion. Optional AI briefs require explicit consent and show
+the exact outgoing payload: allowlisted source-family counts, opportunity IDs,
+source-row count, analysis window, and audience. Uploaded source names, notes,
+identifiers, workspaces, hostnames, credentials, and report labels are excluded.
+The existing `/api/recommend` endpoint validates the protection contract and
+rebuilds guidance from shared rules before invoking the configured provider.
+No additional model or cloud resource is required. Without an AI provider, the
+local results and PDF exports remain usable. AI output is a labeled draft for
+human review; it cannot enable plans or change the environment. Editing inputs
+or clearing the analysis cancels outstanding AI requests and discards stale output.
+The executive, SOC, and architecture PDFs include the protection opportunities,
+evidence, next steps, references, and independent-community disclaimer.
 
 Limitations: source classification is a versioned deterministic catalog, not a
 statement that a control or plan is enabled. Defender for Cloud mappings are
 candidate complementary controls and do not replace WAF, SIEM, EDR, audit logs,
 or third-party controls. Validate detections, coverage, plan status, pricing,
-and licensing with the customer and official Microsoft sources.
+and licensing with the customer and official Microsoft sources. All current
+coverage is **Not verified**: this tool does not assess enabled plans or confirm
+protection gaps from telemetry labels. Supported suggestions include Defender
+for Cloud workload plans and CSPM, Entra ID Protection and Conditional Access,
+Defender for Endpoint, Office 365 and Cloud Apps, and Sentinel/XDR correlation.
+Unknown sources and generic diagnostics do not produce guessed workload plans.
+WAF data requires backend discovery, and non-SQL databases are not mapped to SQL.
+
+The action rules live in
+[shared/config/protection.config.ts](shared/config/protection.config.ts) and are
+shared by browser analysis and AI prompt construction. They use Microsoft Learn
+guidance reviewed on 2026-09-24; validate current support and licensing before use.
 
 The product catalog lives in
 [`config/cloud-security-mapper/catalog.json`](config/cloud-security-mapper/catalog.json).

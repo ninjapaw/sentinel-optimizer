@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
-  "catalogVersion": "2026.09.21",
-  "snapshotDate": "2026-09-21",
+  "catalogVersion": "2026.09.24",
+  "snapshotDate": "2026-09-24",
   "notice": "This catalog is a planning aid based on public documentation and reviewed analyst mappings. It does not describe private detection implementation, guarantee alert availability, or replace current Microsoft documentation.",
   "entries": [
     {
@@ -47,7 +47,7 @@
       "confidence": "Medium",
       "caveat": "Access or WAF logs do not prove that API protection is enabled or that an alert will fire.",
       "normalizedWorkloadFamilies": ["API"],
-      "normalizedSourceFamilies": ["Application Gateway / WAF"],
+      "normalizedSourceFamilies": ["API Management"],
       "applicableClouds": ["Azure"]
     },
     {
@@ -65,12 +65,12 @@
         "Linux machines"
       ],
       "mappingBasis": "Documented detection context for server protection.",
-      "evidenceClass": "explicit-alert-description",
+      "evidenceClass": "documented-detection-context",
       "sourceUrl": "https://learn.microsoft.com/en-us/azure/defender-for-cloud/alerts-reference",
       "sourceTitle": "Defender for Cloud alerts reference",
       "sourceTypes": ["Microsoft Learn"],
       "sourceLastReviewed": "2026-09-21",
-      "confidence": "High",
+      "confidence": "Medium",
       "caveat": "Collected server events do not prove Defender for Servers coverage or plan status.",
       "normalizedWorkloadFamilies": ["Servers"],
       "normalizedSourceFamilies": ["Servers"],
@@ -94,7 +94,7 @@
       "confidence": "Medium",
       "caveat": "Application diagnostics are not proof of App Service plan coverage or a finding.",
       "normalizedWorkloadFamilies": ["App Service"],
-      "normalizedSourceFamilies": ["Operational diagnostics"],
+      "normalizedSourceFamilies": ["App Service"],
       "applicableClouds": ["Azure"]
     },
     {
@@ -119,10 +119,7 @@
       "confidence": "Medium",
       "caveat": "Administrative activity does not prove the plan is enabled or that a change is malicious.",
       "normalizedWorkloadFamilies": ["Azure control plane"],
-      "normalizedSourceFamilies": [
-        "Identity and Microsoft Graph",
-        "Policy and compliance"
-      ],
+      "normalizedSourceFamilies": ["Azure control plane"],
       "applicableClouds": ["Azure"]
     },
     {
@@ -185,7 +182,7 @@
       "confidence": "Medium",
       "caveat": "Key Vault audit collection does not prove plan status or compromise.",
       "normalizedWorkloadFamilies": ["Key Vault"],
-      "normalizedSourceFamilies": ["Key Vault", "Identity and Microsoft Graph"],
+      "normalizedSourceFamilies": ["Key Vault"],
       "applicableClouds": ["Azure"]
     },
     {

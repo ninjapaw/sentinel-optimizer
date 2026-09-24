@@ -8,6 +8,8 @@ export { INTERNAL_CONFIG } from "./config/internal.config.js";
 export { USER_CONFIG, type UserConfig } from "./config/user.config.js";
 export {
   isAggregatedSummary,
+  isProtectionSummary,
+  type ProtectionSummary,
   isAiTextResponse,
   isApiErrorResponse,
   isExampleRequest,
