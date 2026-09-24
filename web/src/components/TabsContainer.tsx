@@ -4,7 +4,7 @@
  * See LICENSE in the repository root.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 export interface TabItem {
@@ -34,7 +34,7 @@ export function TabsContainer({
     const onHashChange = () => {
       const hashTab = window.location.hash.replace(/^#tool-/, "");
       if (!tabs.some((tab) => tab.id === hashTab)) return;
-      setActiveTab(hashTab);
+      startTransition(() => setActiveTab(hashTab));
       // Only the active panel carries the #tool-<id> anchor, so the browser has
       // no target to scroll to when a link selects an inactive tool.
       containerRef.current?.scrollIntoView({
