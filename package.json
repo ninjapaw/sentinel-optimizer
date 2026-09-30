@@ -30,7 +30,7 @@
     "typecheck:web": "npm --prefix web run typecheck"
   },
   "devDependencies": {
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.6.3",
     "concurrently": "^9.2.1",
     "markdownlint-cli2": "^0.23.2",
     "read-excel-file": "^9.3.10",
