@@ -16,7 +16,7 @@
     "typecheck": "astro check"
   },
   "dependencies": {
-    "@astrojs/react": "^6.0.2",
+    "@astrojs/react": "^7.0.0",
     "@azure/msal-browser": "^5.18.0",
     "astro": "^7.3.3",
     "chart.js": "^4.4.7",
