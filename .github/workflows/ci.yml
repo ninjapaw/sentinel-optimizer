@@ -67,6 +67,8 @@ jobs:
 
       - name: Validate deployment configuration
         run: npm run config:check
+      - name: Verify shared DNS snapshot
+        run: npm run vendor:check:dns
 
       - name: Type-check engine
         run: npm run typecheck:engine

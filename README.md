@@ -607,10 +607,19 @@ Cloudflare zone.
 
 The supported connector is
 [`infra/azure/site/connect-cloudflare-dns.sh`](infra/azure/site/connect-cloudflare-dns.sh).
-It discovers or starts the Azure custom-domain validation, creates the required
-non-proxied `_dnsauth.<domain>` TXT record, and creates the non-proxied CNAME
-from the custom hostname to the Static Web Apps default hostname. It is
-idempotent and updates existing records rather than creating duplicates.
+It delegates to Pawprint's shared, content-hashed DNS-only snapshot under
+[vendor/pawprint-dns/](vendor/pawprint-dns/). It discovers or starts Azure
+custom-domain validation, reconciles the `_dnsauth.<domain>` TXT and DNS-only
+CNAME to the independently read Static Web Apps hostname, and requires Azure
+custom-domain status `Ready`. Only the exact repository/environment owner may
+update a labelled record. Equivalent legacy records retain TTL/comments;
+foreign targets, record types, proxying, or duplicate names stop the operation.
+
+In the manual infrastructure workflow, set `configure-dns: true` with
+`operation: deploy` and `component: all` or `site`. Its default is `false`;
+pushes, PRs, and previews do not write DNS. The workflow checks zone credentials
+before Azure writes, deploys the base infrastructure, runs the connector, and
+converges the Azure custom-domain Bicep resource.
 
 Run it after the Static Web App exists:
 
@@ -620,18 +629,31 @@ export AZURE_RESOURCE_GROUP=NP-SentinelOptimizer-Dev-CentralUS
 export AZURE_STATIC_WEB_APP_NAME=np-sentineloptimizer-dev-centralus
 export AZURE_CUSTOM_DOMAIN=dev.sentineloptimizer.com
 export CLOUDFLARE_ZONE_ID=<zone-id>
-export CLOUDFLARE_API_TOKEN=<scoped-dns-edit-token>
+export PAWPRINT_DNS_OWNER=ninjapaw/sentinel-optimizer:dev
+read -rsp 'Cloudflare DNS token: ' CLOUDFLARE_API_TOKEN
+printf '\n'
+export CLOUDFLARE_API_TOKEN
 bash infra/azure/site/connect-cloudflare-dns.sh
 ```
 
-The Cloudflare token is the only sensitive input. Create it with zone-scoped
-DNS edit permission, use it only in the local shell or a protected GitHub
-Environment secret, and never commit it. Keep the records **DNS only** while
-Azure validates the hostname; proxying can be reconsidered after validation if
-the resulting TLS and origin behavior are tested. DNS propagation can take
-time. Verify the Azure custom-domain status with the command printed by the
-connector. The connector does not replace Cloudflare's registrar, name-server,
-zone, or certificate settings.
+The token needs **Zone Read + DNS Edit** for one zone only. Prefer a
+`CLOUDFLARE_DNS_API_TOKEN` Environment secret for DNS; the workflow maps it to
+the connector's runtime `CLOUDFLARE_API_TOKEN`. The existing generic secret is a
+compatibility fallback for DNS-only environments. If the optional Worker target
+is used, keep its token separate rather than broadening the DNS token's rights.
+`CLOUDFLARE_ZONE_NAME` may replace the zone ID; if both are provided they must
+match the same active zone.
+
+Keep records **DNS only** and disable CNAME flattening on subdomains. The
+production SWA apex uses Cloudflare's normal apex flattening plus Azure
+validation. DNS propagation and managed HTTPS can take time; pending status is
+an explicit failure, not a successful deployment. Run
+`npm run vendor:check:dns` to check source hashes without credentials.
+The DNS snapshot does not change existing immutable core-kit workflow pins.
+Publish reviewed Pawprint source before refreshing/publishing consumers; never
+edit the vendored copy. Registrar, nameservers, zone settings, Workers, mail,
+and shared platform records remain outside this connector. Remove routing DNS
+before releasing the Azure hostname; Azure teardown does not delete it.
 
 ### Branching and promotion
 
@@ -677,6 +699,7 @@ GitHub Environment variables:
 | `PUBLIC_ENTRA_EXTERNAL_ID_API_SCOPE` | Delegated API scope requested by the SPA.                                      |
 | `PUBLIC_ADMIN_API_BASE`              | Authenticated administration API origin.                                       |
 | `CLOUDFLARE_ZONE_ID`                 | Cloudflare zone identifier used by the optional Static Web Apps DNS connector. |
+| `CLOUDFLARE_ZONE_NAME`               | Alternative exact zone name; must agree with the ID when both are supplied.    |
 
 The API receives `COSMOS_ENDPOINT` from the consolidated Bicep deployment and
 uses the Function App managed identity for Cosmos data access.
@@ -685,11 +708,12 @@ uses the Function App managed identity for Cosmos data access.
 
 Create only true credentials as secrets in `dev` and `prod`:
 
-| Secret                            | Purpose                                                                                            |
-| --------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `AZURE_STATIC_WEB_APPS_API_TOKEN` | Static Web Apps deployment credential, scoped to one site.                                         |
-| `AI_API_KEY`                      | Optional third-party model credential synchronized to Key Vault.                                   |
-| `CLOUDFLARE_API_TOKEN`            | Optional Cloudflare DNS-edit or Worker deployment credential, scoped to the required zone/account. |
+| Secret                            | Purpose                                                                                                       |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `AZURE_STATIC_WEB_APPS_API_TOKEN` | Static Web Apps deployment credential, scoped to one site.                                                    |
+| `AI_API_KEY`                      | Optional third-party model credential synchronized to Key Vault.                                              |
+| `CLOUDFLARE_API_TOKEN`            | Optional Cloudflare DNS-edit or Worker deployment credential, scoped to the required zone/account.            |
+| `CLOUDFLARE_DNS_API_TOKEN`        | Preferred separate Zone Read + DNS Edit credential for the explicit DNS action; never broaden it for Workers. |
 
 Azure client, tenant, subscription, and principal IDs are identifiers, not
 credentials. The subscription IDs and public site URLs live in the versioned
@@ -705,11 +729,12 @@ Static Web Apps pull-request integration. Do not create or copy it manually.
 The **Validate and Deploy Azure Infrastructure** workflow also has manual
 inputs. These are not stored as Environment variables or secrets:
 
-| Input         | Recommended default | Applies to | Guidance                                                                                         |
-| ------------- | ------------------- | ---------- | ------------------------------------------------------------------------------------------------ |
-| `environment` | Auto-detect         | All stacks | Branch `dev` selects `dev`; branch `main` selects `prod`.                                        |
-| `component`   | `all`               | All stacks | Deploy the consolidated subscription-scope stack; component mode remains available for recovery. |
-| `operation`   | `what-if`           | All stacks | Review the preview before selecting `deploy`.                                                    |
+| Input           | Recommended default | Applies to                | Guidance                                                                                         |
+| --------------- | ------------------- | ------------------------- | ------------------------------------------------------------------------------------------------ |
+| `environment`   | Auto-detect         | All stacks                | Branch `dev` selects `dev`; branch `main` selects `prod`.                                        |
+| `component`     | `all`               | All stacks                | Deploy the consolidated subscription-scope stack; component mode remains available for recovery. |
+| `operation`     | `what-if`           | All stacks                | Review the preview before selecting `deploy`.                                                    |
+| `configure-dns` | `false`             | `all`, `site` deployments | Explicit Cloudflare DNS and managed-HTTPS opt-in; ignored by what-if.                            |
 
 SKUs and capacity settings come from `config/deploy.config.json`, so reviews see
 cost changes in source control. Use `what-if` before applying infrastructure
