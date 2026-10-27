@@ -8,7 +8,6 @@ on:
   push:
     branches:
       - main
-      - dev
   workflow_dispatch:
     inputs:
       environment:
@@ -24,16 +23,16 @@ on:
 permissions:
   contents: read
 
-# Branch dev uses the dev environment, branch main uses the prod environment.
+# Main pushes publish prod; a manual main run can select dev explicitly.
 concurrency:
-  group: application-${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev') }}
+  group: application-${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || 'prod' }}
   cancel-in-progress: false
 
 jobs:
   preflight:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: ${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev') }}
+    environment: ${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || 'prod' }}
     outputs:
       environment: ${{ steps.environment.outputs.name }}
       target: ${{ steps.configuration.outputs.target }}
@@ -61,9 +60,8 @@ jobs:
         run: |
           case "$SOURCE_REF" in
             main) detected=prod ;;
-            dev) detected=dev ;;
             *)
-              echo "::error title=Unsupported branch::Deploy from 'dev' or 'main', not '$SOURCE_REF'."
+              echo "::error title=Unsupported branch::Deploy from 'main', not '$SOURCE_REF'."
               exit 1
               ;;
           esac
@@ -72,10 +70,10 @@ jobs:
           if [[ "$target" == "auto-detect" ]]; then
             target="$detected"
           fi
-          if [[ "$target" != "$detected" ]]; then
-            echo "::error title=Branch and environment mismatch::Branch '$SOURCE_REF' maps to $detected, not $target."
-            exit 1
-          fi
+          case "$target" in
+            dev|prod) ;;
+            *) echo "::error title=Invalid environment::Choose dev or prod."; exit 1 ;;
+          esac
 
           echo "name=$target" >> "$GITHUB_OUTPUT"
           echo "Deploying '$SOURCE_REF' to the $target environment." >> "$GITHUB_STEP_SUMMARY"

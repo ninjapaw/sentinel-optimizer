@@ -301,7 +301,7 @@ openai_account_name="${openai_account_name:-sentinel-optimizer-${deployment_envi
 infrastructure_application_name="${AZURE_INFRASTRUCTURE_APPLICATION_NAME:-sentinel-optimizer-${deployment_environment}-infrastructure-github}"
 api_application_name="${AZURE_API_APPLICATION_NAME:-sentinel-optimizer-${deployment_environment}-api-github}"
 github_environment="$([[ "$deployment_environment" == production ]] && echo prod || echo dev)"
-deployment_branch="$([[ "$deployment_environment" == production ]] && echo main || echo dev)"
+deployment_branch=main
 [[ "$infrastructure_application_name" != "$api_application_name" ]] || fail 'Infrastructure and API OIDC application names must be different.'
 resource_group_scope="/subscriptions/$subscription_id/resourceGroups/$resource_group"
 

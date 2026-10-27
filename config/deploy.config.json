@@ -67,7 +67,7 @@
   },
   "environments": {
     "dev": {
-      "branch": "dev",
+      "branch": "main",
       "githubEnvironment": "dev",
       "azureEnvironment": "development",
       "subscriptionId": "",
@@ -89,6 +89,8 @@
     },
     "prod": {
       "branch": "main",
+      "deployApi": false,
+      "useApi": false,
       "githubEnvironment": "prod",
       "azureEnvironment": "production",
       "subscriptionId": "",

@@ -54,7 +54,7 @@ describe("deploy-config", () => {
             },
             environments: {
               dev: {
-                branch: "dev",
+                branch: "main",
                 githubEnvironment: "dev",
                 azureEnvironment: "development",
                 subscriptionId: "",
@@ -101,6 +101,24 @@ describe("deploy-config", () => {
       expect(output).toContain("PUBLIC_SITE_BASE=/sentinel-optimizer/");
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps production static-only and development API-enabled when deploying main", () => {
+    for (const environment of ["dev", "prod"]) {
+      const output = execFileSync(
+        "node",
+        ["scripts/deploy-config.mjs", "--branch", "main", "--environment", environment],
+        {
+          cwd: fileURLToPath(new URL("..", import.meta.url)),
+          env: { ...process.env, AZURE_SUBSCRIPTION_ID: "" },
+          encoding: "utf8",
+        },
+      );
+      const enabled = environment === "dev" ? "true" : "false";
+      expect(output).toContain(`DEPLOY_ENVIRONMENT=${environment}`);
+      expect(output).toContain(`AZURE_DEPLOY_API=${enabled}`);
+      expect(output).toContain(`AZURE_USE_API=${enabled}`);
     }
   });
 });

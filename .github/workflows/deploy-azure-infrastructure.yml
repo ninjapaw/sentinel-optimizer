@@ -8,7 +8,6 @@ on:
   push:
     branches:
       - main
-      - dev
     paths:
       - .github/workflows/deploy-azure-infrastructure.yml
       - config/deploy.config.json
@@ -19,7 +18,6 @@ on:
   pull_request:
     branches:
       - main
-      - dev
     paths:
       - .github/workflows/deploy-azure-infrastructure.yml
       - config/deploy.config.json
@@ -65,9 +63,9 @@ on:
 permissions:
   contents: read
 
-# Branch dev uses the dev environment, branch main uses the prod environment.
+# Main is the source branch for both explicitly selected environments.
 concurrency:
-  group: azure-infrastructure-${{ github.event_name == 'workflow_dispatch' && ((inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev')) || 'validation' }}-${{ inputs.component || 'all' }}-${{ github.ref }}
+  group: azure-infrastructure-${{ github.event_name == 'workflow_dispatch' && ((inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || 'prod') || 'validation' }}-${{ inputs.component || 'all' }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -123,7 +121,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: ${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev') }}
+    environment: ${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || 'prod' }}
     permissions:
       contents: read
       id-token: write
@@ -141,25 +139,26 @@ jobs:
       - name: Load deployment configuration
         id: deployment_config
         env:
-          TARGET_ENVIRONMENT: ${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || (github.ref_name == 'main' && 'prod' || 'dev') }}
+          TARGET_ENVIRONMENT: ${{ (inputs.environment != '' && inputs.environment != 'auto-detect' && inputs.environment) || 'prod' }}
+          SOURCE_REF: ${{ github.ref_name }}
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-        run: node scripts/deploy-config.mjs --environment "$TARGET_ENVIRONMENT" --github-env --github-output --require-subscription
+        run: node scripts/deploy-config.mjs --branch "$SOURCE_REF" --environment "$TARGET_ENVIRONMENT" --github-env --github-output --require-subscription
 
-      - name: Verify branch matches environment
+      - name: Verify selected environment naming
         env:
           SOURCE_REF: ${{ github.ref_name }}
         run: |
-          case "$SOURCE_REF" in
-            main) detected=production ;;
+          case "$DEPLOY_ENVIRONMENT" in
+            prod) detected=production ;;
             dev) detected=development ;;
             *)
-              echo "::error title=Unsupported branch::Deploy from 'dev' (development) or 'main' (production), not '$SOURCE_REF'."
+              echo "::error title=Invalid environment::Choose dev or prod."
               exit 1
               ;;
           esac
 
           if [[ "$AZURE_ENVIRONMENT" != "$detected" ]]; then
-            echo "::error title=Branch and environment mismatch::Branch '$SOURCE_REF' maps to $detected, not $AZURE_ENVIRONMENT."
+            echo "::error title=Environment mismatch::Selected '$DEPLOY_ENVIRONMENT' maps to $detected, not $AZURE_ENVIRONMENT."
             exit 1
           fi
 

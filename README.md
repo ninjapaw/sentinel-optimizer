@@ -492,9 +492,9 @@ being mixed.
 
 ### Deployment targets
 
-Create `dev` and `prod` in **Settings > Environments**. The workflows map `dev`
-to the `dev` environment and `main` to `prod`; a mismatched manual selection is
-rejected.
+Create `dev` and `prod` in **Settings > Environments**, both restricted to `main`.
+Main pushes and auto-detected manual runs target `prod`; select `dev` explicitly
+to publish the same reviewed source to development. Other source branches are rejected.
 
 | `DEPLOYMENT_TARGET`     | Deploys                                                                           | Required configuration                                                                |
 | ----------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
@@ -655,26 +655,29 @@ edit the vendored copy. Registrar, nameservers, zone settings, Workers, mail,
 and shared platform records remain outside this connector. Remove routing DNS
 before releasing the Azure hostname; Azure teardown does not delete it.
 
-### Branching and promotion
+### Main-only development and deployment
 
 | Branch | GitHub Environment | Domain                      | Resource group                       |
 | ------ | ------------------ | --------------------------- | ------------------------------------ |
-| `dev`  | `dev`              | `dev.sentineloptimizer.com` | `NP-SentinelOptimizer-Dev-CentralUS` |
+| `main` | `dev` (manual)     | `dev.sentineloptimizer.com` | `NP-SentinelOptimizer-Dev-CentralUS` |
 | `main` | `prod`             | `sentineloptimizer.com`     | `NP-SentinelOptimizer-CentralUS`     |
 
 Each row targets the subscription configured for that environment. Do not use
 the same subscription ID for both environments.
 
-The **Deploy Application** workflow refuses to deploy an environment from the wrong branch: `dev` must run from `dev`, and `prod` must run from `main`.
+The verified production resource group contains only the Static Web App.
+Production therefore explicitly sets `deployApi: false` and `useApi: false`;
+development keeps its existing API enabled. Provision and verify a production
+API before enabling those flags. Consolidating branches does not create paid services.
+
+`main` is the only persistent branch. **Deploy Application** accepts only
+`main`, with the existing environment-specific identities, approvals and scopes.
 
 To ship a change:
 
-1. Merge work into `dev` and run **Deploy Application** from `dev` with the `dev` environment.
-2. Verify the development site.
-3. Run **Promote Dev to Main**, which opens a `dev` → `main` pull request after confirming Continuous Integration passed on the `dev` head commit.
-4. Merge the pull request, then run **Deploy Application** from `main` with the `prod` environment.
-
-**Promote Dev to Main** needs _Settings → Actions → General → Allow GitHub Actions to create and approve pull requests_ enabled.
+1. Validate and merge reviewed changes into `main`; the push publishes `prod`.
+2. To update development, run **Deploy Application** from `main` with `dev`.
+3. Verify the selected site's version and health. There is no dev-to-main promotion workflow.
 
 ### Environment variables
 
@@ -731,7 +734,7 @@ inputs. These are not stored as Environment variables or secrets:
 
 | Input           | Recommended default | Applies to                | Guidance                                                                                         |
 | --------------- | ------------------- | ------------------------- | ------------------------------------------------------------------------------------------------ |
-| `environment`   | Auto-detect         | All stacks                | Branch `dev` selects `dev`; branch `main` selects `prod`.                                        |
+| `environment`   | Auto-detect         | All stacks                | Run from `main`; auto-detect selects `prod`, or select `dev` explicitly.                         |
 | `component`     | `all`               | All stacks                | Deploy the consolidated subscription-scope stack; component mode remains available for recovery. |
 | `operation`     | `what-if`           | All stacks                | Review the preview before selecting `deploy`.                                                    |
 | `configure-dns` | `false`             | `all`, `site` deployments | Explicit Cloudflare DNS and managed-HTTPS opt-in; ignored by what-if.                            |
