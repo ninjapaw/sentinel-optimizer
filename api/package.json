@@ -24,7 +24,7 @@
     "deploy:cloudflare": "wrangler deploy"
   },
   "dependencies": {
-    "@azure/cosmos": "^4.1.1",
+    "@azure/cosmos": "^4.10.1",
     "@azure/functions": "^4.16.2",
     "@azure/identity": "^4.13.1",
     "jose": "^6.2.8",
